@@ -24,6 +24,8 @@ from dotenv import load_dotenv
 
 def validate_evidence_linkage(tenant_id=None, run_id=None):
     """Validate evidence linkage to source documents."""
+
+    allowed_url_less = {"manual_list", "ai_proposal_company", "ai_proposal_metric", "document"}
     
     # Convert UUID objects to strings for psycopg2
     if isinstance(tenant_id, UUID):
@@ -64,7 +66,7 @@ def validate_evidence_linkage(tenant_id=None, run_id=None):
         tenant_id = result[0]
         print(f"Auto-selected tenant_id: {tenant_id} (has {result[1]} evidence records)")
 
-    # If no run_id provided, pick one with most evidence for this tenant
+    # If no run_id provided, pick one with the most linked evidence for this tenant
     if not run_id:
         cur.execute("""
             SELECT 
@@ -76,13 +78,13 @@ def validate_evidence_linkage(tenant_id=None, run_id=None):
             JOIN company_prospect_evidence cpe ON cpe.company_prospect_id = cp.id
             WHERE cp.tenant_id = %s
             GROUP BY crr.id
-            HAVING COUNT(cpe.id) >= 10
+            HAVING COUNT(CASE WHEN cpe.source_document_id IS NOT NULL THEN 1 END) > 0
             ORDER BY COUNT(CASE WHEN cpe.source_document_id IS NOT NULL THEN 1 END) DESC, COUNT(cpe.id) DESC
             LIMIT 1
         """, (tenant_id,))
         result = cur.fetchone()
         if not result:
-            print(f"ERROR: No research run with ≥10 evidence found for tenant {tenant_id}")
+            print(f"ERROR: No research run with linked evidence found for tenant {tenant_id}")
             return False
         run_id = result[0]
         print(f"Auto-selected run_id: {run_id} (has {result[1]} evidence, {result[2]} linked)")
@@ -237,6 +239,74 @@ def validate_evidence_linkage(tenant_id=None, run_id=None):
         validation_passed = False
     else:
         print("PASS: All source_content_hash values match linked source documents")
+
+    # Validation F: Non-manual evidence with URLs must be linked
+    print("\n--- Validation F: No orphaned URL evidence for non-manual sources ---")
+    cur.execute("""
+        SELECT cpe.source_type, COUNT(*)
+        FROM company_prospect_evidence cpe
+        JOIN company_prospects cp ON cp.id = cpe.company_prospect_id
+        WHERE cp.tenant_id = %s
+          AND cp.company_research_run_id = %s
+          AND cpe.source_type != 'manual_list'
+          AND cpe.source_url IS NOT NULL
+          AND cpe.source_document_id IS NULL
+        GROUP BY cpe.source_type
+    """, (tenant_id, run_id))
+    orphans = cur.fetchall()
+    if orphans:
+        print("FAIL: Found orphaned evidence with URLs and no source_document_id:")
+        for row in orphans:
+            print(f"  - {row[0]}: {row[1]} rows")
+        validation_passed = False
+    else:
+        print("PASS: All URL-backed non-manual evidence is linked to source_documents")
+
+    # Validation G: Linked evidence must carry URL and content hash
+    print("\n--- Validation G: Linked evidence has URL and hash ---")
+    cur.execute("""
+        SELECT cpe.id
+        FROM company_prospect_evidence cpe
+        JOIN company_prospects cp ON cp.id = cpe.company_prospect_id
+        WHERE cp.tenant_id = %s
+          AND cp.company_research_run_id = %s
+          AND cpe.source_document_id IS NOT NULL
+          AND (cpe.source_url IS NULL OR cpe.source_content_hash IS NULL)
+        LIMIT 10
+    """, (tenant_id, run_id))
+    missing_fields = cur.fetchall()
+    if missing_fields:
+        print("FAIL: Linked evidence missing URL or source_content_hash:")
+        for row in missing_fields:
+            print(f"  - Evidence ID: {str(row[0])[:8]}...")
+        validation_passed = False
+    else:
+        print("PASS: All linked evidence rows carry URL and source_content_hash")
+
+    # Validation H: URL-less evidence allowed only for specific source_types
+    print("\n--- Validation H: URL-less evidence limited to allowed source_types ---")
+    cur.execute(
+        """
+        SELECT cpe.source_type, COUNT(*)
+        FROM company_prospect_evidence cpe
+        JOIN company_prospects cp ON cp.id = cpe.company_prospect_id
+        WHERE cp.tenant_id = %s
+          AND cp.company_research_run_id = %s
+          AND cpe.source_url IS NULL
+          AND cpe.source_document_id IS NULL
+          AND cpe.source_type NOT IN %s
+        GROUP BY cpe.source_type
+    """,
+        (tenant_id, run_id, tuple(allowed_url_less)),
+    )
+    disallowed = cur.fetchall()
+    if disallowed:
+        print("FAIL: URL-less evidence present for disallowed source_types:")
+        for row in disallowed:
+            print(f"  - {row[0]}: {row[1]} rows")
+        validation_passed = False
+    else:
+        print("PASS: URL-less evidence only exists for allowed source_types")
     
     # Summary statistics
     print("\n--- Summary Statistics ---")
@@ -260,6 +330,27 @@ def validate_evidence_linkage(tenant_id=None, run_id=None):
     
     linkage_rate = (stats[1] / stats[0] * 100) if stats[0] > 0 else 0
     print(f"Linkage rate: {linkage_rate:.1f}%")
+
+    cur.execute(
+        """
+        SELECT cpe.source_type,
+               COUNT(*) AS total,
+               COUNT(CASE WHEN cpe.source_document_id IS NOT NULL THEN 1 END) AS linked,
+               COUNT(CASE WHEN cpe.source_document_id IS NULL AND cpe.source_type != 'manual_list' THEN 1 END) AS orphan_non_manual
+        FROM company_prospect_evidence cpe
+        JOIN company_prospects cp ON cp.id = cpe.company_prospect_id
+        WHERE cp.tenant_id = %s
+          AND cp.company_research_run_id = %s
+        GROUP BY cpe.source_type
+        ORDER BY total DESC
+        """,
+        (tenant_id, run_id),
+    )
+    breakdown = cur.fetchall()
+    print("\nEvidence by source_type:")
+    for row in breakdown:
+        source_type, total, linked, orphan_non_manual = row
+        print(f"  - {source_type}: total={total}, linked={linked}, orphan_non_manual={orphan_non_manual}")
     
     cur.close()
     conn.close()

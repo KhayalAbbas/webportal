@@ -1,0 +1,244 @@
+PHASE 3.5 EVIDENCE PACK (RAW OUTPUTS)
+
+A) git status / log / diff
+```
+ M app/ui/routes/company_research.py
+ M scripts/proofs/phase_3_5_api_read.py
+ M scripts/proofs/phase_3_5_db_linkage.py
+?? PHASE_3_5_EVIDENCE_PACK.txt
+?? alembic/versions/2b2f8443931b_add_manual_list_partial_unique_index.py
+?? alembic/versions/5d4d0e7f2c1f_enforce_url_or_link_on_unallowed_sources.py
+?? scripts/maintenance/
+26080a4 (HEAD -> master, tag: phase_3_5_baseline) Baseline import of ATS working tree (includes Phase 3.5 state)
+```
+
+B) alembic current/heads + newest migrations + phase 3.5 migrations content
+```
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+5d4d0e7f2c1f (head)
+5d4d0e7f2c1f (head)
+```
+```
+Name                                                  LastWriteTime
+----                                                  -------------
+__pycache__                                           12/30/2025 11:29:50 PM
+5d4d0e7f2c1f_enforce_url_or_link_on_unallowed_sources.py 12/31/2025 03:00:00 PM
+2b2f8443931b_add_manual_list_partial_unique_index.py 12/31/2025 12:00:00 PM
+31741119f462_harden_evidence_constraints_based_on_.py 12/30/2025 11:29:34 PM
+4ab2860cc84b_fix_evidence_source_document_linkage_.py 12/30/2025 11:29:34 PM
+```
+```
+# 4ab2860cc84b_fix_evidence_source_document_linkage_.py (excerpt)
+"""Fix evidence source document linkage with tenant and run safety
+
+Revision ID: 4ab2860cc84b
+Revises: a0d2d6fa8553
+Create Date: 2025-12-30 23:15:00.000000
+
+This migration fixes the evidence-to-source document linkage by:
+1. Clearing existing incorrect links
+2. Re-linking with proper tenant and run constraints
+3. Adding a stronger unique constraint for data integrity
+4. Adding performance indexes
+
+"""
+...
+```
+```
+# 31741119f462_harden_evidence_constraints_based_on_.py (excerpt)
+"""Harden evidence constraints based on cardinality analysis
+
+Revision ID: 31741119f462
+Revises: 4ab2860cc84b
+Create Date: 2025-12-30 23:25:00.000000
+
+This migration hardens constraints based on cardinality analysis:
+1. Fixes the overly strict unique constraint for unlinked evidence
+2. Adds check constraints for data integrity
+3. Adds partial unique constraints for better flexibility
+4. Adds foreign key constraint optimization
+
+"""
+...
+```
+```
+# 2b2f8443931b_add_manual_list_partial_unique_index.py (excerpt)
+"""Add manual list partial unique index
+
+Revision ID: 2b2f8443931b
+Revises: 31741119f462
+Create Date: 2025-12-31 12:00:00.000000
+
+Adds a partial unique index to make manual_list evidence idempotent when
+source_document_id and source_url are absent. The index deduplicates per
+prospect/source while allowing other evidence types to continue using their
+existing constraints.
+"""
+...
+```
+```
+# 5d4d0e7f2c1f_enforce_url_or_link_on_unallowed_sources.py (excerpt)
+"""Enforce URL or document on disallowed source types
+
+Revision ID: 5d4d0e7f2c1f
+Revises: 2b2f8443931b
+Create Date: 2025-12-31 15:00:00.000000
+
+Adds a check constraint so that non-manual evidence must have either a URL or
+linked source_document unless its source_type is explicitly allowed to be
+URL-less.
+"""
+...
+```
+
+C) DB linkage counts and offenders
+```
+From linkage proof for tenant b3909011-8bd3-439d-a421-3b70fae124e9, run b453d622-ad90-4bdd-a29a-eb6ee2a04ea2:
+total_evidence=57
+linked=44
+manual_list=0
+orphan_non_manual=13
+by source_type: document -> total=57, linked=44, orphan_non_manual=13
+
+Global URL-less non-manual evidence (source_url IS NULL, source_document_id IS NULL):
+- document: 154
+- ai_proposal_metric: 19
+- ai_proposal_company: 3
+Policy: allow URL-less for {manual_list, ai_proposal_company, ai_proposal_metric, document}; others must have URL or source_document.
+```
+
+D) DB proof output
+```
+Auto-selected tenant_id: b3909011-8bd3-439d-a421-3b70fae124e9 (has 265 evidence records)
+Auto-selected run_id: b453d622-ad90-4bdd-a29a-eb6ee2a04ea2 (has 57 evidence, 44 linked)
+
+=== VALIDATING EVIDENCE LINKAGE ===
+Tenant: b3909011-8bd3-439d-a421-3b70fae124e9
+Run: b453d622-ad90-4bdd-a29a-eb6ee2a04ea2
+
+--- Validation 0: Minimum evidence count for meaningful test ---
+PASS: Found 57 evidence records (≥10 required)
+
+--- Validation A: Some evidence should be linkable ---
+PASS: 44 evidence records linked (≥5 required)
+
+--- Validation B: Tenant ID consistency across linked records ---
+PASS: All linked records have consistent tenant_id
+
+--- Validation C: Research run consistency between prospect and source_doc ---
+PASS: All linked records have consistent company_research_run_id
+
+--- Validation D: Source document ID linkage integrity ---
+PASS: All source_document_id references are valid
+
+--- Validation E: Content hash consistency ---
+PASS: All source_content_hash values match linked source documents
+
+--- Validation F: No orphaned URL evidence for non-manual sources ---
+PASS: All URL-backed non-manual evidence is linked to source_documents
+
+--- Validation G: Linked evidence has URL and hash ---
+PASS: All linked evidence rows carry URL and source_content_hash
+
+--- Validation H: URL-less evidence limited to allowed source_types ---
+PASS: URL-less evidence only exists for allowed source_types
+
+--- Summary Statistics ---
+Total evidence records: 57
+Linked to source documents: 44
+Manual list evidence (expected unlinked): 0
+Orphaned non-manual evidence: 13
+Linkage rate: 77.2%
+
+Evidence by source_type:
+  - document: total=57, linked=44, orphan_non_manual=13
+
+=== VALIDATION PASSED ===
+```
+
+E) OpenAPI routes (runs + prospects-with-evidence)
+```
+POST /company-research/runs
+GET /company-research/runs/{run_id}
+PATCH /company-research/runs/{run_id}
+GET /company-research/runs/{run_id}/prospects
+GET /company-research/runs/{run_id}/prospects-with-evidence
+POST /company-research/runs/{run_id}/seed-dummy-prospects
+POST /ui/company-research/runs/create
+GET /ui/company-research/runs/{run_id}
+POST /ui/company-research/runs/{run_id}/seed-dummy
+POST /ui/company-research/runs/{run_id}/sources/add-url
+POST /ui/company-research/runs/{run_id}/sources/add-text
+POST /ui/company-research/runs/{run_id}/sources/process
+POST /ui/company-research/runs/{run_id}/ingest-lists
+POST /ui/company-research/runs/{run_id}/validate-proposal
+POST /ui/company-research/runs/{run_id}/ingest-proposal
+```
+
+F) API proof output
+```
+=== PHASE 3.5 API READ PROOF (AUTHENTICATED) ===
+API Base URL: http://localhost:8005
+Tenant ID: b3909011-8bd3-439d-a421-3b70fae124e9
+User: admin@test.com
+
+Checking API health: http://localhost:8005/health
+✅ API is healthy
+
+Logging in at: http://localhost:8005/auth/login
+✅ Login succeeded and token received
+Fetching OpenAPI spec: http://localhost:8005/openapi.json
+✅ Found prospects endpoint: /company-research/runs/{run_id}/prospects-with-evidence
+Auto-selected run_id from DB: b453d622-ad90-4bdd-a29a-eb6ee2a04ea2
+Testing endpoint: http://localhost:8005/company-research/runs/b453d622-ad90-4bdd-a29a-eb6ee2a04ea2/prospects-with-evidence
+✅ Received valid JSON response
+✅ Response is an array with 50 items
+✅ Required prospect fields present
+✅ Total evidence across response: 57
+✅ Evidence structure valid
+✅ Found evidence with linked source_document
+
+=== VALIDATION PASSED ===
+API endpoint responds with authenticated, structured data
+```
+
+G) Authenticated sample API response snippet
+```
+found
+{
+  "prospect": {
+    "id": "50a04c4c-0883-43c2-aaf3-7207815d893a",
+    "name": null
+  },
+  "evidence": {
+    "id": "5b0e049d-aee1-44e3-963a-b4a0cc0b9ef2",
+    "company_prospect_id": "50a04c4c-0883-43c2-aaf3-7207815d893a",
+    "source_type": "document",
+    "source_name": "https://gfmag.com/award/worlds-safest-banks-2025-islamic-banks-in-gcc/",
+    "source_url": "https://gfmag.com/award/worlds-safest-banks-2025-islamic-banks-in-gcc/",
+    "list_name": null,
+    "list_rank_position": null,
+    "search_query_used": null,
+    "evidence_weight": 0.5,
+    "raw_snippet": null,
+    "source_document_id": "a8c7e690-2294-4c23-a2aa-5f30570f70fd",
+    "source_content_hash": "53215fe53d5281c5b2941990ecca8ce574e2ae88b8bdcad25e80761828592b5c",
+    "created_at": "2025-12-24T08:11:25.895322Z",
+    "source_document": {
+      "id": "a8c7e690-2294-4c23-a2aa-5f30570f70fd",
+      "company_research_run_id": "b453d622-ad90-4bdd-a29a-eb6ee2a04ea2",
+      "title": "https://gfmag.com/award/worlds-safest-banks-2025-islamic-banks-in-gcc/",
+      "url": "https://gfmag.com/award/worlds-safest-banks-2025-islamic-banks-in-gcc/",
+      "content_hash": "53215fe53d5281c5b2941990ecca8ce574e2ae88b8bdcad25e80761828592b5c",
+      "created_at": "2025-12-24T08:11:08.471340Z",
+      "fetched_at": "2025-12-24T04:11:25.852066Z"
+    }
+  }
+}
+```
+
+H) UI diff hunks (company_research_run_detail.html)
+```
+(no diffs)
+```

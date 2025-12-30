@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request, Query, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db
@@ -740,6 +741,27 @@ async def ingest_manual_lists(
     entries_by_norm = defaultdict(list)
     for entry in all_entries:
         entries_by_norm[entry['normalized']].append(entry)
+
+    async def insert_manual_evidence(prospect_id: UUID, entry):
+        stmt = (
+            insert(CompanyProspectEvidence)
+            .values(
+                tenant_id=current_user.tenant_id,
+                company_prospect_id=prospect_id,
+                source_type="manual_list",
+                source_name=entry['source'],
+                raw_snippet=entry['raw'],
+            )
+            .on_conflict_do_nothing(
+                index_elements=[
+                    CompanyProspectEvidence.tenant_id,
+                    CompanyProspectEvidence.company_prospect_id,
+                    CompanyProspectEvidence.source_type,
+                    CompanyProspectEvidence.source_name,
+                ]
+            )
+        )
+        await session.execute(stmt)
     
     # Process each unique normalized name
     for norm_name, entries in entries_by_norm.items():
@@ -762,14 +784,7 @@ async def ingest_manual_lists(
             sources_seen = set()
             for entry in entries:
                 if entry['source'] not in sources_seen:
-                    evidence = CompanyProspectEvidence(
-                        tenant_id=current_user.tenant_id,
-                        company_prospect_id=prospect.id,
-                        source_type="manual_list",
-                        source_name=entry['source'],
-                        raw_snippet=entry['raw'],
-                    )
-                    session.add(evidence)
+                    await insert_manual_evidence(prospect.id, entry)
                     sources_seen.add(entry['source'])
         else:
             # New prospect - create with evidence
@@ -792,14 +807,7 @@ async def ingest_manual_lists(
             sources_seen = set()
             for entry in entries:
                 if entry['source'] not in sources_seen:
-                    evidence = CompanyProspectEvidence(
-                        tenant_id=current_user.tenant_id,
-                        company_prospect_id=prospect.id,
-                        source_type="manual_list",
-                        source_name=entry['source'],
-                        raw_snippet=entry['raw'],
-                    )
-                    session.add(evidence)
+                    await insert_manual_evidence(prospect.id, entry)
                     sources_seen.add(entry['source'])
         
         # Count duplicates within submission (multiple entries with same normalized name)

@@ -24,7 +24,44 @@ import requests
 import json
 from urllib.parse import urljoin
 
+import psycopg2
+from dotenv import load_dotenv
+
+
+def select_run_id_from_db(tenant_id: str):
+    """Pick the run with the most linked, non-manual evidence for this tenant."""
+    load_dotenv()
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", 5432),
+        database=os.getenv("DB_NAME", "ats_db"),
+        user=os.getenv("DB_USER", "postgres"),
+        password=os.getenv("DB_PASSWORD", "postgres"),
+    )
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT crr.id, COUNT(*) AS linked_evidence
+        FROM company_research_runs crr
+        JOIN company_prospects cp ON cp.company_research_run_id = crr.id
+        JOIN company_prospect_evidence cpe ON cpe.company_prospect_id = cp.id
+        WHERE cp.tenant_id = %s
+          AND cpe.source_type != 'manual_list'
+          AND cpe.source_document_id IS NOT NULL
+        GROUP BY crr.id
+        ORDER BY linked_evidence DESC
+        LIMIT 1
+        """,
+        (tenant_id,),
+    )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return row[0] if row else None
+
 def main():
+    load_dotenv()
+
     api_base_url = os.getenv("API_BASE_URL", "http://localhost:8005")
     tenant_id = os.getenv("API_TENANT_ID", "b3909011-8bd3-439d-a421-3b70fae124e9")
     email = os.getenv("API_EMAIL", "admin@test.com")
@@ -102,34 +139,14 @@ def main():
 
         print(f"✅ Found prospects endpoint: {prospects_endpoint}")
 
-        # Discover a run_id (prefer real data)
+        # Discover a run_id from the database (must have linked, non-manual evidence)
         run_id = run_id_override
         if not run_id:
-            runs_url = urljoin(api_base_url, "/company-research/runs")
-            print(f"Listing research runs: {runs_url}")
-            runs_resp = requests.get(runs_url, headers=auth_headers, timeout=15)
-            if runs_resp.status_code == 200:
-                try:
-                    runs = runs_resp.json()
-                    if isinstance(runs, list) and runs:
-                        # Choose run with most linked evidence if stats present
-                        def linked_count(run):
-                            return run.get("linked_evidence", 0) if isinstance(run, dict) else 0
-                        runs_sorted = sorted(runs, key=lambda r: (linked_count(r), r.get("total_evidence", 0)), reverse=True)
-                        run_id = runs_sorted[0].get("id")
-                        print(f"Auto-selected run_id from API: {run_id}")
-                except Exception:
-                    print("⚠️ Could not parse runs response, will use fallback")
-            elif runs_resp.status_code in (401, 403):
-                print("❌ Auth headers rejected when listing runs")
+            run_id = select_run_id_from_db(tenant_id)
+            if not run_id:
+                print("❌ No research run with linked evidence found in the database")
                 return 1
-            else:
-                print(f"⚠️ Unexpected runs response: {runs_resp.status_code}")
-
-        # Final fallback to known good run if still missing
-        if not run_id:
-            run_id = "b453d622-ad90-4bdd-a29a-eb6ee2a04ea2"
-            print(f"Using fallback run_id: {run_id}")
+            print(f"Auto-selected run_id from DB: {run_id}")
 
         # Call prospects-with-evidence endpoint with auth
         test_endpoint = prospects_endpoint.replace("{run_id}", run_id)
@@ -213,16 +230,24 @@ def main():
                 return 1
         print("✅ Evidence structure valid")
 
-        if "source_document" in evidence_item and evidence_item["source_document"]:
-            source_doc = evidence_item["source_document"]
-            source_fields = ["id", "url"]
-            missing = [f for f in source_fields if f not in source_doc]
-            if missing:
-                print(f"❌ Missing source document fields: {missing}")
-                return 1
-            print("✅ Source document structure valid")
-        else:
-            print("ℹ️ Evidence has no linked source document")
+        # Require at least one evidence item with a linked source document
+        linked_evidence = []
+        for p in prospects_data:
+            for ev in p.get("evidence", []):
+                if ev.get("source_document"):
+                    linked_evidence.append(ev)
+
+        if not linked_evidence:
+            print("❌ No evidence items include a linked source_document")
+            return 1
+
+        source_doc = linked_evidence[0]["source_document"]
+        source_fields = ["id", "url"]
+        missing = [f for f in source_fields if f not in source_doc or not source_doc[f]]
+        if missing:
+            print(f"❌ Missing source document fields: {missing}")
+            return 1
+        print("✅ Found evidence with linked source_document")
 
         print()
         print("=== VALIDATION PASSED ===")
