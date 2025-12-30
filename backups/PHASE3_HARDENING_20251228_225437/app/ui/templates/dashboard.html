@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Dashboard</h1>
+
+<!-- My Active Roles -->
+<div class="dashboard-section">
+    <h2 class="section-header">My Active Roles</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Role Title</th>
+                <th>Company</th>
+                <th>Status</th>
+                <th>Candidates in Process</th>
+                <th>Last Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if active_roles %}
+                {% for role in active_roles %}
+                <tr>
+                    <td><a href="/ui/roles/{{ role.id }}">{{ role.title }}</a></td>
+                    <td>{{ role.company_name or '-' }}</td>
+                    <td>
+                        {% if role.status == 'OPEN' %}
+                            <span class="badge badge-success">{{ role.status }}</span>
+                        {% elif role.status == 'ON_HOLD' %}
+                            <span class="badge badge-warning">{{ role.status }}</span>
+                        {% else %}
+                            <span class="badge badge-info">{{ role.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ role.candidate_count or 0 }}</td>
+                    <td>{{ role.updated_at.strftime('%Y-%m-%d %H:%M') if role.updated_at else '-' }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">No active roles found</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Candidates Requiring Action -->
+<div class="dashboard-section">
+    <h2 class="section-header">Candidates Requiring Action</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Candidate Name</th>
+                <th>Role Title</th>
+                <th>Assignment Status</th>
+                <th>Last Interaction</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if action_candidates %}
+                {% for item in action_candidates %}
+                <tr>
+                    <td><a href="/ui/candidates/{{ item.candidate_id }}">{{ item.candidate_name }}</a></td>
+                    <td><a href="/ui/roles/{{ item.role_id }}">{{ item.role_title }}</a></td>
+                    <td>
+                        {% if item.status == 'OFFER' %}
+                            <span class="badge badge-success">{{ item.status }}</span>
+                        {% elif item.status == 'SHORT_LIST' %}
+                            <span class="badge badge-warning">{{ item.status }}</span>
+                        {% elif item.status == 'LONG_LIST' %}
+                            <span class="badge badge-info">{{ item.status }}</span>
+                        {% else %}
+                            <span class="badge">{{ item.status or 'UNKNOWN' }}</span>
+                        {% endif %}
+                        {% if item.is_hot %}🔥{% endif %}
+                    </td>
+                    <td>{{ item.last_interaction.strftime('%Y-%m-%d %H:%M') if item.last_interaction else '-' }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted">No pending actions</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- My Tasks -->
+<div class="dashboard-section">
+    <h2 class="section-header">My Tasks</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Task Title</th>
+                <th>Related Entity</th>
+                <th>Due Date</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if my_tasks %}
+                {% for task in my_tasks %}
+                <tr>
+                    <td>{{ task.title }}</td>
+                    <td>
+                        {% if task.related_entity_type and task.related_entity_name %}
+                            {{ task.related_entity_type }}: {{ task.related_entity_name }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '-' }}</td>
+                    <td>
+                        {% if task.status == 'COMPLETED' %}
+                            <span class="badge badge-success">{{ task.status }}</span>
+                        {% elif task.status == 'IN_PROGRESS' %}
+                            <span class="badge badge-info">{{ task.status }}</span>
+                        {% else %}
+                            <span class="badge">{{ task.status or 'PENDING' }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted">No tasks assigned</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- BD Snapshot -->
+<div class="dashboard-section">
+    <h2 class="section-header">BD Snapshot</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Company</th>
+                <th>Status / Stage</th>
+                <th>Estimated Value</th>
+                <th>Probability</th>
+                <th>Last Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if bd_opportunities %}
+                {% for opp in bd_opportunities %}
+                <tr>
+                    <td>{{ opp.company_name or '-' }}</td>
+                    <td>{{ opp.stage or opp.status or '-' }}</td>
+                    <td>{{ opp.estimated_value if opp.estimated_value else '-' }}</td>
+                    <td>{{ opp.probability }}%</td>
+                    <td>{{ opp.updated_at.strftime('%Y-%m-%d') if opp.updated_at else '-' }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">No active BD opportunities</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

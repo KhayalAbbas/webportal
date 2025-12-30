@@ -1,0 +1,29 @@
+{
+  "version": "run_bundle_v1",
+  "run_id": "placeholder-will-be-replaced",
+  "plan_json": {
+    "steps": 1,
+    "description": "Invalid SHA256 test"
+  },
+  "steps": [
+    {
+      "step_key": "s1",
+      "step_type": "search",
+      "status": "ok",
+      "inputs_json": {},
+      "outputs_json": {},
+      "provider_meta": {},
+      "output_sha256": "abc123"
+    }
+  ],
+  "sources": [
+    {
+      "sha256": "wrong_hash_that_does_not_match",
+      "url": "https://example.com/test",
+      "content_text": "Test content for validation failure"
+    }
+  ],
+  "proposal_json": {
+    "test": "invalid bundle"
+  }
+}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Lists - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Candidate Lists</h1>
+
+<!-- Create List Form -->
+<div class="filters" style="margin-bottom: 30px;">
+    <h3 style="margin-bottom: 15px;">Create New List</h3>
+    {% if create_success %}
+    <div class="alert alert-success">{{ create_success }}</div>
+    {% endif %}
+    {% if create_error %}
+    <div class="alert alert-error">{{ create_error }}</div>
+    {% endif %}
+    
+    <form method="POST" action="/ui/lists/create">
+        <div class="filters-grid">
+            <div class="form-group">
+                <label for="name">Name *</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="2"></textarea>
+            </div>
+        </div>
+        
+        <button type="submit">Create List</button>
+    </form>
+</div>
+
+<!-- Lists table -->
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Item Count</th>
+            <th>Created</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if lists %}
+            {% for list in lists %}
+            <tr>
+                <td><a href="/ui/lists/{{ list.id }}">{{ list.name }}</a></td>
+                <td>{{ list.description or '-' }}</td>
+                <td>{{ list.item_count or 0 }}</td>
+                <td>{{ list.created_at.strftime('%Y-%m-%d') if list.created_at else '-' }}</td>
+                <td>
+                    <a href="/ui/lists/{{ list.id }}">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="5" class="text-center text-muted">No lists found</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

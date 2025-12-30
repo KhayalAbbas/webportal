@@ -1,0 +1,49 @@
+﻿2025-12-23 23:28:21,824 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+2025-12-23 23:28:21,824 INFO sqlalchemy.engine.Engine [raw sql] ()
+2025-12-23 23:28:21,824 INFO sqlalchemy.engine.Engine select current_schema()
+2025-12-23 23:28:21,824 INFO sqlalchemy.engine.Engine [raw sql] ()
+2025-12-23 23:28:21,824 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+2025-12-23 23:28:21,824 INFO sqlalchemy.engine.Engine [raw sql] ()
+2025-12-23 23:28:21,824 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2025-12-23 23:28:21,972 INFO sqlalchemy.engine.Engine SELECT company_research_runs.role_mandate_id, company_research_runs.name, company_research_runs.description, company_research_runs.status, company_research_runs.sector, company_research_runs.region_scope, company_research_runs.config, company_research_runs.summary, company_research_runs.error_message, company_research_runs.created_by_user_id, company_research_runs.started_at, company_research_runs.finished_at, company_research_runs.id, company_research_runs.tenant_id, company_research_runs.created_at, company_research_runs.updated_at 
+FROM company_research_runs ORDER BY company_research_runs.created_at DESC 
+ LIMIT $1::INTEGER
+2025-12-23 23:28:21,972 INFO sqlalchemy.engine.Engine [generated in 0.00049s] (1,)
+Testing with run: f5f8686d-44f6-49a5-9d56-e83651c1507b
+Tenant: b3909011-8bd3-439d-a421-3b70fae124e9
+2025-12-23 23:28:21,981 INFO sqlalchemy.engine.Engine SELECT source_documents.company_research_run_id, source_documents.source_type, source_documents.title, source_documents.url, source_documents.content_text, source_documents.content_hash, source_documents.status, source_documents.error_message, source_documents.fetched_at, source_documents.id, source_documents.tenant_id, source_documents.created_at, source_documents.updated_at 
+FROM source_documents 
+WHERE source_documents.company_research_run_id = $1::UUID AND source_documents.url LIKE $2::VARCHAR 
+ LIMIT $3::INTEGER
+2025-12-23 23:28:21,981 INFO sqlalchemy.engine.Engine [generated in 0.00038s] (UUID('f5f8686d-44f6-49a5-9d56-e83651c1507b'), '%wikipedia%', 1)
+2025-12-23 23:28:21,990 INFO sqlalchemy.engine.Engine ROLLBACK
+C:/ATS/.venv/Scripts/python.exe : Traceback (most recent call last):
+At line:1 char:19
++ ... YTHONUT8=1; C:/ATS/.venv/Scripts/python.exe test_wikipedia_extraction ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], R 
+   emoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\ATS\test_wikipedia_extraction.py", line 114, in <module>
+    asyncio.run(test_wikipedia_extraction())
+  File "C:\Users\Iulian2\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", 
+line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\Iulian2\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", 
+line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iulian2\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", 
+line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\ATS\test_wikipedia_extraction.py", line 46, in test_wikipedia_extraction
+    print(f"\n\U0001f4c4 Source: {source.title}")
+  File "C:\Users\Iulian2\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", 
+line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f4c4' in position 2: 
+character maps to <undefined>

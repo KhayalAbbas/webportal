@@ -1,0 +1,186 @@
+{
+  "version": "run_bundle_v1",
+  "run_id": "placeholder-will-be-replaced",
+  "plan_json": {
+    "steps": 3,
+    "description": "Phase 3 end-to-end smoke test"
+  },
+  "steps": [
+    {
+      "step_key": "s1",
+      "step_type": "search",
+      "status": "ok",
+      "inputs_json": {
+        "query": "tech companies San Francisco"
+      },
+      "outputs_json": {
+        "results_count": 2
+      },
+      "provider_meta": {
+        "provider": "test_search"
+      },
+      "started_at": "2024-12-27T12:00:00",
+      "finished_at": "2024-12-27T12:01:00",
+      "output_sha256": null,
+      "error": null
+    },
+    {
+      "step_key": "s2",
+      "step_type": "extract",
+      "status": "ok",
+      "inputs_json": {
+        "sources": 2
+      },
+      "outputs_json": {
+        "companies_extracted": 2
+      },
+      "provider_meta": {
+        "provider": "test_extract"
+      },
+      "started_at": "2024-12-27T12:01:00",
+      "finished_at": "2024-12-27T12:02:00",
+      "output_sha256": null,
+      "error": null
+    },
+    {
+      "step_key": "s3",
+      "step_type": "finalize",
+      "status": "ok",
+      "inputs_json": {},
+      "outputs_json": {
+        "final_count": 2
+      },
+      "provider_meta": {},
+      "started_at": "2024-12-27T12:02:00",
+      "finished_at": "2024-12-27T12:03:00",
+      "output_sha256": null,
+      "error": null
+    }
+  ],
+  "sources": [
+    {
+      "sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      "url": "https://techcrunch.com/startups-sf",
+      "retrieved_at": "2024-12-27T12:00:30Z",
+      "mime_type": "text/html",
+      "title": "Top Tech Startups in San Francisco",
+      "content_text": "This is COMPLETELY DIFFERENT content that will NOT match the original SHA256 hash at all!",
+      "meta": {
+        "provider": "web_scraper",
+        "status_code": 200
+      }
+    },
+    {
+      "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+      "url": "https://crunchbase.com/sf-companies",
+      "retrieved_at": "2024-12-27T12:00:45Z",
+      "mime_type": "text/html",
+      "title": "San Francisco Companies Database",
+      "content_text": "foo",
+      "meta": {
+        "provider": "crunchbase_api",
+        "confidence": 0.95
+      }
+    }
+  ],
+  "proposal_json": {
+    "query": "Find innovative tech companies in San Francisco",
+    "sources": [
+      {
+        "temp_id": "src_1",
+        "title": "Top Tech Startups in San Francisco",
+        "url": "https://techcrunch.com/startups-sf",
+        "provider": "web_scraper",
+        "fetched_at": "2024-12-27T12:00:30Z"
+      },
+      {
+        "temp_id": "src_2",
+        "title": "San Francisco Companies Database",
+        "url": "https://crunchbase.com/sf-companies",
+        "provider": "crunchbase_api",
+        "fetched_at": "2024-12-27T12:00:45Z"
+      }
+    ],
+    "companies": [
+      {
+        "name": "TechCorp SF",
+        "aliases": [
+          {
+            "name": "TechCorp",
+            "type": "trade"
+          },
+          {
+            "name": "TC SF",
+            "type": "abbreviation"
+          }
+        ],
+        "metrics": [
+          {
+            "key": "employee_count",
+            "type": "number",
+            "value": 250.0,
+            "source_temp_id": "src_1",
+            "evidence_snippet": "TechCorp SF employs over 250 engineers"
+          },
+          {
+            "key": "funding_amount",
+            "type": "number",
+            "value": 50000000.0,
+            "source_temp_id": "src_2",
+            "evidence_snippet": "Recently raised $50M in Series B"
+          }
+        ],
+        "website_url": "https://techcorp-sf.com",
+        "hq_country": "US",
+        "hq_city": "San Francisco",
+        "sector": "Software",
+        "description": "AI-powered productivity tools for enterprises",
+        "ai_rank": 1,
+        "ai_score": 0.92,
+        "evidence_snippets": [
+          "TechCorp SF employs over 250 engineers",
+          "Recently raised $50M in Series B",
+          "Leading provider of AI tools"
+        ],
+        "source_sha256s": [
+          "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+          "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+        ]
+      },
+      {
+        "name": "DataFlow Inc",
+        "aliases": [
+          {
+            "name": "DataFlow",
+            "type": "trade"
+          }
+        ],
+        "metrics": [
+          {
+            "key": "employee_count",
+            "type": "number",
+            "value": 150.0,
+            "source_temp_id": "src_2",
+            "evidence_snippet": "DataFlow Inc has 150 data scientists"
+          }
+        ],
+        "website_url": "https://dataflow.io",
+        "hq_country": "US",
+        "hq_city": "San Francisco",
+        "sector": "Data Analytics",
+        "description": "Real-time data processing platform",
+        "ai_rank": 2,
+        "ai_score": 0.88,
+        "evidence_snippets": [
+          "DataFlow Inc has 150 data scientists",
+          "Processes petabytes of data daily"
+        ],
+        "source_sha256s": [
+          "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+        ]
+      }
+    ],
+    "generated_at": "2024-12-27T12:03:00Z",
+    "model": "gpt-4-phase3"
+  }
+}

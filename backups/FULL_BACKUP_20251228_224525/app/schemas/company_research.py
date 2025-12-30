@@ -1,0 +1,317 @@
+"""
+Company Research Pydantic schemas.
+
+Schemas for company discovery and agentic sourcing engine API.
+"""
+
+from typing import Optional, List, Dict, Any
+from uuid import UUID
+from datetime import datetime
+from decimal import Decimal
+
+from pydantic import BaseModel, Field, ConfigDict
+
+from app.schemas.base import TenantScopedBase, TenantScopedRead
+
+
+# ============================================================================
+# Company Research Run Schemas
+# ============================================================================
+
+class CompanyResearchRunCreate(BaseModel):
+    """Schema for creating a new company research run."""
+    
+    role_mandate_id: UUID
+    name: str = Field(..., max_length=255)
+    description: Optional[str] = None
+    sector: str = Field(..., max_length=100)
+    region_scope: Optional[List[str]] = None  # List of ISO country codes
+    config: Optional[Dict[str, Any]] = None
+    status: Optional[str] = Field(default="planned", max_length=50)
+
+
+class CompanyResearchRunUpdate(BaseModel):
+    """Schema for updating a company research run."""
+    
+    status: Optional[str] = Field(None, max_length=50)
+    summary: Optional[str] = None
+    error_message: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+
+class CompanyResearchRunRead(TenantScopedRead):
+    """Schema for reading company research run data."""
+    
+    role_mandate_id: UUID
+    name: str
+    description: Optional[str] = None
+    status: str
+    sector: str
+    region_scope: Optional[List[str]] = None
+    config: Optional[Dict[str, Any]] = None
+    summary: Optional[str] = None
+    error_message: Optional[str] = None
+    created_by_user_id: Optional[UUID] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+
+# ============================================================================
+# Company Prospect Schemas
+# ============================================================================
+
+class CompanyProspectCreate(BaseModel):
+    """Schema for creating a new company prospect."""
+    
+    company_research_run_id: UUID
+    role_mandate_id: UUID
+    name_raw: str = Field(..., max_length=500)
+    name_normalized: str = Field(..., max_length=500)
+    website_url: Optional[str] = Field(None, max_length=500)
+    hq_country: Optional[str] = Field(None, max_length=2)
+    hq_city: Optional[str] = Field(None, max_length=200)
+    sector: str = Field(..., max_length=100)
+    subsector: Optional[str] = Field(None, max_length=100)
+    employees_band: Optional[str] = Field(None, max_length=50)
+    revenue_band_usd: Optional[str] = Field(None, max_length=50)
+    countries_of_operation: Optional[List[str]] = None
+    description: Optional[str] = None
+    data_confidence: Optional[float] = Field(default=0.0, ge=0.0, le=1.0)
+    relevance_score: Optional[float] = Field(default=0.0, ge=0.0, le=1.0)
+    evidence_score: Optional[float] = Field(default=0.0, ge=0.0, le=1.0)
+    manual_priority: Optional[int] = None
+    is_pinned: Optional[bool] = Field(default=False)
+    status: Optional[str] = Field(default="new", max_length=50)
+
+
+class CompanyProspectUpdateManual(BaseModel):
+    """Schema for manually updating company prospect ranking/status."""
+    
+    manual_priority: Optional[int] = None
+    manual_notes: Optional[str] = None
+    is_pinned: Optional[bool] = None
+    status: Optional[str] = Field(None, max_length=50)
+
+
+class CompanyProspectUpdate(BaseModel):
+    """Schema for updating company prospect (system use)."""
+    
+    name_raw: Optional[str] = Field(None, max_length=500)
+    name_normalized: Optional[str] = Field(None, max_length=500)
+    website_url: Optional[str] = Field(None, max_length=500)
+    hq_country: Optional[str] = Field(None, max_length=2)
+    hq_city: Optional[str] = Field(None, max_length=200)
+    sector: Optional[str] = Field(None, max_length=100)
+    subsector: Optional[str] = Field(None, max_length=100)
+    employees_band: Optional[str] = Field(None, max_length=50)
+    revenue_band_usd: Optional[str] = Field(None, max_length=50)
+    countries_of_operation: Optional[List[str]] = None
+    description: Optional[str] = None
+    data_confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
+    relevance_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    evidence_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    status: Optional[str] = Field(None, max_length=50)
+    approved_by_user_id: Optional[UUID] = None
+    approved_at: Optional[datetime] = None
+    normalized_company_id: Optional[UUID] = None
+
+
+class CompanyProspectRead(TenantScopedRead):
+    """Schema for reading company prospect data."""
+    
+    company_research_run_id: UUID
+    role_mandate_id: UUID
+    name_raw: str
+    name_normalized: str
+    website_url: Optional[str] = None
+    hq_country: Optional[str] = None
+    hq_city: Optional[str] = None
+    sector: str
+    subsector: Optional[str] = None
+    employees_band: Optional[str] = None
+    revenue_band_usd: Optional[str] = None
+    countries_of_operation: Optional[List[str]] = None
+    description: Optional[str] = None
+    data_confidence: float
+    relevance_score: float
+    evidence_score: float
+    manual_priority: Optional[int] = None
+    manual_notes: Optional[str] = None
+    is_pinned: bool
+    status: str
+    approved_by_user_id: Optional[UUID] = None
+    approved_at: Optional[datetime] = None
+    normalized_company_id: Optional[UUID] = None
+
+
+# ============================================================================
+# Company Prospect Evidence Schemas
+# ============================================================================
+
+class CompanyProspectEvidenceCreate(TenantScopedBase):
+    """Schema for creating company prospect evidence."""
+    
+    company_prospect_id: UUID
+    source_type: str = Field(..., max_length=100)
+    source_name: str = Field(..., max_length=500)
+    source_url: Optional[str] = None
+    list_name: Optional[str] = Field(None, max_length=500)
+    list_rank_position: Optional[int] = None
+    search_query_used: Optional[str] = None
+    evidence_weight: Optional[float] = Field(default=0.5, ge=0.0, le=1.0)
+    raw_snippet: Optional[str] = None
+
+
+class CompanyProspectEvidenceRead(TenantScopedRead):
+    """Schema for reading company prospect evidence."""
+    
+    company_prospect_id: UUID
+    source_type: str
+    source_name: str
+    source_url: Optional[str] = None
+    list_name: Optional[str] = None
+    list_rank_position: Optional[int] = None
+    search_query_used: Optional[str] = None
+    evidence_weight: float
+    raw_snippet: Optional[str] = None
+
+
+# ============================================================================
+# Company Prospect Metric Schemas
+# ============================================================================
+
+class CompanyProspectMetricCreate(TenantScopedBase):
+    """Schema for creating company prospect metric."""
+    
+    company_prospect_id: UUID
+    metric_type: str = Field(..., max_length=100)
+    value_raw: Optional[float] = None
+    currency: Optional[str] = Field(None, max_length=3)
+    value_usd: Optional[float] = None
+    as_of_year: Optional[int] = None
+    source_type: str = Field(..., max_length=100)
+    source_url: Optional[str] = None
+    data_confidence: Optional[float] = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class CompanyProspectMetricRead(TenantScopedRead):
+    """Schema for reading company prospect metric."""
+    
+    company_prospect_id: UUID
+    metric_type: str
+    value_raw: Optional[float] = None
+    currency: Optional[str] = None
+    value_usd: Optional[float] = None
+    as_of_year: Optional[int] = None
+    source_type: str
+    source_url: Optional[str] = None
+    data_confidence: float
+
+
+# ============================================================================
+# Composite/Listing Schemas
+# ============================================================================
+
+class CompanyProspectListItem(BaseModel):
+    """Minimal schema for listing company prospects."""
+    
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    name_normalized: str
+    website_url: Optional[str] = None
+    hq_country: Optional[str] = None
+    hq_city: Optional[str] = None
+    sector: str
+    subsector: Optional[str] = None
+    employees_band: Optional[str] = None
+    revenue_band_usd: Optional[str] = None
+    relevance_score: float
+    evidence_score: float
+    manual_priority: Optional[int] = None
+    is_pinned: bool
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class CompanyResearchRunSummary(BaseModel):
+    """Summary schema for research run with prospect count."""
+    
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    role_mandate_id: UUID
+    status: str
+    sector: str
+    region_scope: Optional[List[str]] = None
+    summary: Optional[str] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    prospect_count: Optional[int] = 0
+
+
+# ============================================================================
+# Source Document Schemas
+# ============================================================================
+
+class SourceDocumentCreate(BaseModel):
+    """Schema for creating a new source document."""
+    
+    company_research_run_id: UUID
+    source_type: str = Field(..., max_length=50)  # url|pdf|text
+    title: Optional[str] = Field(None, max_length=500)
+    url: Optional[str] = None
+    content_text: Optional[str] = None
+
+
+class SourceDocumentUpdate(BaseModel):
+    """Schema for updating a source document."""
+    
+    content_text: Optional[str] = None
+    content_hash: Optional[str] = Field(None, max_length=64)
+    status: Optional[str] = Field(None, max_length=50)
+    error_message: Optional[str] = None
+    fetched_at: Optional[datetime] = None
+
+
+class SourceDocumentRead(TenantScopedRead):
+    """Schema for reading source document data."""
+    
+    company_research_run_id: UUID
+    source_type: str
+    title: Optional[str] = None
+    url: Optional[str] = None
+    content_text: Optional[str] = None
+    content_hash: Optional[str] = None
+    status: str
+    error_message: Optional[str] = None
+    fetched_at: Optional[datetime] = None
+
+
+# ============================================================================
+# Research Event Schemas
+# ============================================================================
+
+class ResearchEventCreate(BaseModel):
+    """Schema for creating a new research event."""
+    
+    company_research_run_id: UUID
+    event_type: str = Field(..., max_length=50)  # fetch|extract|dedupe|enrich
+    status: str = Field(..., max_length=50)  # ok|failed
+    input_json: Optional[Dict[str, Any]] = None
+    output_json: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+
+
+class ResearchEventRead(TenantScopedRead):
+    """Schema for reading research event data."""
+    
+    company_research_run_id: UUID
+    event_type: str
+    status: str
+    input_json: Optional[Dict[str, Any]] = None
+    output_json: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None

@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}{{ company.name }} - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+{% if success_message %}
+<div class="alert alert-success" style="margin-bottom: 20px;">{{ success_message }}</div>
+{% endif %}
+
+<!-- Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">{{ company.name }}</h1>
+    <div style="display: flex; gap: 10px;">
+        {% if current_user.role in ['admin', 'consultant', 'bd_manager'] %}
+        <a href="/ui/companies/{{ company.id }}/edit" class="btn btn-primary">Edit Company</a>
+        {% endif %}
+        <a href="/ui/companies" class="btn btn-secondary">← Back to Companies</a>
+    </div>
+</div>
+
+<div style="margin-bottom: 20px; color: #7f8c8d;">
+    {% if company.industry %}<strong>{{ company.industry }}</strong>{% endif %}
+    {% if company.headquarters_location %} • {{ company.headquarters_location }}{% endif %}
+    {% if company.website %} • <a href="{{ company.website }}" target="_blank">{{ company.website }}</a>{% endif %}
+</div>
+
+<!-- Company Profile Section -->
+<h2 class="section-title">Company Profile</h2>
+<div class="detail-section">
+    <div class="detail-grid">
+        <div class="detail-label">Name</div>
+        <div class="detail-value">{{ company.name }}</div>
+        
+        <div class="detail-label">Industry</div>
+        <div class="detail-value">{{ company.industry or '-' }}</div>
+        
+        <div class="detail-label">Headquarters Location</div>
+        <div class="detail-value">{{ company.headquarters_location or '-' }}</div>
+        
+        <div class="detail-label">Website</div>
+        <div class="detail-value">
+            {% if company.website %}
+                <a href="{{ company.website }}" target="_blank">{{ company.website }}</a>
+            {% else %}
+                -
+            {% endif %}
+        </div>
+        
+        <div class="detail-label">BD Status</div>
+        <div class="detail-value">
+            {% if company.bd_status %}
+                <span class="badge badge-info">{{ company.bd_status }}</span>
+            {% else %}
+                -
+            {% endif %}
+        </div>
+        
+        <div class="detail-label">BD Owner</div>
+        <div class="detail-value">{{ company.bd_owner or '-' }}</div>
+        
+        <div class="detail-label">BD Last Contacted</div>
+        <div class="detail-value">{{ company.bd_last_contacted.strftime('%Y-%m-%d') if company.bd_last_contacted else '-' }}</div>
+        
+        <div class="detail-label">Is Client</div>
+        <div class="detail-value">{% if company.is_client %}Yes{% else %}No{% endif %}</div>
+        
+        <div class="detail-label">Is Prospect</div>
+        <div class="detail-value">{% if company.is_prospect %}Yes{% else %}No{% endif %}</div>
+    </div>
+    
+    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Notes</h3>
+    {% if company.notes %}
+    <div class="text-box">{{ company.notes }}</div>
+    {% else %}
+    <p class="text-muted">No notes available</p>
+    {% endif %}
+</div>
+
+<!-- Contacts Section -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h2 class="section-title" style="margin: 0;">Contacts</h2>
+    {% if current_user.role in ['ADMIN', 'CONSULTANT', 'BD_MANAGER'] %}
+    <a href="/ui/contacts/new?company_id={{ company.id }}" class="btn btn-primary">+ Add Contact</a>
+    {% endif %}
+</div>
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Role / Title</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>BD Status</th>
+            <th>BD Owner</th>
+            {% if current_user.role in ['ADMIN', 'CONSULTANT', 'BD_MANAGER'] %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        {% if contacts %}
+            {% for contact in contacts %}
+            <tr>
+                <td>{{ contact.first_name }} {{ contact.last_name }}</td>
+                <td>{{ contact.role or contact.title or '-' }}</td>
+                <td>{{ contact.email or '-' }}</td>
+                <td>{{ contact.phone or '-' }}</td>
+                <td>{{ contact.bd_status or '-' }}</td>
+                <td>{{ contact.bd_owner or '-' }}</td>
+                {% if current_user.role in ['ADMIN', 'CONSULTANT', 'BD_MANAGER'] %}
+                <td><a href="/ui/contacts/{{ contact.id }}/edit" class="btn btn-sm">Edit</a></td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="{% if current_user.role in ['ADMIN', 'CONSULTANT', 'BD_MANAGER'] %}7{% else %}6{% endif %}" class="text-center text-muted">No contacts</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- Roles Section -->
+<h2 class="section-title">Roles (Mandates)</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Role Title</th>
+            <th>Status</th>
+            <th>Location</th>
+            <th>Candidates in Process</th>
+            <th>Last Updated</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if roles %}
+            {% for role in roles %}
+            <tr>
+                <td><a href="/ui/roles/{{ role.id }}">{{ role.title }}</a></td>
+                <td>
+                    {% if role.status == 'OPEN' %}
+                        <span class="badge badge-success">{{ role.status }}</span>
+                    {% elif role.status == 'ON_HOLD' %}
+                        <span class="badge badge-warning">{{ role.status }}</span>
+                    {% else %}
+                        <span class="badge">{{ role.status or 'UNKNOWN' }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ role.location or '-' }}</td>
+                <td>{{ role.candidate_count or 0 }}</td>
+                <td>{{ role.updated_at.strftime('%Y-%m-%d') if role.updated_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="5" class="text-center text-muted">No roles</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- BD Opportunities Section -->
+<h2 class="section-title">BD Opportunities</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Stage / Status</th>
+            <th>Estimated Value</th>
+            <th>Probability</th>
+            <th>Last Updated</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if bd_opportunities %}
+            {% for opp in bd_opportunities %}
+            <tr>
+                <td><a href="/ui/bd-opportunities/{{ opp.id }}">{{ opp.stage or opp.status }}</a></td>
+                <td>{{ opp.estimated_value if opp.estimated_value else '-' }}</td>
+                <td>{{ opp.probability }}%</td>
+                <td>{{ opp.updated_at.strftime('%Y-%m-%d') if opp.updated_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="4" class="text-center text-muted">No BD opportunities</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- Research Section -->
+<h2 class="section-title">Research</h2>
+{% if research and (research.research_events or research.source_documents or research.ai_enrichments) %}
+<h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Research Events</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Source Type</th>
+            <th>Source URL</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if research.research_events %}
+            {% for event in research.research_events[:5] %}
+            <tr>
+                <td>{{ event.event_date.strftime('%Y-%m-%d') if event.event_date else '-' }}</td>
+                <td>{{ event.source_type or '-' }}</td>
+                <td>
+                    {% if event.source_url %}
+                        <a href="{{ event.source_url }}" target="_blank">{{ event.source_url[:50] }}...</a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="3" class="text-center text-muted">No research events</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-muted">No research data available</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Create Contact' if mode == 'create' else 'Edit Contact' }} - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">{{ 'Create Contact' if mode == 'create' else 'Edit Contact' }}</h1>
+    <a href="{{ '/ui/companies/' + contact.company_id|string if contact else '/ui/companies' }}" class="btn btn-secondary">Cancel</a>
+</div>
+
+<!-- Error Message -->
+{% if error %}
+<div style="background: #f8d7da; color: #721c24; padding: 12px 16px; border: 1px solid #f5c6cb; border-radius: 4px; margin-bottom: 20px;">
+    {{ error }}
+</div>
+{% endif %}
+
+<form method="POST" style="max-width: 800px;">
+    <h2 class="section-title">Basic Information</h2>
+    <div class="detail-section">
+        <div class="form-group">
+            <label for="company_id" class="required">Company</label>
+            <select id="company_id" name="company_id" required>
+                <option value="">-- Select Company --</option>
+                {% for company in companies %}
+                <option value="{{ company.id }}" {% if contact and contact.company_id == company.id %}selected{% endif %}>
+                    {{ company.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="first_name" class="required">First Name</label>
+                <input type="text" id="first_name" name="first_name" value="{{ contact.first_name if contact else '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="last_name" class="required">Last Name</label>
+                <input type="text" id="last_name" name="last_name" value="{{ contact.last_name if contact else '' }}" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" value="{{ contact.email if contact else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone</label>
+                <input type="text" id="phone" name="phone" value="{{ contact.phone if contact else '' }}">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="role_title">Role / Title</label>
+            <input type="text" id="role_title" name="role_title" value="{{ contact.role_title if contact else '' }}">
+        </div>
+    </div>
+
+    <h2 class="section-title">BD Information</h2>
+    <div class="detail-section">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="bd_status">BD Status</label>
+                <select id="bd_status" name="bd_status">
+                    <option value="">-- None --</option>
+                    <option value="PROSPECT" {% if contact and contact.bd_status == 'PROSPECT' %}selected{% endif %}>Prospect</option>
+                    <option value="ENGAGED" {% if contact and contact.bd_status == 'ENGAGED' %}selected{% endif %}>Engaged</option>
+                    <option value="ACTIVE" {% if contact and contact.bd_status == 'ACTIVE' %}selected{% endif %}>Active</option>
+                    <option value="INACTIVE" {% if contact and contact.bd_status == 'INACTIVE' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="bd_owner">BD Owner</label>
+                <input type="text" id="bd_owner" name="bd_owner" value="{{ contact.bd_owner if contact else '' }}">
+            </div>
+        </div>
+    </div>
+
+    <h2 class="section-title">Personal Dates</h2>
+    <div class="detail-section">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="date_of_birth">Date of Birth</label>
+                <input type="date" id="date_of_birth" name="date_of_birth" value="{{ contact.date_of_birth if contact else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="work_anniversary_date">Work Anniversary Date</label>
+                <input type="date" id="work_anniversary_date" name="work_anniversary_date" value="{{ contact.work_anniversary_date if contact else '' }}">
+            </div>
+        </div>
+    </div>
+
+    <h2 class="section-title">Notes</h2>
+    <div class="detail-section">
+        <div class="form-group">
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" rows="6">{{ contact.notes if contact else '' }}</textarea>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; gap: 10px;">
+        <button type="submit" class="btn btn-primary">{{ 'Create Contact' if mode == 'create' else 'Save Changes' }}</button>
+        <a href="{{ '/ui/companies/' + contact.company_id|string if contact else '/ui/companies' }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

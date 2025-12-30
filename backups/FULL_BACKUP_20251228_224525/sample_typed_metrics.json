@@ -1,0 +1,153 @@
+{
+  "query": "Test Airlines with typed metrics",
+  "sources": [
+    {
+      "temp_id": "source_1",
+      "title": "Aviation Industry Report 2024",
+      "url": "https://example.com/aviation-report",
+      "provider": "Aviation Weekly",
+      "fetched_at": "2024-12-26T10:00:00Z"
+    }
+  ],
+  "companies": [
+    {
+      "name": "Emirates Airlines",
+      "aliases": [
+        {"name": "Emirates", "type": "abbreviation", "confidence": 0.95}
+      ],
+      "website_url": "https://www.emirates.com",
+      "hq_country": "AE",
+      "hq_city": "Dubai",
+      "sector": "Aviation",
+      "description": "Major international airline based in Dubai, UAE",
+      "ai_rank": 1,
+      "ai_score": 0.95,
+      "metrics": [
+        {
+          "key": "fleet_size",
+          "type": "number",
+          "value": 265,
+          "unit": "aircraft",
+          "as_of_date": "2024-12-01",
+          "confidence": 0.9,
+          "source_temp_id": "source_1"
+        },
+        {
+          "key": "is_low_cost_carrier",
+          "type": "bool",
+          "value": false,
+          "confidence": 1.0,
+          "source_temp_id": "source_1"
+        },
+        {
+          "key": "destinations",
+          "type": "json",
+          "value": ["JFK", "LHR", "SYD", "HKG", "SIN"],
+          "confidence": 0.85,
+          "source_temp_id": "source_1",
+          "evidence_snippet": "Emirates serves over 150 destinations across six continents"
+        },
+        {
+          "key": "total_revenue",
+          "type": "number",
+          "value": 31500000000,
+          "currency": "USD",
+          "as_of_date": "2023-12-31",
+          "confidence": 0.9,
+          "source_temp_id": "source_1"
+        }
+      ]
+    },
+    {
+      "name": "Flydubai",
+      "aliases": [
+        {"name": "FlyDubai", "type": "trade", "confidence": 0.98}
+      ],
+      "website_url": "https://www.flydubai.com",
+      "hq_country": "AE",
+      "hq_city": "Dubai",
+      "sector": "Aviation",
+      "description": "Low-cost carrier based in Dubai",
+      "ai_rank": 2,
+      "ai_score": 0.88,
+      "metrics": [
+        {
+          "key": "fleet_size",
+          "type": "number",
+          "value": 78,
+          "unit": "aircraft",
+          "as_of_date": "2024-12-01",
+          "confidence": 0.85,
+          "source_temp_id": "source_1"
+        },
+        {
+          "key": "is_low_cost_carrier",
+          "type": "bool",
+          "value": true,
+          "confidence": 1.0,
+          "source_temp_id": "source_1"
+        },
+        {
+          "key": "destinations",
+          "type": "json",
+          "value": ["CAI", "DEL", "IST", "KWI", "MCT"],
+          "confidence": 0.8,
+          "source_temp_id": "source_1"
+        },
+        {
+          "key": "total_revenue",
+          "type": "number",
+          "value": 2800000000,
+          "currency": "USD",
+          "as_of_date": "2023-12-31",
+          "confidence": 0.85,
+          "source_temp_id": "source_1"
+        }
+      ]
+    },
+    {
+      "name": "Air Arabia",
+      "website_url": "https://www.airarabia.com",
+      "hq_country": "AE",
+      "hq_city": "Sharjah",
+      "sector": "Aviation",
+      "description": "First and largest low-cost carrier in the Middle East",
+      "ai_rank": 3,
+      "ai_score": 0.82,
+      "metrics": [
+        {
+          "key": "fleet_size",
+          "type": "number",
+          "value": 56,
+          "unit": "aircraft",
+          "as_of_date": "2024-12-01",
+          "confidence": 0.9,
+          "source_temp_id": "source_1"
+        },
+        {
+          "key": "is_low_cost_carrier",
+          "type": "bool",
+          "value": true,
+          "confidence": 1.0,
+          "source_temp_id": "source_1"
+        },
+        {
+          "key": "destinations",
+          "type": "json",
+          "value": ["CAI", "AMM", "BEY", "IST"],
+          "confidence": 0.8,
+          "source_temp_id": "source_1"
+        },
+        {
+          "key": "total_revenue",
+          "type": "number",
+          "value": 1500000000,
+          "currency": "USD",
+          "as_of_date": "2023-12-31",
+          "confidence": 0.85,
+          "source_temp_id": "source_1"
+        }
+      ]
+    }
+  ]
+}

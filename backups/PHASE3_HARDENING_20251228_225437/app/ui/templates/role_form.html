@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if mode == 'edit' else 'New' }} Role - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<h1 class="page-title">{{ 'Edit' if mode == 'edit' else 'Create' }} Role</h1>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<form method="POST" style="max-width: 800px;">
+    <h3>Role Information</h3>
+    <div class="filters-grid">
+        <div class="form-group" style="grid-column: span 2;">
+            <label for="title">Title *</label>
+            <input type="text" id="title" name="title" value="{{ role.title if role else '' }}" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="company_id">Company *</label>
+            <select id="company_id" name="company_id" required>
+                <option value="">-- Select Company --</option>
+                {% for company in companies %}
+                <option value="{{ company.id }}" {% if role and role.company_id == company.id %}selected{% endif %}>{{ company.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="OPEN" {% if role and role.status == 'OPEN' %}selected{% endif %}>Open</option>
+                <option value="ON_HOLD" {% if role and role.status == 'ON_HOLD' %}selected{% endif %}>On Hold</option>
+                <option value="CLOSED" {% if role and role.status == 'CLOSED' %}selected{% endif %}>Closed</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="function">Function</label>
+            <input type="text" id="function" name="function" value="{{ role.function if role else '' }}">
+        </div>
+        
+        <div class="form-group">
+            <label for="location">Location</label>
+            <input type="text" id="location" name="location" value="{{ role.location if role else '' }}">
+        </div>
+        
+        <div class="form-group">
+            <label for="seniority_level">Seniority Level</label>
+            <input type="text" id="seniority_level" name="seniority_level" value="{{ role.seniority_level if role else '' }}">
+        </div>
+        
+        <div class="form-group" style="grid-column: span 2;">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="6">{{ role.description if role else '' }}</textarea>
+        </div>
+    </div>
+
+    <div style="margin-top: 30px; display: flex; gap: 10px;">
+        <button type="submit" class="btn btn-primary">{{ 'Update' if mode == 'edit' else 'Create' }} Role</button>
+        <a href="{{ '/ui/roles/' + role.id|string if role else '/ui/roles' }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

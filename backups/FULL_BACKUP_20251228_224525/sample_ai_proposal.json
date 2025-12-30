@@ -1,0 +1,220 @@
+{
+  "query": "Top 10 banks in UAE by total assets 2024",
+  "model": "gpt-4",
+  "generated_at": "2025-12-26T00:00:00Z",
+  "sources": [
+    {
+      "temp_id": "source_1",
+      "title": "UAE Central Bank - Banking Statistics 2024",
+      "url": "https://centralbank.ae/statistics/banking-2024",
+      "provider": "UAE Central Bank"
+    },
+    {
+      "temp_id": "source_2",
+      "title": "The Banker - Top 1000 World Banks 2024",
+      "url": "https://thebanker.com/top1000-2024",
+      "provider": "The Banker Magazine"
+    }
+  ],
+  "companies": [
+    {
+      "name": "First Abu Dhabi Bank PJSC",
+      "aliases": [
+        {
+          "name": "FAB",
+          "type": "abbreviation",
+          "confidence": 0.95
+        },
+        {
+          "name": "First Abu Dhabi Bank",
+          "type": "legal",
+          "confidence": 1.0
+        }
+      ],
+      "website_url": "https://www.fab.ae",
+      "hq_country": "AE",
+      "hq_city": "Abu Dhabi",
+      "sector": "Banking",
+      "description": "First Abu Dhabi Bank is the largest bank in the UAE and one of the largest in the Middle East.",
+      "ai_rank": 1,
+      "ai_score": 0.98,
+      "metrics": [
+        {
+          "key": "total_assets",
+          "value_number": 1071000000000,
+          "value_currency": "AED",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.95,
+          "source_temp_id": "source_1",
+          "evidence_snippet": "FAB reported total assets of AED 1,071 billion as of December 31, 2024"
+        },
+        {
+          "key": "total_assets_usd",
+          "value_number": 291500000000,
+          "value_currency": "USD",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.95,
+          "source_temp_id": "source_2",
+          "evidence_snippet": "First Abu Dhabi Bank (UAE) $291.5bn in total assets"
+        },
+        {
+          "key": "employee_count",
+          "value_number": 8000,
+          "as_of_date": "2024-12-31",
+          "confidence": 0.8,
+          "source_temp_id": "source_1"
+        }
+      ]
+    },
+    {
+      "name": "Emirates NBD Bank PJSC",
+      "aliases": [
+        {
+          "name": "Emirates NBD",
+          "type": "trade",
+          "confidence": 0.99
+        },
+        {
+          "name": "ENBD",
+          "type": "abbreviation",
+          "confidence": 0.9
+        }
+      ],
+      "website_url": "https://www.emiratesnbd.com",
+      "hq_country": "AE",
+      "hq_city": "Dubai",
+      "sector": "Banking",
+      "description": "Emirates NBD is one of the leading banking groups in the Middle East, with operations in the UAE and internationally.",
+      "ai_rank": 2,
+      "ai_score": 0.96,
+      "metrics": [
+        {
+          "key": "total_assets",
+          "value_number": 756000000000,
+          "value_currency": "AED",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.92,
+          "source_temp_id": "source_1",
+          "evidence_snippet": "Emirates NBD total assets stood at AED 756 billion"
+        },
+        {
+          "key": "total_assets_usd",
+          "value_number": 205800000000,
+          "value_currency": "USD",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.92,
+          "source_temp_id": "source_2",
+          "evidence_snippet": "Emirates NBD Bank (UAE) $205.8bn"
+        }
+      ]
+    },
+    {
+      "name": "Abu Dhabi Commercial Bank PJSC",
+      "aliases": [
+        {
+          "name": "ADCB",
+          "type": "abbreviation",
+          "confidence": 0.95
+        }
+      ],
+      "website_url": "https://www.adcb.com",
+      "hq_country": "AE",
+      "hq_city": "Abu Dhabi",
+      "sector": "Banking",
+      "description": "Abu Dhabi Commercial Bank is a major banking institution in the UAE.",
+      "ai_rank": 3,
+      "ai_score": 0.94,
+      "metrics": [
+        {
+          "key": "total_assets",
+          "value_number": 454000000000,
+          "value_currency": "AED",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.9,
+          "source_temp_id": "source_1",
+          "evidence_snippet": "ADCB reported AED 454 billion in total assets"
+        },
+        {
+          "key": "total_assets_usd",
+          "value_number": 123600000000,
+          "value_currency": "USD",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.9,
+          "source_temp_id": "source_2"
+        }
+      ]
+    },
+    {
+      "name": "Dubai Islamic Bank PJSC",
+      "aliases": [
+        {
+          "name": "DIB",
+          "type": "abbreviation",
+          "confidence": 0.95
+        }
+      ],
+      "website_url": "https://www.dib.ae",
+      "hq_country": "AE",
+      "hq_city": "Dubai",
+      "sector": "Islamic Banking",
+      "description": "Dubai Islamic Bank is the largest Islamic bank in the UAE.",
+      "ai_rank": 4,
+      "ai_score": 0.92,
+      "metrics": [
+        {
+          "key": "total_assets",
+          "value_number": 332000000000,
+          "value_currency": "AED",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.88,
+          "source_temp_id": "source_1",
+          "evidence_snippet": "DIB total assets: AED 332 billion"
+        },
+        {
+          "key": "total_assets_usd",
+          "value_number": 90400000000,
+          "value_currency": "USD",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.88,
+          "source_temp_id": "source_2"
+        }
+      ]
+    },
+    {
+      "name": "Mashreq Bank PSC",
+      "aliases": [
+        {
+          "name": "Mashreqbank",
+          "type": "trade",
+          "confidence": 0.9
+        }
+      ],
+      "website_url": "https://www.mashreq.com",
+      "hq_country": "AE",
+      "hq_city": "Dubai",
+      "sector": "Banking",
+      "description": "Mashreq is one of the oldest private banks in the UAE.",
+      "ai_rank": 5,
+      "ai_score": 0.90,
+      "metrics": [
+        {
+          "key": "total_assets",
+          "value_number": 181000000000,
+          "value_currency": "AED",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.85,
+          "source_temp_id": "source_1",
+          "evidence_snippet": "Mashreq Bank assets totaled AED 181 billion"
+        },
+        {
+          "key": "total_assets_usd",
+          "value_number": 49300000000,
+          "value_currency": "USD",
+          "as_of_date": "2024-12-31",
+          "confidence": 0.85,
+          "source_temp_id": "source_2"
+        }
+      ]
+    }
+  ]
+}

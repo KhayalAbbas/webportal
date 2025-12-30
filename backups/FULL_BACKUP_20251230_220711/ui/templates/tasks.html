@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Tasks</h1>
+
+<!-- Create Task Form -->
+<div class="filters" style="margin-bottom: 30px;">
+    <h3 style="margin-bottom: 15px;">Create New Task</h3>
+    {% if create_success %}
+    <div class="alert alert-success">{{ create_success }}</div>
+    {% endif %}
+    {% if create_error %}
+    <div class="alert alert-error">{{ create_error }}</div>
+    {% endif %}
+    
+    <form method="POST" action="/ui/tasks/create">
+        <div class="filters-grid">
+            <div class="form-group">
+                <label for="title">Title *</label>
+                <input type="text" id="title" name="title" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="2"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="related_entity_type">Related Entity Type</label>
+                <select id="related_entity_type" name="related_entity_type">
+                    <option value="">-- None --</option>
+                    <option value="CANDIDATE">CANDIDATE</option>
+                    <option value="ROLE">ROLE</option>
+                    <option value="COMPANY">COMPANY</option>
+                    <option value="CONTACT">CONTACT</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="related_entity_id">Related Entity ID</label>
+                <input type="text" id="related_entity_id" name="related_entity_id" placeholder="UUID">
+            </div>
+            
+            <div class="form-group">
+                <label for="due_date">Due Date</label>
+                <input type="date" id="due_date" name="due_date">
+            </div>
+            
+            <div class="form-group">
+                <label for="status">Status</label>
+                <select id="status" name="status">
+                    <option value="OPEN" selected>OPEN</option>
+                    <option value="IN_PROGRESS">IN_PROGRESS</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                </select>
+            </div>
+        </div>
+        
+        <button type="submit">Create Task</button>
+    </form>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="GET" action="/ui/tasks">
+        <div class="filters-grid">
+            <div class="form-group">
+                <label for="status_filter">Status</label>
+                <select id="status_filter" name="status_filter">
+                    <option value="">-- All --</option>
+                    <option value="OPEN" {% if filters.status_filter == 'OPEN' %}selected{% endif %}>OPEN</option>
+                    <option value="IN_PROGRESS" {% if filters.status_filter == 'IN_PROGRESS' %}selected{% endif %}>IN_PROGRESS</option>
+                    <option value="COMPLETED" {% if filters.status_filter == 'COMPLETED' %}selected{% endif %}>COMPLETED</option>
+                    <option value="CANCELLED" {% if filters.status_filter == 'CANCELLED' %}selected{% endif %}>CANCELLED</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="due_before">Due Before</label>
+                <input type="date" id="due_before" name="due_before" value="{{ filters.due_before or '' }}">
+            </div>
+        </div>
+        
+        <button type="submit">Filter</button>
+        <a href="/ui/tasks" class="btn btn-secondary">Clear</a>
+    </form>
+</div>
+
+<!-- Tasks table -->
+<table>
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th>Related Entity</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Assigned To</th>
+            <th>Created</th>
+            {% if current_user.role in ['ADMIN', 'CONSULTANT', 'BD_MANAGER'] %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        {% if tasks %}
+            {% for task in tasks %}
+            <tr>
+                <td>{{ task.title }}</td>
+                <td>
+                    {% if task.related_entity_type and task.related_entity_name %}
+                        {{ task.related_entity_type }}: {{ task.related_entity_name }}
+                    {% elif task.related_entity_type and task.related_entity_id %}
+                        {{ task.related_entity_type }}: {{ task.related_entity_id }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '-' }}</td>
+                <td>
+                    {% if task.status == 'COMPLETED' %}
+                        <span class="badge badge-success">{{ task.status }}</span>
+                    {% elif task.status == 'IN_PROGRESS' %}
+                        <span class="badge badge-info">{{ task.status }}</span>
+                    {% elif task.status == 'CANCELLED' %}
+                        <span class="badge badge-danger">{{ task.status }}</span>
+                    {% else %}
+                        <span class="badge">{{ task.status or 'OPEN' }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ task.assigned_to_user or '-' }}</td>
+                <td>{{ task.created_at.strftime('%Y-%m-%d') if task.created_at else '-' }}</td>
+                {% if current_user.role in ['ADMIN', 'CONSULTANT', 'BD_MANAGER'] %}
+                <td><a href="/ui/tasks/{{ task.id }}/edit" class="btn btn-sm">Edit</a></td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="{% if current_user.role in ['ADMIN', 'CONSULTANT', 'BD_MANAGER'] %}7{% else %}6{% endif %}" class="text-center text-muted">No tasks found</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}{{ candidate.first_name }} {{ candidate.last_name }} - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+{% if success_message %}
+<div class="alert alert-success" style="margin-bottom: 20px;">{{ success_message }}</div>
+{% endif %}
+
+<!-- Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">{{ candidate.first_name }} {{ candidate.last_name }}</h1>
+    <div style="display: flex; gap: 10px;">
+        {% if current_user.role in ['admin', 'consultant'] %}
+        <a href="/ui/candidates/{{ candidate.id }}/edit" class="btn btn-primary">Edit Candidate</a>
+        {% endif %}
+        <a href="/ui/candidates" class="btn btn-secondary">← Back to Candidates</a>
+    </div>
+</div>
+
+<div style="margin-bottom: 20px; color: #7f8c8d;">
+    <strong>{{ candidate.current_title or 'No Title' }}</strong>
+    {% if candidate.current_company %}at {{ candidate.current_company }}{% endif %}
+    <br>
+    {% if candidate.location %}{{ candidate.location }}{% endif %}
+    {% if candidate.location and candidate.home_country %} • {% endif %}
+    {% if candidate.home_country %}{{ candidate.home_country }}{% endif %}
+</div>
+
+<!-- Profile Section -->
+<h2 class="section-title">Profile</h2>
+<div class="detail-section">
+    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 10px;">Contact</h3>
+    <div class="detail-grid">
+        <div class="detail-label">Email</div>
+        <div class="detail-value">{{ candidate.email or '-' }}</div>
+        
+        <div class="detail-label">Email 2</div>
+        <div class="detail-value">{{ candidate.email_1 or '-' }}</div>
+        
+        <div class="detail-label">Email 3</div>
+        <div class="detail-value">{{ candidate.email_2 or '-' }}</div>
+        
+        <div class="detail-label">Phone</div>
+        <div class="detail-value">{{ candidate.phone or '-' }}</div>
+        
+        <div class="detail-label">Mobile 1</div>
+        <div class="detail-value">{{ candidate.mobile_1 or '-' }}</div>
+        
+        <div class="detail-label">Mobile 2</div>
+        <div class="detail-value">{{ candidate.mobile_2 or '-' }}</div>
+    </div>
+    
+    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Personal</h3>
+    <div class="detail-grid">
+        <div class="detail-label">Home Country</div>
+        <div class="detail-value">{{ candidate.home_country or '-' }}</div>
+        
+        <div class="detail-label">Location</div>
+        <div class="detail-value">{{ candidate.location or '-' }}</div>
+        
+        <div class="detail-label">Postal Code</div>
+        <div class="detail-value">{{ candidate.postal_code or '-' }}</div>
+        
+        <div class="detail-label">Marital Status</div>
+        <div class="detail-value">{{ candidate.marital_status or '-' }}</div>
+        
+        <div class="detail-label">Children</div>
+        <div class="detail-value">{{ candidate.children_count if candidate.children_count is not none else '-' }}</div>
+        
+        <div class="detail-label">Date of Birth</div>
+        <div class="detail-value">{{ candidate.date_of_birth.strftime('%Y-%m-%d') if candidate.date_of_birth else '-' }}</div>
+    </div>
+    
+    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Career / Education</h3>
+    <div class="detail-grid">
+        <div class="detail-label">Current Title</div>
+        <div class="detail-value">{{ candidate.current_title or '-' }}</div>
+        
+        <div class="detail-label">Current Company</div>
+        <div class="detail-value">{{ candidate.current_company or '-' }}</div>
+        
+        <div class="detail-label">LinkedIn</div>
+        <div class="detail-value">
+            {% if candidate.linkedin_url %}
+                <a href="{{ candidate.linkedin_url }}" target="_blank">{{ candidate.linkedin_url }}</a>
+            {% else %}
+                -
+            {% endif %}
+        </div>
+        
+        <div class="detail-label">Languages</div>
+        <div class="detail-value">{{ candidate.languages or '-' }}</div>
+        
+        <div class="detail-label">Qualifications</div>
+        <div class="detail-value">{{ candidate.qualifications or '-' }}</div>
+        
+        <div class="detail-label">Certifications</div>
+        <div class="detail-value">{{ candidate.certifications or '-' }}</div>
+        
+        <div class="detail-label">Education Summary</div>
+        <div class="detail-value">{{ candidate.education_summary or '-' }}</div>
+        
+        <div class="detail-label">Salary Details</div>
+        <div class="detail-value">{{ candidate.salary_details or '-' }}</div>
+    </div>
+    
+    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Scores</h3>
+    <div class="detail-grid">
+        <div class="detail-label">Promotability Score</div>
+        <div class="detail-value">{{ candidate.promotability_score if candidate.promotability_score is not none else '-' }}</div>
+        
+        <div class="detail-label">Technical Score</div>
+        <div class="detail-value">{{ candidate.technical_score if candidate.technical_score is not none else '-' }}</div>
+        
+        <div class="detail-label">Gamification Score</div>
+        <div class="detail-value">{{ candidate.gamification_score if candidate.gamification_score is not none else '-' }}</div>
+    </div>
+    
+    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Bio</h3>
+    {% if candidate.bio %}
+    <div class="text-box">{{ candidate.bio }}</div>
+    {% else %}
+    <p class="text-muted">No bio available</p>
+    {% endif %}
+    
+    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">CV / Resume</h3>
+    {% if candidate.cv_text %}
+    <div class="text-box" style="max-height: 300px;">{{ candidate.cv_text }}</div>
+    {% else %}
+    <p class="text-muted">No CV text available</p>
+    {% endif %}
+</div>
+
+<!-- Assignments Section -->
+<h2 class="section-title">Assignments</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Role Title</th>
+            <th>Company</th>
+            <th>Status</th>
+            <th>Is Hot</th>
+            <th>Date Entered</th>
+            <th>Start Date</th>
+            <th>Current Stage</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if assignments %}
+            {% for assignment in assignments %}
+            <tr>
+                <td><a href="/ui/roles/{{ assignment.role_id }}">{{ assignment.role_title }}</a></td>
+                <td>{{ assignment.company_name }}</td>
+                <td>
+                    {% if assignment.status %}
+                        <span class="badge badge-info">{{ assignment.status }}</span>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{% if assignment.is_hot %}🔥 Yes{% else %}No{% endif %}</td>
+                <td>{{ assignment.date_entered.strftime('%Y-%m-%d') if assignment.date_entered else '-' }}</td>
+                <td>{{ assignment.start_date.strftime('%Y-%m-%d') if assignment.start_date else '-' }}</td>
+                <td>{{ assignment.stage_name or '-' }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="7" class="text-center text-muted">No assignments</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- Research Section -->
+<h2 class="section-title">Research</h2>
+
+<h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Research Events</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Source Type</th>
+            <th>Source URL</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if research.research_events %}
+            {% for event in research.research_events %}
+            <tr>
+                <td>{{ event.event_date.strftime('%Y-%m-%d %H:%M') if event.event_date else '-' }}</td>
+                <td>{{ event.source_type or '-' }}</td>
+                <td>
+                    {% if event.source_url %}
+                        <a href="{{ event.source_url }}" target="_blank">{{ event.source_url[:50] }}...</a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{{ event.entity_type or '-' }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="4" class="text-center text-muted">No research events</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Source Documents</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Date</th>
+            <th>Preview</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if research.source_documents %}
+            {% for doc in research.source_documents %}
+            <tr>
+                <td>{{ doc.document_title or 'Untitled' }}</td>
+                <td>{{ doc.document_type or '-' }}</td>
+                <td>{{ doc.created_at.strftime('%Y-%m-%d') if doc.created_at else '-' }}</td>
+                <td>
+                    {% if doc.text_content %}
+                        {{ doc.text_content[:100] }}...
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="4" class="text-center text-muted">No source documents</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">AI Enrichments</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Model Name</th>
+            <th>Enrichment Type</th>
+            <th>Confidence</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if research.ai_enrichments %}
+            {% for enrichment in research.ai_enrichments %}
+            <tr>
+                <td>{{ enrichment.created_at.strftime('%Y-%m-%d %H:%M') if enrichment.created_at else '-' }}</td>
+                <td>{{ enrichment.model_name or '-' }}</td>
+                <td>{{ enrichment.enrichment_type or '-' }}</td>
+                <td>{{ enrichment.confidence_score if enrichment.confidence_score is not none else '-' }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="4" class="text-center text-muted">No AI enrichments</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

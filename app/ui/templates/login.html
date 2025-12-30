@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Silver Arrow ATS{% endblock %}
+
+{% block body %}
+<div class="login-container">
+    <h1 class="login-title">Silver Arrow ATS</h1>
+    
+    {% if error %}
+    <div class="alert alert-error">
+        {{ error }}
+    </div>
+    {% endif %}
+    
+    <form method="POST" action="/login">
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" required value="{{ email or '' }}">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="tenant_id">Tenant ID</label>
+            <input type="text" id="tenant_id" name="tenant_id" required value="{{ tenant_id or '' }}" placeholder="00000000-0000-0000-0000-000000000000">
+        </div>
+        
+        <button type="submit" style="width: 100%;">Login</button>
+    </form>
+</div>
+{% endblock %}

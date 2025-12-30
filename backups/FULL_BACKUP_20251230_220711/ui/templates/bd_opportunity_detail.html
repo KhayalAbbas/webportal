@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}BD Opportunity - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">BD Opportunity</h1>
+    <div>
+        {% if current_user.role in ['ADMIN', 'BD_MANAGER', 'CONSULTANT'] %}
+        <a href="/ui/bd-opportunities/{{ opportunity.id }}/edit" class="btn btn-primary" style="margin-right: 10px;">Edit Opportunity</a>
+        {% endif %}
+        <a href="/ui/bd-opportunities" class="btn btn-secondary">← Back to BD Opportunities</a>
+    </div>
+</div>
+
+<!-- Success Message -->
+{% if success_message %}
+<div style="background: #d4edda; color: #155724; padding: 12px 16px; border: 1px solid #c3e6cb; border-radius: 4px; margin-bottom: 20px;">
+    {{ success_message }}
+</div>
+{% endif %}
+
+<div style="margin-bottom: 20px; color: #7f8c8d;">
+    <strong><a href="/ui/companies/{{ opportunity.company_id }}">{{ company_name }}</a></strong>
+    {% if opportunity.stage %} • {{ opportunity.stage }}{% endif %}
+    {% if opportunity.status %} • 
+        {% if opportunity.status == 'WON' %}
+            <span class="badge badge-success">{{ opportunity.status }}</span>
+        {% elif opportunity.status == 'LOST' %}
+            <span class="badge badge-danger">{{ opportunity.status }}</span>
+        {% else %}
+            <span class="badge badge-info">{{ opportunity.status }}</span>
+        {% endif %}
+    {% endif %}
+</div>
+
+<h2 class="section-title">Opportunity Details</h2>
+<div class="detail-section">
+    <div class="detail-grid">
+        <div class="detail-label">Company</div>
+        <div class="detail-value"><a href="/ui/companies/{{ opportunity.company_id }}">{{ company_name }}</a></div>
+        
+        <div class="detail-label">Contact</div>
+        <div class="detail-value">{{ contact_name or '-' }}</div>
+        
+        <div class="detail-label">Status</div>
+        <div class="detail-value">{{ opportunity.status or '-' }}</div>
+        
+        <div class="detail-label">Stage</div>
+        <div class="detail-value">{{ opportunity.stage or '-' }}</div>
+        
+        <div class="detail-label">Estimated Value</div>
+        <div class="detail-value">{{ opportunity.estimated_value if opportunity.estimated_value else '-' }}</div>
+        
+        <div class="detail-label">Currency</div>
+        <div class="detail-value">{{ opportunity.currency or '-' }}</div>
+        
+        <div class="detail-label">Probability</div>
+        <div class="detail-value">{{ opportunity.probability }}%</div>
+        
+        <div class="detail-label">Created</div>
+        <div class="detail-value">{{ opportunity.created_at.strftime('%Y-%m-%d %H:%M') if opportunity.created_at else '-' }}</div>
+        
+        <div class="detail-label">Last Updated</div>
+        <div class="detail-value">{{ opportunity.updated_at.strftime('%Y-%m-%d %H:%M') if opportunity.updated_at else '-' }}</div>
+        
+        {% if opportunity.status == 'LOST' %}
+        <div class="detail-label">Lost Reason</div>
+        <div class="detail-value">{{ opportunity.lost_reason or '-' }}</div>
+        
+        <div class="detail-label">Lost Reason Detail</div>
+        <div class="detail-value">{{ opportunity.lost_reason_detail or '-' }}</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

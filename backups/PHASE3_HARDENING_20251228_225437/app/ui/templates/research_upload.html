@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Phase 3 Bundle Upload - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 800px; margin: 20px auto; padding: 0 20px;">
+    <div class="content-header">
+        <h1>Phase 3 Bundle Upload</h1>
+        <p class="subtitle">Upload a RunBundle JSON file to create and populate a research run</p>
+    </div>
+
+    <div style="background: white; border: 1px solid #ddd; border-radius: 4px; padding: 30px; margin-top: 20px;">
+        <form action="/ui/research/upload" method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 20px;">
+            
+            <!-- Objective Input -->
+            <div class="form-group">
+                <label for="objective" style="font-weight: 600; margin-bottom: 8px; display: block;">Research Objective *</label>
+                <input 
+                    type="text" 
+                    id="objective" 
+                    name="objective" 
+                    placeholder="e.g., Find tech companies in San Francisco with 50+ employees"
+                    required
+                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                >
+                <small style="color: #666; margin-top: 4px; display: block;">
+                    Describe what this research run is intended to accomplish
+                </small>
+            </div>
+
+            <!-- File Upload -->
+            <div class="form-group">
+                <label for="bundle_file" style="font-weight: 600; margin-bottom: 8px; display: block;">Bundle JSON File *</label>
+                <input 
+                    type="file" 
+                    id="bundle_file" 
+                    name="bundle_file" 
+                    accept=".json,application/json"
+                    required
+                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                >
+                <small style="color: #666; margin-top: 4px; display: block;">
+                    Select a valid RunBundle v1 JSON file. The run_id will be automatically set.
+                </small>
+            </div>
+
+            <!-- Requirements Info -->
+            <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 15px; margin: 10px 0;">
+                <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #495057;">Bundle Requirements</h3>
+                <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #6c757d;">
+                    <li>Version must be "run_bundle_v1"</li>
+                    <li>Step types: search, fetch, extract, validate, compose, finalize</li>
+                    <li>Step status: queued, running, ok, failed, skipped</li>
+                    <li>All sources must have non-empty content_text</li>
+                    <li>SHA256 hashes must match content</li>
+                    <li>Companies must have ≥1 evidence snippet and source reference</li>
+                </ul>
+            </div>
+
+            <!-- Submit Button -->
+            <div style="margin-top: 20px;">
+                <button 
+                    type="submit"
+                    style="background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%;"
+                    onmouseover="this.style.background='#0056b3'"
+                    onmouseout="this.style.background='#007bff'"
+                >
+                    Create Run + Upload Bundle
+                </button>
+            </div>
+        </form>
+
+        <!-- Help Section -->
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #495057;">Need Help?</h3>
+            <p style="margin: 0; font-size: 13px; color: #6c757d;">
+                Use the <code style="background: #f8f9fa; padding: 2px 4px; border-radius: 2px;">phase3_upload_bundle.py</code> 
+                command-line tool to generate valid bundle files, then upload them here.
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+.content-header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.subtitle {
+    color: #7f8c8d;
+    font-size: 14px;
+    margin: 5px 0 0 0;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+button[type="submit"]:disabled {
+    background: #6c757d !important;
+    cursor: not-allowed;
+}
+
+input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,.25);
+}
+</style>
+{% endblock %}

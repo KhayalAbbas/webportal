@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}{{ list.name }} - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">{{ list.name }}</h1>
+    <div>
+        {% if current_user.role in ['ADMIN', 'CONSULTANT'] %}
+        <a href="/ui/lists/{{ list.id }}/edit" class="btn btn-primary" style="margin-right: 10px;">Rename List</a>
+        {% endif %}
+        <a href="/ui/lists" class="btn btn-secondary">← Back to Lists</a>
+    </div>
+</div>
+
+<!-- List details -->
+<div class="card" style="margin-bottom: 30px;">
+    <div class="detail-grid">
+        <div class="detail-row">
+            <span class="detail-label">Description:</span>
+            <span class="detail-value">{{ list.description or '-' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Created:</span>
+            <span class="detail-value">{{ list.created_at.strftime('%Y-%m-%d %H:%M') if list.created_at else '-' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Item Count:</span>
+            <span class="detail-value">{{ items|length }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Add to List Form -->
+<div class="filters" style="margin-bottom: 30px;">
+    <h3 style="margin-bottom: 15px;">Add Candidate to List</h3>
+    {% if add_success %}
+    <div class="alert alert-success">{{ add_success }}</div>
+    {% endif %}
+    {% if add_error %}
+    <div class="alert alert-error">{{ add_error }}</div>
+    {% endif %}
+    
+    <form method="POST" action="/ui/lists/{{ list.id }}/add">
+        <div class="filters-grid">
+            <div class="form-group">
+                <label for="candidate_id">Candidate *</label>
+                <select id="candidate_id" name="candidate_id" required>
+                    <option value="">-- Select Candidate --</option>
+                    {% for candidate in recent_candidates %}
+                    <option value="{{ candidate.id }}">{{ candidate.first_name }} {{ candidate.last_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <button type="submit">Add to List</button>
+    </form>
+</div>
+
+<!-- List items table -->
+<h2>List Items</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Candidate</th>
+            <th>Current Title</th>
+            <th>Location</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Added</th>
+            {% if current_user.role in ['ADMIN', 'CONSULTANT'] %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        {% if items %}
+            {% for item in items %}
+            <tr>
+                <td><a href="/ui/candidates/{{ item.entity_id }}">{{ item.candidate.first_name }} {{ item.candidate.last_name }}</a></td>
+                <td>{{ item.candidate.current_title or '-' }}</td>
+                <td>{{ item.candidate.location or '-' }}</td>
+                <td>{{ item.candidate.email or '-' }}</td>
+                <td>{{ item.candidate.phone or '-' }}</td>
+                <td>{{ item.added_at.strftime('%Y-%m-%d') if item.added_at else (item.created_at.strftime('%Y-%m-%d') if item.created_at else '-') }}</td>
+                {% if current_user.role in ['ADMIN', 'CONSULTANT'] %}
+                <td>
+                    <form method="POST" action="/ui/lists/items/{{ item.id }}/delete" style="display: inline;">
+                        <input type="hidden" name="list_id" value="{{ list.id }}">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this candidate from the list?')">Remove</button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="{% if current_user.role in ['ADMIN', 'CONSULTANT'] %}7{% else %}6{% endif %}" class="text-center text-muted">No items in this list</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<div style="margin-top: 20px;">
+    <a href="/ui/lists" class="btn btn-secondary">Back to Lists</a>
+</div>
+{% endblock %}

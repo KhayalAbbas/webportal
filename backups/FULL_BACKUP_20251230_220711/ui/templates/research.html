@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Research - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Research Activity</h1>
+
+<!-- Phase 3 Research Runs -->
+<div class="card" style="margin-bottom: 30px;">
+    <h2>Phase 3 Research Runs</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Objective</th>
+                <th>Status</th>
+                <th>Bundle SHA256</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if research_runs %}
+                {% for run in research_runs %}
+                <tr>
+                    <td>{{ run.objective or '-' }}</td>
+                    <td>
+                        <span class="status-badge {% if run.status == 'submitted' %}status-success{% elif run.status == 'queued' %}status-pending{% else %}status-default{% endif %}">
+                            {{ run.status }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if run.bundle_sha256 %}
+                            <code style="font-size: 0.8em;">{{ run.bundle_sha256[:16] }}...</code>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ run.created_at.strftime('%Y-%m-%d %H:%M') if run.created_at else '-' }}</td>
+                    <td>
+                        <a href="/ui/research/runs/{{ run.id }}/steps" target="_blank" class="btn btn-small">View Steps</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">No Phase 3 research runs found</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+    <div style="margin-top: 15px;">
+        <a href="/ui/research/upload" class="btn btn-primary">Upload New Research Bundle</a>
+    </div>
+</div>
+
+<!-- Recent Research Events -->
+<div class="card" style="margin-bottom: 30px;">
+    <h2>Recent Research Events</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Entity Type</th>
+                <th>Entity</th>
+                <th>Event Type</th>
+                <th>Summary</th>
+                <th>Source</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if research_events %}
+                {% for event in research_events %}
+                <tr>
+                    <td>{{ event.entity_type or '-' }}</td>
+                    <td>
+                        {% if event.entity_type == 'CANDIDATE' and event.entity_id %}
+                            <a href="/ui/candidates/{{ event.entity_id }}">{{ event.entity_name or event.entity_id }}</a>
+                        {% elif event.entity_type == 'COMPANY' and event.entity_id %}
+                            <a href="/ui/companies/{{ event.entity_id }}">{{ event.entity_name or event.entity_id }}</a>
+                        {% else %}
+                            {{ event.entity_name or event.entity_id or '-' }}
+                        {% endif %}
+                    </td>
+                    <td>{{ event.event_type or '-' }}</td>
+                    <td>{{ event.summary[:100] if event.summary else '-' }}</td>
+                    <td>{{ event.source or '-' }}</td>
+                    <td>{{ event.event_date.strftime('%Y-%m-%d') if event.event_date else (event.created_at.strftime('%Y-%m-%d') if event.created_at else '-') }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">No research events found</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Recent Source Documents -->
+<div class="card" style="margin-bottom: 30px;">
+    <h2>Recent Source Documents</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Entity Type</th>
+                <th>Entity</th>
+                <th>Document Type</th>
+                <th>Filename</th>
+                <th>Source</th>
+                <th>Uploaded</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if source_documents %}
+                {% for doc in source_documents %}
+                <tr>
+                    <td>{{ doc.entity_type or '-' }}</td>
+                    <td>
+                        {% if doc.entity_type == 'CANDIDATE' and doc.entity_id %}
+                            <a href="/ui/candidates/{{ doc.entity_id }}">{{ doc.entity_name or doc.entity_id }}</a>
+                        {% elif doc.entity_type == 'COMPANY' and doc.entity_id %}
+                            <a href="/ui/companies/{{ doc.entity_id }}">{{ doc.entity_name or doc.entity_id }}</a>
+                        {% else %}
+                            {{ doc.entity_name or doc.entity_id or '-' }}
+                        {% endif %}
+                    </td>
+                    <td>{{ doc.document_type or '-' }}</td>
+                    <td>{{ doc.filename or '-' }}</td>
+                    <td>{{ doc.source or '-' }}</td>
+                    <td>{{ doc.uploaded_at.strftime('%Y-%m-%d') if doc.uploaded_at else (doc.created_at.strftime('%Y-%m-%d') if doc.created_at else '-') }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">No source documents found</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Recent AI Enrichments -->
+<div class="card">
+    <h2>Recent AI Enrichments</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Entity Type</th>
+                <th>Entity</th>
+                <th>Enrichment Type</th>
+                <th>Data Summary</th>
+                <th>Model</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if ai_enrichments %}
+                {% for enrichment in ai_enrichments %}
+                <tr>
+                    <td>{{ enrichment.entity_type or '-' }}</td>
+                    <td>
+                        {% if enrichment.entity_type == 'CANDIDATE' and enrichment.entity_id %}
+                            <a href="/ui/candidates/{{ enrichment.entity_id }}">{{ enrichment.entity_name or enrichment.entity_id }}</a>
+                        {% elif enrichment.entity_type == 'COMPANY' and enrichment.entity_id %}
+                            <a href="/ui/companies/{{ enrichment.entity_id }}">{{ enrichment.entity_name or enrichment.entity_id }}</a>
+                        {% else %}
+                            {{ enrichment.entity_name or enrichment.entity_id or '-' }}
+                        {% endif %}
+                    </td>
+                    <td>{{ enrichment.enrichment_type or '-' }}</td>
+                    <td>
+                        {% if enrichment.enriched_data %}
+                            {{ (enrichment.enriched_data | string)[:100] }}...
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ enrichment.model_used or '-' }}</td>
+                    <td>{{ enrichment.created_at.strftime('%Y-%m-%d') if enrichment.created_at else '-' }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">No AI enrichments found</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

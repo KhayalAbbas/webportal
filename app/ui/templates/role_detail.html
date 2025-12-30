@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}{{ role.title }} - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">{{ role.title }}</h1>
+    <div>
+        {% if current_user.role in ['ADMIN', 'CONSULTANT'] %}
+        <a href="/ui/roles/{{ role.id }}/edit" class="btn btn-primary" style="margin-right: 10px;">Edit Role</a>
+        {% endif %}
+        <a href="/ui/roles" class="btn btn-secondary">← Back to Roles</a>
+    </div>
+</div>
+
+<!-- Success Message -->
+{% if success_message %}
+<div style="background: #d4edda; color: #155724; padding: 12px 16px; border: 1px solid #c3e6cb; border-radius: 4px; margin-bottom: 20px;">
+    {{ success_message }}
+</div>
+{% endif %}
+
+<div style="margin-bottom: 20px; color: #7f8c8d;">
+    <strong><a href="/ui/companies/{{ role.company_id }}">{{ company_name }}</a></strong>
+    {% if role.location %} • {{ role.location }}{% endif %}
+    {% if role.status %} • 
+        {% if role.status == 'OPEN' %}
+            <span class="badge badge-success">{{ role.status }}</span>
+        {% elif role.status == 'ON_HOLD' %}
+            <span class="badge badge-warning">{{ role.status }}</span>
+        {% else %}
+            <span class="badge">{{ role.status }}</span>
+        {% endif %}
+    {% endif %}
+</div>
+
+<!-- Role Profile Section -->
+<h2 class="section-title">Role Profile</h2>
+<div class="detail-section">
+    <div class="detail-grid">
+        <div class="detail-label">Title</div>
+        <div class="detail-value">{{ role.title }}</div>
+        
+        <div class="detail-label">Company</div>
+        <div class="detail-value"><a href="/ui/companies/{{ role.company_id }}">{{ company_name }}</a></div>
+        
+        <div class="detail-label">Function</div>
+        <div class="detail-value">{{ role.function or '-' }}</div>
+        
+        <div class="detail-label">Location</div>
+        <div class="detail-value">{{ role.location or '-' }}</div>
+        
+        <div class="detail-label">Status</div>
+        <div class="detail-value">{{ role.status or '-' }}</div>
+        
+        <div class="detail-label">Seniority Level</div>
+        <div class="detail-value">{{ role.seniority_level or '-' }}</div>
+        
+        <div class="detail-label">Created</div>
+        <div class="detail-value">{{ role.created_at.strftime('%Y-%m-%d %H:%M') if role.created_at else '-' }}</div>
+        
+        <div class="detail-label">Last Updated</div>
+        <div class="detail-value">{{ role.updated_at.strftime('%Y-%m-%d %H:%M') if role.updated_at else '-' }}</div>
+    </div>
+    
+    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Description</h3>
+    {% if role.description %}
+    <div class="text-box">{{ role.description }}</div>
+    {% else %}
+    <p class="text-muted">No description available</p>
+    {% endif %}
+</div>
+
+<!-- Candidate Pipeline Section -->
+<h2 class="section-title">Candidate Pipeline</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Candidate</th>
+            <th>Current Title</th>
+            <th>Current Company</th>
+            <th>Assignment Status</th>
+            <th>Is Hot</th>
+            <th>Current Stage</th>
+            <th>Date Entered</th>
+            <th>Last Updated</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if pipeline %}
+            {% for item in pipeline %}
+            <tr>
+                <td><a href="/ui/candidates/{{ item.candidate_id }}">{{ item.candidate_name }}</a></td>
+                <td>{{ item.current_title or '-' }}</td>
+                <td>{{ item.current_company or '-' }}</td>
+                <td>
+                    {% if item.status == 'OFFER' %}
+                        <span class="badge badge-success">{{ item.status }}</span>
+                    {% elif item.status == 'SHORT_LIST' %}
+                        <span class="badge badge-warning">{{ item.status }}</span>
+                    {% elif item.status == 'LONG_LIST' %}
+                        <span class="badge badge-info">{{ item.status }}</span>
+                    {% else %}
+                        <span class="badge">{{ item.status or 'UNKNOWN' }}</span>
+                    {% endif %}
+                </td>
+                <td>{% if item.is_hot %}🔥 Yes{% else %}No{% endif %}</td>
+                <td>{{ item.stage_name or '-' }}</td>
+                <td>{{ item.date_entered.strftime('%Y-%m-%d') if item.date_entered else '-' }}</td>
+                <td>{{ item.updated_at.strftime('%Y-%m-%d') if item.updated_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="8" class="text-center text-muted">No candidates assigned to this role yet</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- Add Candidate to Role Form -->
+<h2 class="section-title">Add Candidate to Role</h2>
+<div class="detail-section">
+    {% if add_error %}
+    <div class="alert alert-error">{{ add_error }}</div>
+    {% endif %}
+    {% if add_success %}
+    <div class="alert alert-success">{{ add_success }}</div>
+    {% endif %}
+    
+    <form method="POST" action="/ui/roles/{{ role.id }}/add-candidate">
+        <div class="filters-grid">
+            <div class="form-group">
+                <label for="candidate_id">Candidate</label>
+                <select id="candidate_id" name="candidate_id" required>
+                    <option value="">-- Select Candidate --</option>
+                    {% for candidate in recent_candidates %}
+                    <option value="{{ candidate.id }}">{{ candidate.first_name }} {{ candidate.last_name }} - {{ candidate.current_title or 'No Title' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="status">Assignment Status</label>
+                <select id="status" name="status" required>
+                    <option value="LONG_LIST">LONG_LIST</option>
+                    <option value="SHORT_LIST">SHORT_LIST</option>
+                    <option value="INTERVIEW">INTERVIEW</option>
+                    <option value="OFFER">OFFER</option>
+                    <option value="PLACED">PLACED</option>
+                    <option value="REJECTED">REJECTED</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="is_hot">Is Hot</label>
+                <input type="checkbox" id="is_hot" name="is_hot" value="true" style="width: auto;">
+            </div>
+            
+            <div class="form-group">
+                <label for="source">Source</label>
+                <input type="text" id="source" name="source" placeholder="LinkedIn, referral, etc.">
+            </div>
+        </div>
+        
+        <button type="submit">Add Candidate</button>
+    </form>
+</div>
+{% endblock %}

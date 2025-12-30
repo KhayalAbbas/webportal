@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Company Research - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">Company Research</h1>
+</div>
+
+<p style="color: #7f8c8d; margin-bottom: 20px;">
+    Manage company discovery runs for your mandates. Create research exercises to identify and rank potential target companies.
+</p>
+
+<!-- Role Filter -->
+<div class="form-group" style="max-width: 500px; margin-bottom: 30px;">
+    <label>Select Role/Mandate</label>
+    <form method="get" action="/ui/company-research" style="display: flex; gap: 10px;">
+        <select name="role_id" onchange="this.form.submit()" style="flex: 1;">
+            <option value="">-- Select a role to view research runs --</option>
+            {% for role in available_roles %}
+            <option value="{{ role.id }}" {% if role_id and role.id == role_id %}selected{% endif %}>
+                {{ role.title }} ({{ role.company_name }})
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+{% if selected_role %}
+<!-- Selected Role Info -->
+<div style="background: #ecf0f1; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+    <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 5px 0;">{{ selected_role.title }}</h2>
+    <p style="color: #7f8c8d; margin: 0;">{{ selected_role.company_name }}</p>
+</div>
+
+<!-- Create New Run Button -->
+<div style="margin-bottom: 20px;">
+    <button onclick="document.getElementById('createRunModal').style.display='block'" class="btn btn-primary">
+        + New Company Research Run
+    </button>
+</div>
+
+<!-- Research Runs Table -->
+<h2 class="section-title">Research Runs</h2>
+
+{% if runs %}
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Status</th>
+            <th>Companies</th>
+            <th>Created</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for run in runs %}
+        <tr>
+            <td><strong>{{ run.name }}</strong></td>
+            <td>{{ run.description or '-' }}</td>
+            <td>
+                {% if run.status == 'active' %}
+                    <span class="badge badge-success">{{ run.status }}</span>
+                {% elif run.status == 'completed' %}
+                    <span class="badge badge-info">{{ run.status }}</span>
+                {% else %}
+                    <span class="badge">{{ run.status }}</span>
+                {% endif %}
+            </td>
+            <td>{{ run.prospect_count }} prospects</td>
+            <td>{{ run.created_at.strftime('%Y-%m-%d %H:%M') if run.created_at else '-' }}</td>
+            <td>
+                <a href="/ui/company-research/runs/{{ run.id }}" class="btn btn-sm">Open</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-muted" style="padding: 20px; background: #f8f9fa; border-radius: 4px;">
+    No research runs found for this role. Click "New Company Research Run" to create one.
+</p>
+{% endif %}
+
+<!-- Create Run Modal -->
+<div id="createRunModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto;">
+    <div style="background: #fff; max-width: 600px; margin: 50px auto; padding: 30px; border-radius: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Create Company Research Run</h2>
+            <button onclick="document.getElementById('createRunModal').style.display='none'" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #7f8c8d;">&times;</button>
+        </div>
+        
+        <form method="post" action="/ui/company-research/runs/create">
+            <input type="hidden" name="role_mandate_id" value="{{ selected_role.id }}">
+            
+            <div class="form-group">
+                <label>Run Name *</label>
+                <input type="text" name="name" required placeholder="e.g., Top 50 NBFCs in India 2024">
+            </div>
+            
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" rows="3" placeholder="Brief description of this research exercise"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label>Sector *</label>
+                <input type="text" name="sector" required placeholder="e.g., nbfc, facilities_management">
+                <small style="color: #7f8c8d; font-size: 11px;">Industry sector for this research</small>
+            </div>
+            
+            <div class="form-group">
+                <label>Region Scope</label>
+                <input type="text" name="region_scope" placeholder="e.g., IN, AE, SA (comma-separated country codes)">
+                <small style="color: #7f8c8d; font-size: 11px;">Optional: countries to focus on</small>
+            </div>
+            
+            <h3 style="font-size: 14px; margin: 20px 0 10px 0; border-top: 1px solid #dee2e6; padding-top: 15px;">Ranking Preferences</h3>
+            
+            <div class="form-group">
+                <label>Primary Metric</label>
+                <select name="primary_metric">
+                    <option value="total_assets">Total Assets</option>
+                    <option value="revenue">Revenue</option>
+                    <option value="employees">Employees</option>
+                    <option value="net_income">Net Income</option>
+                    <option value="market_cap">Market Cap</option>
+                </select>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                    <label>Currency</label>
+                    <select name="currency">
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                        <option value="INR">INR</option>
+                        <option value="AED">AED</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>As-of Year</label>
+                    <input type="number" name="as_of_year" value="2024" min="2020" max="2030">
+                </div>
+                
+                <div class="form-group">
+                    <label>Direction</label>
+                    <select name="direction">
+                        <option value="desc">Highest first</option>
+                        <option value="asc">Lowest first</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" onclick="document.getElementById('createRunModal').style.display='none'" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Run</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% else %}
+<p class="text-muted" style="padding: 20px; background: #f8f9fa; border-radius: 4px;">
+    Please select a role/mandate from the dropdown above to view and manage research runs.
+</p>
+{% endif %}
+
+{% endblock %}

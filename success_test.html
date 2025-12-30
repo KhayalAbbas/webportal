@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Result - Silver Arrow ATS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.4;
+            color: #1a1a1a;
+            background: #f5f5f5;
+        }
+        
+        /* Header */
+        .header {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #34495e;
+        }
+        
+        .header-left h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 12px;
+        }
+        
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        
+        .tenant-id {
+            color: #95a5a6;
+            font-size: 10px;
+        }
+        
+        .logout-link {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 4px 12px;
+            border: 1px solid #7f8c8d;
+            border-radius: 3px;
+        }
+        
+        .logout-link:hover {
+            background: #34495e;
+        }
+        
+        /* Layout container */
+        .container {
+            display: flex;
+            height: calc(100vh - 45px);
+        }
+        
+        /* Sidebar navigation */
+        .sidebar {
+            width: 200px;
+            background: #34495e;
+            color: #ecf0f1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+        
+        .nav-item {
+            display: block;
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-left: 3px solid transparent;
+        }
+        
+        .nav-item:hover {
+            background: #2c3e50;
+            border-left-color: #3498db;
+        }
+        
+        .nav-item.active {
+            background: #2c3e50;
+            border-left-color: #3498db;
+            font-weight: 600;
+        }
+        
+        .nav-separator {
+            height: 1px;
+            background: #2c3e50;
+            margin: 10px 0;
+        }
+        
+        /* Main content */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fff;
+        }
+        
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: #fff;
+            font-size: 12px;
+        }
+        
+        th {
+            background: #ecf0f1;
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #bdc3c7;
+            color: #2c3e50;
+        }
+        
+        td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 3px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        button,
+        .btn {
+            padding: 8px 16px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        button:hover,
+        .btn:hover {
+            background: #2980b9;
+            text-decoration: none;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        /* Filters section */
+        .filters {
+            background: #ecf0f1;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+        
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        /* Pagination */
+        .pagination {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 20px;
+        }
+        
+        /* Section headings */
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 30px 0 15px 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+        }
+        
+        /* Detail sections */
+        .detail-section {
+            margin-bottom: 30px;
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 10px 20px;
+            font-size: 13px;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .detail-value {
+            color: #2c3e50;
+        }
+        
+        /* Error/success messages */
+        .alert {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+        
+        .alert-error {
+            background: #e74c3c;
+            color: #fff;
+        }
+        
+        .alert-success {
+            background: #2ecc71;
+            color: #fff;
+        }
+        
+        /* Login page specific */
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .login-title {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+            color: #2c3e50;
+        }
+        
+        /* Dashboard cards */
+        .dashboard-section {
+            margin-bottom: 40px;
+        }
+        
+        .section-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        /* Utility classes */
+        .text-muted {
+            color: #95a5a6;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .mt-20 {
+            margin-top: 20px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: #2ecc71;
+            color: #fff;
+        }
+        
+        .badge-warning {
+            background: #f39c12;
+            color: #fff;
+        }
+        
+        .badge-danger {
+            background: #e74c3c;
+            color: #fff;
+        }
+        
+        .badge-info {
+            background: #3498db;
+            color: #fff;
+        }
+        
+        .text-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 3px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <h1>Silver Arrow ATS</h1>
+        </div>
+        <div class="header-right">
+            
+            <div class="user-info">
+                <span>admin@test.com</span>
+                <span class="tenant-id">Tenant: b3909011-8bd3-439d-a421-3b70fae124e9</span>
+            </div>
+            <a href="/logout" class="logout-link">Logout</a>
+            
+        </div>
+    </div>
+    
+    <!-- Main container -->
+    <div class="container">
+        
+        <!-- Sidebar navigation -->
+        <nav class="sidebar">
+            <a href="/dashboard" class="nav-item ">Dashboard</a>
+            <a href="/ui/roles" class="nav-item ">Roles</a>
+            <a href="/ui/candidates" class="nav-item ">Candidates</a>
+            <a href="/ui/companies" class="nav-item ">Companies</a>
+            <a href="/ui/bd-opportunities" class="nav-item ">BD Opportunities</a>
+            <a href="/ui/tasks" class="nav-item ">Tasks</a>
+            <a href="/ui/lists" class="nav-item ">Lists</a>
+            <a href="/ui/research" class="nav-item ">Research</a>
+            <a href="/ui/research/upload" class="nav-item active">Research Upload</a>
+            <a href="/ui/company-research" class="nav-item ">Company Research</a>
+            <div class="nav-separator"></div>
+            <a href="/ui/system-check" class="nav-item " style="font-size: 12px; color: #95a5a6;">🔧 System Check</a>
+            <div class="nav-separator"></div>
+            
+            <a href="/ui/settings" class="nav-item ">Settings</a>
+            
+        </nav>
+        
+        
+        <!-- Main content -->
+        <main class="main-content">
+            
+<div class="container" style="max-width: 800px; margin: 20px auto; padding: 0 20px;">
+    <div class="content-header">
+        <h1>Bundle Upload Result</h1>
+    </div>
+
+    
+    <!-- Success Result -->
+    <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; padding: 20px; margin-top: 20px;">
+        <h2 style="color: #155724; margin: 0 0 15px 0; font-size: 18px;">✅ Upload Successful!</h2>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <strong style="color: #155724;">Run ID:</strong><br>
+                <code style="background: #c3e6cb; padding: 4px 6px; border-radius: 2px; font-size: 12px; word-break: break-all;">0e72266a-e236-4a3f-8e26-61a1bd512c78</code>
+            </div>
+            <div>
+                <strong style="color: #155724;">Status:</strong><br>
+                <span style="background: #c3e6cb; padding: 4px 8px; border-radius: 2px; font-size: 12px;">submitted</span>
+            </div>
+        </div>
+
+        
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #155724;">Bundle SHA256:</strong><br>
+            <code style="background: #c3e6cb; padding: 4px 6px; border-radius: 2px; font-size: 11px; word-break: break-all;">16428da0523f57c5400f75e26f5f83a02cc67143a8bf8c984b1861e51715d0d0</code>
+        </div>
+        
+
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #155724;">Objective:</strong><br>
+            <span style="color: #155724;">Real UI Test Success</span>
+        </div>
+
+        
+
+        
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #155724;">Message:</strong><br>
+            <span style="color: #155724;">Bundle accepted and ingested</span>
+        </div>
+        
+    </div>
+
+    
+
+    <!-- Action Buttons -->
+    <div style="margin-top: 30px; display: flex; gap: 10px;">
+        <a 
+            href="/ui/research/upload" 
+            style="background: #007bff; color: white; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-size: 14px;"
+        >
+            Upload Another Bundle
+        </a>
+        
+        
+        <a 
+            href="/ui/research" 
+            style="background: #28a745; color: white; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-size: 14px;"
+        >
+            View Research Activity
+        </a>
+        
+        
+        <a 
+            href="/dashboard" 
+            style="background: #6c757d; color: white; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-size: 14px;"
+        >
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<style>
+.content-header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+}
+
+a:hover {
+    opacity: 0.9;
+}
+
+code {
+    font-family: 'Courier New', monospace;
+}
+</style>
+
+        </main>
+    </div>
+    
+</body>
+</html>

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Companies - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">Companies</h1>
+    {% if current_user.role in ['admin', 'consultant', 'bd_manager'] %}
+    <a href="/ui/companies/new" class="btn btn-primary">+ Add Company</a>
+    {% endif %}
+</div>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="GET" action="/ui/companies">
+        <div class="filters-grid">
+            <div class="form-group">
+                <label for="keyword">Keyword</label>
+                <input type="text" id="keyword" name="keyword" value="{{ filters.keyword or '' }}" placeholder="Name, website, notes...">
+            </div>
+            
+            <div class="form-group">
+                <label for="country">Country</label>
+                <input type="text" id="country" name="country" value="{{ filters.country or '' }}">
+            </div>
+            
+            <div class="form-group">
+                <label for="industry">Industry</label>
+                <input type="text" id="industry" name="industry" value="{{ filters.industry or '' }}">
+            </div>
+            
+            <div class="form-group">
+                <label for="bd_status">BD Status</label>
+                <select id="bd_status" name="bd_status">
+                    <option value="">-- Any --</option>
+                    <option value="PROSPECT" {% if filters.bd_status == 'PROSPECT' %}selected{% endif %}>PROSPECT</option>
+                    <option value="ACTIVE" {% if filters.bd_status == 'ACTIVE' %}selected{% endif %}>ACTIVE</option>
+                    <option value="CLIENT" {% if filters.bd_status == 'CLIENT' %}selected{% endif %}>CLIENT</option>
+                    <option value="INACTIVE" {% if filters.bd_status == 'INACTIVE' %}selected{% endif %}>INACTIVE</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="is_client">Is Client</label>
+                <select id="is_client" name="is_client">
+                    <option value="">-- Any --</option>
+                    <option value="true" {% if filters.is_client == 'true' %}selected{% endif %}>Yes</option>
+                    <option value="false" {% if filters.is_client == 'false' %}selected{% endif %}>No</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="is_prospect">Is Prospect</label>
+                <select id="is_prospect" name="is_prospect">
+                    <option value="">-- Any --</option>
+                    <option value="true" {% if filters.is_prospect == 'true' %}selected{% endif %}>Yes</option>
+                    <option value="false" {% if filters.is_prospect == 'false' %}selected{% endif %}>No</option>
+                </select>
+            </div>
+        </div>
+        
+        <button type="submit">Search</button>
+        <a href="/ui/companies" class="btn btn-secondary">Clear</a>
+    </form>
+</div>
+
+<!-- Pagination info -->
+<div style="margin-bottom: 10px; color: #7f8c8d;">
+    Showing {{ (offset + 1) }} - {{ (offset + companies|length) }} of {{ total }} companies
+</div>
+
+<!-- Results table -->
+<table>
+    <thead>
+        <tr>
+            <th>Company Name</th>
+            <th>Industry</th>
+            <th>Country</th>
+            <th>BD Status</th>
+            <th>Is Client</th>
+            <th>Is Prospect</th>
+            <th>Last Updated</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if companies %}
+            {% for company in companies %}
+            <tr>
+                <td><a href="/ui/companies/{{ company.id }}">{{ company.name }}</a></td>
+                <td>{{ company.industry or '-' }}</td>
+                <td>{{ company.headquarters_location or '-' }}</td>
+                <td>
+                    {% if company.bd_status %}
+                        <span class="badge badge-info">{{ company.bd_status }}</span>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{% if company.is_client %}Yes{% else %}No{% endif %}</td>
+                <td>{% if company.is_prospect %}Yes{% else %}No{% endif %}</td>
+                <td>{{ company.updated_at.strftime('%Y-%m-%d') if company.updated_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="7" class="text-center text-muted">No companies found</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- Pagination controls -->
+{% if total > limit %}
+<div class="pagination">
+    {% if offset > 0 %}
+        <a href="?{{ prev_url }}" class="btn btn-secondary">← Previous</a>
+    {% else %}
+        <span class="btn btn-secondary" style="opacity: 0.5; cursor: not-allowed;">← Previous</span>
+    {% endif %}
+    
+    <span>Page {{ current_page }} of {{ total_pages }}</span>
+    
+    {% if offset + limit < total %}
+        <a href="?{{ next_url }}" class="btn btn-secondary">Next →</a>
+    {% else %}
+        <span class="btn btn-secondary" style="opacity: 0.5; cursor: not-allowed;">Next →</span>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

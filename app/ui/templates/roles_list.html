@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Roles - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">Roles</h1>
+    {% if current_user.role in ['admin', 'consultant'] %}
+    <a href="/ui/roles/new" class="btn btn-primary">+ Add Role</a>
+    {% endif %}
+</div>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="GET" action="/ui/roles">
+        <div class="filters-grid">
+            <div class="form-group">
+                <label for="keyword">Keyword</label>
+                <input type="text" id="keyword" name="keyword" value="{{ filters.keyword or '' }}" placeholder="Search title, location, description...">
+            </div>
+            
+            <div class="form-group">
+                <label for="company_id">Company</label>
+                <select id="company_id" name="company_id">
+                    <option value="">-- All Companies --</option>
+                    {% for company in available_companies %}
+                    <option value="{{ company.id }}" {% if filters.company_id == company.id|string %}selected{% endif %}>
+                        {{ company.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="status">Status</label>
+                <select id="status" name="status">
+                    <option value="">-- Any Status --</option>
+                    <option value="OPEN" {% if filters.status == 'OPEN' %}selected{% endif %}>OPEN</option>
+                    <option value="ON_HOLD" {% if filters.status == 'ON_HOLD' %}selected{% endif %}>ON_HOLD</option>
+                    <option value="CLOSED" {% if filters.status == 'CLOSED' %}selected{% endif %}>CLOSED</option>
+                    <option value="FILLED" {% if filters.status == 'FILLED' %}selected{% endif %}>FILLED</option>
+                </select>
+            </div>
+        </div>
+        
+        <button type="submit">Search</button>
+        <a href="/ui/roles" class="btn btn-secondary">Clear</a>
+    </form>
+</div>
+
+<!-- Pagination info -->
+<div style="margin-bottom: 10px; color: #7f8c8d;">
+    Showing {{ (offset + 1) }} - {{ (offset + roles|length) }} of {{ total }} roles
+    {% if current_page and total_pages %}
+    (Page {{ current_page }} of {{ total_pages }})
+    {% endif %}
+</div>
+
+<!-- Results table -->
+<table>
+    <thead>
+        <tr>
+            <th>Role Title</th>
+            <th>Company</th>
+            <th>Location</th>
+            <th>Status</th>
+            <th>Candidates in Process</th>
+            <th>Last Updated</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if roles %}
+            {% for role in roles %}
+            <tr>
+                <td><a href="/ui/roles/{{ role.id }}">{{ role.title }}</a></td>
+                <td><a href="/ui/companies/{{ role.company_id }}">{{ role.company_name }}</a></td>
+                <td>{{ role.location or '-' }}</td>
+                <td>
+                    {% if role.status == 'OPEN' %}
+                        <span class="badge badge-success">{{ role.status }}</span>
+                    {% elif role.status == 'ON_HOLD' %}
+                        <span class="badge badge-warning">{{ role.status }}</span>
+                    {% elif role.status == 'FILLED' %}
+                        <span class="badge badge-info">{{ role.status }}</span>
+                    {% else %}
+                        <span class="badge">{{ role.status or 'UNKNOWN' }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ role.candidate_count or 0 }}</td>
+                <td>{{ role.updated_at.strftime('%Y-%m-%d') if role.updated_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="6" class="text-center text-muted">No roles found</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- Pagination controls -->
+{% if total > limit %}
+<div class="pagination">
+    {% if offset > 0 %}
+        <a href="?{{ prev_url }}" class="btn btn-secondary">← Previous</a>
+    {% else %}
+        <span class="btn btn-secondary" style="opacity: 0.5; cursor: not-allowed;">← Previous</span>
+    {% endif %}
+    
+    <span>Page {{ current_page }} of {{ total_pages }}</span>
+    
+    {% if offset + limit < total %}
+        <a href="?{{ next_url }}" class="btn btn-secondary">Next →</a>
+    {% else %}
+        <span class="btn btn-secondary" style="opacity: 0.5; cursor: not-allowed;">Next →</span>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

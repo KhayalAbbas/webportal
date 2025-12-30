@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit Task' if mode == 'edit' else 'Create Task' }} - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">{{ 'Edit Task' if mode == 'edit' else 'Create Task' }}</h1>
+    <a href="{{ '/ui/tasks/' + task.id|string if task else '/ui/tasks' }}" class="btn btn-secondary">Cancel</a>
+</div>
+
+<!-- Error Message -->
+{% if error %}
+<div style="background: #f8d7da; color: #721c24; padding: 12px 16px; border: 1px solid #f5c6cb; border-radius: 4px; margin-bottom: 20px;">
+    {{ error }}
+</div>
+{% endif %}
+
+<form method="POST" style="max-width: 800px;">
+    <h2 class="section-title">Task Information</h2>
+    <div class="detail-section">
+        <div class="form-group">
+            <label for="title" class="required">Title</label>
+            <input type="text" id="title" name="title" value="{{ task.title if task else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="4">{{ task.description if task else '' }}</textarea>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="status">Status</label>
+                <select id="status" name="status">
+                    <option value="pending" {% if not task or task.status == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="in_progress" {% if task and task.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                    <option value="completed" {% if task and task.status == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="cancelled" {% if task and task.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="due_date">Due Date</label>
+                <input type="date" id="due_date" name="due_date" value="{{ task.due_date if task else '' }}">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="assigned_to_user">Assigned To</label>
+            <input type="text" id="assigned_to_user" name="assigned_to_user" value="{{ task.assigned_to_user if task else '' }}" placeholder="username or email">
+        </div>
+    </div>
+
+    <h2 class="section-title">Related Entity (Optional)</h2>
+    <div class="detail-section">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="related_entity_type">Entity Type</label>
+                <select id="related_entity_type" name="related_entity_type">
+                    <option value="">-- None --</option>
+                    <option value="candidate" {% if task and task.related_entity_type == 'candidate' %}selected{% endif %}>Candidate</option>
+                    <option value="role" {% if task and task.related_entity_type == 'role' %}selected{% endif %}>Role</option>
+                    <option value="company" {% if task and task.related_entity_type == 'company' %}selected{% endif %}>Company</option>
+                    <option value="contact" {% if task and task.related_entity_type == 'contact' %}selected{% endif %}>Contact</option>
+                    <option value="bd_opportunity" {% if task and task.related_entity_type == 'bd_opportunity' %}selected{% endif %}>BD Opportunity</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="related_entity_id">Entity ID</label>
+                <input type="text" id="related_entity_id" name="related_entity_id" value="{{ task.related_entity_id if task else '' }}" placeholder="UUID">
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; gap: 10px;">
+        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if mode == 'edit' else 'Create Task' }}</button>
+        <a href="{{ '/ui/tasks/' + task.id|string if task else '/ui/tasks' }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if mode == 'edit' else 'New' }} Company - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<h1 class="page-title">{{ 'Edit' if mode == 'edit' else 'Create' }} Company</h1>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<form method="POST" style="max-width: 800px;">
+    <h3>Company Information</h3>
+    <div class="filters-grid">
+        <div class="form-group" style="grid-column: span 2;">
+            <label for="name">Company Name *</label>
+            <input type="text" id="name" name="name" value="{{ company.name if company else '' }}" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="industry">Industry</label>
+            <input type="text" id="industry" name="industry" value="{{ company.industry if company else '' }}">
+        </div>
+        
+        <div class="form-group">
+            <label for="headquarters_location">Headquarters Location</label>
+            <input type="text" id="headquarters_location" name="headquarters_location" value="{{ company.headquarters_location if company else '' }}">
+        </div>
+        
+        <div class="form-group" style="grid-column: span 2;">
+            <label for="website">Website</label>
+            <input type="url" id="website" name="website" value="{{ company.website if company else '' }}" placeholder="https://">
+        </div>
+        
+        <div class="form-group" style="grid-column: span 2;">
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" rows="4">{{ company.notes if company else '' }}</textarea>
+        </div>
+    </div>
+
+    <h3 style="margin-top: 30px;">BD Information</h3>
+    <div class="filters-grid">
+        <div class="form-group">
+            <label for="bd_status">BD Status</label>
+            <select id="bd_status" name="bd_status">
+                <option value="">-- None --</option>
+                <option value="COLD" {% if company and company.bd_status == 'COLD' %}selected{% endif %}>Cold</option>
+                <option value="WARM" {% if company and company.bd_status == 'WARM' %}selected{% endif %}>Warm</option>
+                <option value="HOT" {% if company and company.bd_status == 'HOT' %}selected{% endif %}>Hot</option>
+                <option value="CLIENT" {% if company and company.bd_status == 'CLIENT' %}selected{% endif %}>Client</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="bd_owner">BD Owner</label>
+            <input type="text" id="bd_owner" name="bd_owner" value="{{ company.bd_owner if company else '' }}">
+        </div>
+        
+        <div class="form-group">
+            <label for="bd_last_contacted_at">Last Contacted</label>
+            <input type="date" id="bd_last_contacted_at" name="bd_last_contacted_at" value="{{ company.bd_last_contacted_at if company else '' }}">
+        </div>
+        
+        <div class="form-group" style="display: flex; align-items: center; gap: 20px; grid-column: span 2;">
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" id="is_client" name="is_client" value="true" {% if company and company.is_client %}checked{% endif %}>
+                Is Client
+            </label>
+            
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" id="is_prospect" name="is_prospect" value="true" {% if company and company.is_prospect %}checked{% endif %}>
+                Is Prospect
+            </label>
+        </div>
+    </div>
+
+    <div style="margin-top: 30px; display: flex; gap: 10px;">
+        <button type="submit" class="btn btn-primary">{{ 'Update' if mode == 'edit' else 'Create' }} Company</button>
+        <a href="{{ '/ui/companies/' + company.id|string if company else '/ui/companies' }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

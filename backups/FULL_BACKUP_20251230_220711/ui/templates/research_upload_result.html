@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Result - Silver Arrow ATS{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 800px; margin: 20px auto; padding: 0 20px;">
+    <div class="content-header">
+        <h1>Bundle Upload Result</h1>
+    </div>
+
+    {% if success %}
+    <!-- Success Result -->
+    <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; padding: 20px; margin-top: 20px;">
+        <h2 style="color: #155724; margin: 0 0 15px 0; font-size: 18px;">✅ Upload Successful!</h2>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <strong style="color: #155724;">Run ID:</strong><br>
+                <code style="background: #c3e6cb; padding: 4px 6px; border-radius: 2px; font-size: 12px; word-break: break-all;">{{ run_id }}</code>
+            </div>
+            <div>
+                <strong style="color: #155724;">Status:</strong><br>
+                <span style="background: #c3e6cb; padding: 4px 8px; border-radius: 2px; font-size: 12px;">{{ upload_result.status }}</span>
+            </div>
+        </div>
+
+        {% if upload_result.bundle_sha256 %}
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #155724;">Bundle SHA256:</strong><br>
+            <code style="background: #c3e6cb; padding: 4px 6px; border-radius: 2px; font-size: 11px; word-break: break-all;">{{ upload_result.bundle_sha256 }}</code>
+        </div>
+        {% endif %}
+
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #155724;">Objective:</strong><br>
+            <span style="color: #155724;">{{ objective }}</span>
+        </div>
+
+        {% if upload_result.already_accepted %}
+        <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; padding: 10px; margin-bottom: 15px;">
+            <small style="color: #856404;">⚠️ This bundle was already accepted previously.</small>
+        </div>
+        {% endif %}
+
+        {% if upload_result.message %}
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #155724;">Message:</strong><br>
+            <span style="color: #155724;">{{ upload_result.message }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    {% else %}
+    <!-- Error Result -->
+    <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; padding: 20px; margin-top: 20px;">
+        <h2 style="color: #721c24; margin: 0 0 15px 0; font-size: 18px;">❌ Upload Failed</h2>
+        
+        {% if objective %}
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #721c24;">Objective:</strong><br>
+            <span style="color: #721c24;">{{ objective }}</span>
+        </div>
+        {% endif %}
+
+        <div style="margin-bottom: 15px;">
+            <strong style="color: #721c24;">Error Details:</strong><br>
+            <div style="background: #f5c6cb; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #721c24; white-space: pre-wrap; overflow-wrap: break-word;">{{ error }}</div>
+        </div>
+
+        <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; padding: 10px; margin-bottom: 15px;">
+            <small style="color: #856404;">
+                <strong>Common Issues:</strong><br>
+                • Check that your JSON file is valid<br>
+                • Ensure all SHA256 hashes match the content_text<br>
+                • Verify step types are: search, fetch, extract, validate, compose, finalize<br>
+                • Verify step status are: queued, running, ok, failed, skipped<br>
+                • Companies must have at least 1 evidence snippet and source reference
+            </small>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div style="margin-top: 30px; display: flex; gap: 10px;">
+        <a 
+            href="/ui/research/upload" 
+            style="background: #007bff; color: white; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-size: 14px;"
+        >
+            Upload Another Bundle
+        </a>
+        
+        {% if success %}
+        <a 
+            href="/ui/research" 
+            style="background: #28a745; color: white; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-size: 14px;"
+        >
+            View Research Activity
+        </a>
+        {% endif %}
+        
+        <a 
+            href="/dashboard" 
+            style="background: #6c757d; color: white; text-decoration: none; padding: 10px 20px; border-radius: 4px; font-size: 14px;"
+        >
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<style>
+.content-header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin: 0;
+}
+
+a:hover {
+    opacity: 0.9;
+}
+
+code {
+    font-family: 'Courier New', monospace;
+}
+</style>
+{% endblock %}

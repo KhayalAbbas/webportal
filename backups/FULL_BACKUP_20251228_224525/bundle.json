@@ -1,0 +1,76 @@
+{
+  "version": "run_bundle_v1",
+  "run_id": "9fbcb421-d23a-4079-afdb-7cd78b6d7d6d",
+  "plan_json": {
+    "steps": 1
+  },
+  "steps": [
+    {
+      "step_key": "s1",
+      "step_type": "validate",
+      "status": "ok",
+      "inputs_json": {},
+      "outputs_json": {},
+      "provider_meta": {},
+      "started_at": null,
+      "finished_at": null,
+      "output_sha256": null,
+      "error": null
+    }
+  ],
+  "sources": [
+    {
+      "sha256": "68aadc334d6f0aba634586997c3a8cd67002309ad98288853230a70c3566f9cf",
+      "url": "https://example.com/source1",
+      "retrieved_at": "2024-12-27T10:00:00Z",
+      "mime_type": "text/html",
+      "title": "Example Source",
+      "content_text": "Example content",
+      "meta": {
+        "provider": "tester"
+      }
+    }
+  ],
+  "proposal_json": {
+    "query": "Test companies for Phase 3",
+    "sources": [
+      {
+        "temp_id": "source_1",
+        "title": "Example Source",
+        "url": "https://example.com/source1",
+        "provider": "tester",
+        "fetched_at": "2024-12-27T10:00:00Z"
+      }
+    ],
+    "companies": [
+      {
+        "name": "Demo Co",
+        "aliases": [],
+        "metrics": [
+          {
+            "key": "fleet_size",
+            "type": "number",
+            "value": 1.0,
+            "source_temp_id": "source_1",
+            "evidence_snippet": "evidence"
+          }
+        ],
+        "website_url": null,
+        "hq_country": null,
+        "hq_city": null,
+        "sector": null,
+        "description": null,
+        "ai_rank": null,
+        "ai_score": null,
+        "evidence_snippets": [
+          "evidence"
+        ],
+        "source_sha256s": [
+          "68aadc334d6f0aba634586997c3a8cd67002309ad98288853230a70c3566f9cf"
+        ]
+      }
+    ],
+    "generated_at": "2024-12-27T10:00:00Z",
+    "model": "test"
+  }
+}
