@@ -809,3 +809,17 @@ Run started (job 4d2fde13-a8a0-4448-888c-d31a3f6df356)
 RUN_ID=42a363d3-8b96-4ba9-9fee-2a26d584236c
 EXIT_CODE=0
 ```
+
+D) Phase 3.8 proof output + exit code
+```
+=== PHASE 3.8 PLAN AND INGEST PROOF ===
+API Base URL: http://localhost:8005
+Tenant ID: b3909011-8bd3-439d-a421-3b70fae124e9
+Run created: 9a78aa9b-80e3-482d-bb00-94adc480e3ec
+Attached list sources: ['a30401fd-e868-4180-99b9-66e00315442d', 'fb78f1b9-2957-4ed0-b41e-4e3537a81629']
+Attached proposal source: 6e5ade1e-94ba-4ede-b0c2-9117001bc39d
+Run started (job 87af29de-194d-465d-af07-9cc2d1119840)
+=== VALIDATION PASSED ===
+RUN_ID=9a78aa9b-80e3-482d-bb00-94adc480e3ec
+EXIT_CODE=0
+```
