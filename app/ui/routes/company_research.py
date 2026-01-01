@@ -687,9 +687,15 @@ async def add_source_url(
     service = CompanyResearchService(session)
     
     # Verify run exists and user has access
-    run = await service.get_research_run(current_user.tenant_id, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Research run not found")
+    try:
+        await service.ensure_sources_unlocked(current_user.tenant_id, run_id)
+    except ValueError as e:
+        if str(e) == "run_not_found":
+            raise HTTPException(status_code=404, detail="Research run not found")
+        return RedirectResponse(
+            url=f"/ui/company-research/runs/{run_id}?error_message=Plan locked; cannot modify sources after start",
+            status_code=303,
+        )
     
     # Create source document
     await service.add_source(
@@ -723,9 +729,15 @@ async def add_source_text(
         service = CompanyResearchService(session)
         
         # Verify run exists and user has access
-        run = await service.get_research_run(current_user.tenant_id, run_id)
-        if not run:
-            raise HTTPException(status_code=404, detail="Research run not found")
+        try:
+            await service.ensure_sources_unlocked(current_user.tenant_id, run_id)
+        except ValueError as e:
+            if str(e) == "run_not_found":
+                raise HTTPException(status_code=404, detail="Research run not found")
+            return RedirectResponse(
+                url=f"/ui/company-research/runs/{run_id}?error_message=Plan locked; cannot modify sources after start",
+                status_code=303,
+            )
         
         # Create source document
         await service.add_source(
@@ -811,9 +823,15 @@ async def ingest_manual_lists(
     """
     service = CompanyResearchService(session)
 
-    run = await service.get_research_run(current_user.tenant_id, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Research run not found")
+    try:
+        await service.ensure_sources_unlocked(current_user.tenant_id, run_id)
+    except ValueError as e:
+        if str(e) == "run_not_found":
+            raise HTTPException(status_code=404, detail="Research run not found")
+        return RedirectResponse(
+            url=f"/ui/company-research/runs/{run_id}?error_message=Plan locked; cannot modify sources after start",
+            status_code=303,
+        )
 
     created = 0
     if list_a.strip():

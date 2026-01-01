@@ -159,6 +159,45 @@
     </table>
 </div>
 
+<!-- Source Documents -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Source Documents</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+            <tr style="background: #f8f9fa;">
+                <th style="text-align: left; padding: 8px;">Title</th>
+                <th style="text-align: left; padding: 8px;">Type</th>
+                <th style="text-align: left; padding: 8px;">Status</th>
+                <th style="text-align: left; padding: 8px;">URL</th>
+                <th style="text-align: left; padding: 8px;">Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if sources %}
+            {% for source in sources %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">
+                    <strong>{{ source.title or '-' }}</strong>
+                </td>
+                <td style="padding: 8px;">{{ source.source_type }}</td>
+                <td style="padding: 8px;">{{ source.status }}</td>
+                <td style="padding: 8px;">
+                    {% if source.url %}
+                    <a href="{{ source.url }}" target="_blank" rel="noopener">{{ source.url }}</a>
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+                <td style="padding: 8px;">{{ source.created_at.strftime('%Y-%m-%d %H:%M:%S') if source.created_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr><td colspan="5" style="padding: 8px;">No sources yet.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
 <!-- Source Management (Phase 2A) -->
 <div class="detail-section" style="margin-bottom: 20px;">
     <h2 class="section-title">Phase 1: Manual List Ingestion</h2>

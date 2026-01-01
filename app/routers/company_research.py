@@ -185,6 +185,22 @@ async def start_research_run(
     return CompanyResearchJobRead.model_validate(job)
 
 
+@router.get("/runs/{run_id}/sources", response_model=List[SourceDocumentRead])
+async def list_run_sources(
+    run_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List source documents attached to a run."""
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    docs = await service.list_sources_for_run(current_user.tenant_id, run_id)
+    return [SourceDocumentRead.model_validate(doc) for doc in docs]
+
+
 @router.post("/runs/{run_id}/sources/list", response_model=SourceDocumentRead)
 async def add_manual_list_source(
     run_id: UUID,
@@ -194,9 +210,12 @@ async def add_manual_list_source(
 ):
     """Attach a manual list source document to a run."""
     service = CompanyResearchService(db)
-    run = await service.get_research_run(current_user.tenant_id, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Research run not found")
+    try:
+        await service.ensure_sources_unlocked(current_user.tenant_id, run_id)
+    except ValueError as e:
+        if str(e) == "run_not_found":
+            raise HTTPException(status_code=404, detail="Research run not found")
+        raise HTTPException(status_code=409, detail="Sources are locked after run start")
 
     doc = await service.add_source(
         current_user.tenant_id,
@@ -221,9 +240,12 @@ async def add_proposal_source(
 ):
     """Attach an AI proposal JSON payload as a source document for ingestion."""
     service = CompanyResearchService(db)
-    run = await service.get_research_run(current_user.tenant_id, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Research run not found")
+    try:
+        await service.ensure_sources_unlocked(current_user.tenant_id, run_id)
+    except ValueError as e:
+        if str(e) == "run_not_found":
+            raise HTTPException(status_code=404, detail="Research run not found")
+        raise HTTPException(status_code=409, detail="Sources are locked after run start")
 
     doc = await service.add_source(
         current_user.tenant_id,

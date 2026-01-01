@@ -82,6 +82,21 @@ class CompanyResearchService:
     ) -> Optional[CompanyResearchRun]:
         """Get a research run by ID."""
         return await self.repo.get_company_research_run(tenant_id, run_id)
+
+    async def ensure_sources_unlocked(self, tenant_id: str, run_id: UUID) -> CompanyResearchRun:
+        """Raise if the run/plan is locked for source mutations."""
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        plan = await self.get_run_plan(tenant_id, run_id)
+        if plan and plan.locked_at:
+            raise ValueError("plan_locked")
+
+        if run.status not in {"planned", "active"}:
+            raise ValueError("run_locked")
+
+        return run
     
     async def list_research_runs_for_role(
         self,

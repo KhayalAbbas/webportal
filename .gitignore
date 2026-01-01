@@ -48,6 +48,7 @@ node_modules/
 
 # Generated API specs
 openapi.json
+scripts/proofs/_artifacts/
 
 # Alembic
 *.pyc

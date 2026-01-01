@@ -1,0 +1,72 @@
+PHASE 3.9 EVIDENCE PACK (RAW OUTPUTS)
+
+A) git status -sb
+```
+## master
+ M .gitignore
+ M app/routers/company_research.py
+ M app/services/company_research_service.py
+ M app/ui/routes/company_research.py
+ M app/ui/templates/company_research_run_detail.html
+?? PHASE_3_9_EVIDENCE_PACK.txt
+?? scripts/proofs/phase_3_9_sources_and_lock.py
+```
+
+B) git log -n 5 --oneline
+```
+a32bd34 (HEAD -> master, tag: phase_3_8_signed_off) Phase 3.8: refresh evidence pack output
+9b93939 Phase 3.8: list+proposal ingestion executed by worker steps; proof
+896361c (tag: phase_3_7_signed_off) docs: Phase 3.7 evidence pack
+86e542d Phase 3.7: deterministic plan + steps + step-runner + plan/steps APIs + UI + proof
+6ee5f8a Phase 3.6: run lifecycle orchestration (queue + worker + events + UI + proofs)
+```
+
+C) git diff --stat
+```
+ .gitignore                                        |  1 +
+ app/routers/company_research.py                   | 34 ++++++++++++++++----
+ app/services/company_research_service.py          | 15 +++++++++
+ app/ui/routes/company_research.py                 | 36 +++++++++++++++------
+ app/ui/templates/company_research_run_detail.html | 39 +++++++++++++++++++++++
+ 5 files changed, 110 insertions(+), 15 deletions(-)
+```
+
+D) alembic current/heads
+```
+c7f2c2a1c4b4 (head)
+c7f2c2a1c4b4 (head)
+```
+
+E) Health check
+```
+curl http://localhost:8005/health
+{"status":"ok","message":"API is running"}
+```
+
+F) OpenAPI artifact (scripts/proofs/_artifacts/openapi_phase_3_9.json)
+```
+curl http://localhost:8005/openapi.json -o scripts/proofs/_artifacts/openapi_phase_3_9.json
+python -c "import json, pathlib; data=json.loads(pathlib.Path('scripts/proofs/_artifacts/openapi_phase_3_9.json').read_text()); p=data['paths']['/company-research/runs/{run_id}/sources']; print('methods:', list(p.keys())); print('get operationId:', p['get'].get('operationId')); print('get summary:', p['get'].get('summary'))"
+methods: ['get']
+get operationId: list_run_sources_company_research_runs__run_id__sources_get
+get summary: List Run Sources
+```
+
+G) Proof run (scripts/proofs/phase_3_9_sources_and_lock.py)
+```
+python scripts/proofs/phase_3_9_sources_and_lock.py | Tee-Object scripts/proofs/_artifacts/phase_3_9_proof_output.txt
+=== PHASE 3.9 SOURCES + LOCK PROOF ===
+API Base: http://localhost:8005
+Tenant: b3909011-8bd3-439d-a421-3b70fae124e9
+Run created: 17383c0d-962a-4013-bc12-c9bcb8cb45c7
+Pre-start source attached: f0a619e6-7a12-46be-9cec-034c681b1e0f
+Sources before start: 1
+Run started (job c5c410fb-45b1-41c3-ba04-07d1aa47c368)
+Plan locked_at: 2026-01-01T17:19:16.731228Z
+Locked add response: Sources are locked after run start
+Sources after locked attempt: 1 (unchanged)
+=== VALIDATION PASSED ===
+RUN_ID=17383c0d-962a-4013-bc12-c9bcb8cb45c7
+JOB_ID=c5c410fb-45b1-41c3-ba04-07d1aa47c368
+```
+Proof output saved (ignored by git): scripts/proofs/_artifacts/phase_3_9_proof_output.txt
