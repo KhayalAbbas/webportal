@@ -374,6 +374,8 @@ class SourceDocumentCreate(BaseModel):
     title: Optional[str] = Field(None, max_length=500)
     url: Optional[str] = None
     content_text: Optional[str] = None
+    content_hash: Optional[str] = Field(None, max_length=64)
+    meta: dict[str, Any] = Field(default_factory=dict)
 
 
 class SourceDocumentUpdate(BaseModel):
@@ -384,6 +386,8 @@ class SourceDocumentUpdate(BaseModel):
     status: Optional[str] = Field(None, max_length=50)
     error_message: Optional[str] = None
     fetched_at: Optional[datetime] = None
+    meta: Optional[dict[str, Any]] = None
+    title: Optional[str] = Field(None, max_length=500)
 
 
 class SourceDocumentRead(TenantScopedRead):
@@ -398,6 +402,7 @@ class SourceDocumentRead(TenantScopedRead):
     status: str
     error_message: Optional[str] = None
     fetched_at: Optional[datetime] = None
+    meta: dict[str, Any] = Field(default_factory=dict)
 
 
 # ============================================================================

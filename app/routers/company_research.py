@@ -10,6 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.core.dependencies import get_db, verify_user_tenant_access
 from app.models.user import User
@@ -32,9 +33,21 @@ from app.schemas.company_research import (
     CompanyProspectMetricCreate,
     CompanyProspectMetricRead,
     ResearchEventRead,
+    SourceDocumentRead,
+    SourceDocumentCreate,
 )
 
 router = APIRouter(prefix="/company-research", tags=["company-research"])
+
+
+class ManualListSourcePayload(BaseModel):
+    title: Optional[str] = None
+    content_text: str
+
+
+class ProposalSourcePayload(BaseModel):
+    title: Optional[str] = None
+    content_text: str
 
 
 # ============================================================================
@@ -170,6 +183,60 @@ async def start_research_run(
         raise HTTPException(status_code=404, detail="Research run not found")
     await db.commit()
     return CompanyResearchJobRead.model_validate(job)
+
+
+@router.post("/runs/{run_id}/sources/list", response_model=SourceDocumentRead)
+async def add_manual_list_source(
+    run_id: UUID,
+    payload: ManualListSourcePayload,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Attach a manual list source document to a run."""
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    doc = await service.add_source(
+        current_user.tenant_id,
+        SourceDocumentCreate(
+            company_research_run_id=run_id,
+            source_type="manual_list",
+            title=payload.title or "Manual List",
+            content_text=payload.content_text,
+            meta={"kind": "list", "source_name": payload.title or "manual_list", "submitted_via": "api"},
+        ),
+    )
+    await db.commit()
+    return SourceDocumentRead.model_validate(doc)
+
+
+@router.post("/runs/{run_id}/sources/proposal", response_model=SourceDocumentRead)
+async def add_proposal_source(
+    run_id: UUID,
+    payload: ProposalSourcePayload,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Attach an AI proposal JSON payload as a source document for ingestion."""
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    doc = await service.add_source(
+        current_user.tenant_id,
+        SourceDocumentCreate(
+            company_research_run_id=run_id,
+            source_type="ai_proposal",
+            title=payload.title or "AI Proposal",
+            content_text=payload.content_text,
+            meta={"kind": "proposal", "submitted_via": "api"},
+        ),
+    )
+    await db.commit()
+    return SourceDocumentRead.model_validate(doc)
 
 
 @router.post("/runs/{run_id}/retry", response_model=CompanyResearchJobRead)

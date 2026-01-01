@@ -5,10 +5,15 @@ Provides validation and orchestration for company discovery operations.
 Phase 1: Backend structures only, no external AI/crawling yet.
 """
 
-from typing import List, Optional
+import hashlib
+import json
+from collections import defaultdict
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 
 from app.repositories.company_research_repo import CompanyResearchRepository
 from app.models.company_research import (
@@ -22,6 +27,8 @@ from app.models.company_research import (
     CompanyResearchRunPlan,
     CompanyResearchRunStep,
 )
+from app.services.ai_proposal_service import AIProposalService
+from app.schemas.ai_proposal import AIProposal
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
     CompanyResearchRunUpdate,
@@ -128,7 +135,10 @@ class CompanyResearchService:
             src.source_type in {"manual_list", "list"} or (src.meta or {}).get("kind") == "list"
             for src in sources
         )
-        has_proposal_sources = any(src.source_type == "ai_proposal" for src in sources)
+        has_proposal_sources = any(
+            src.source_type == "ai_proposal" or (src.meta or {}).get("kind") == "proposal"
+            for src in sources
+        )
 
         steps = [
             {
@@ -513,6 +523,42 @@ class CompanyResearchService:
     # ========================================================================
     # Source Document Operations
     # ========================================================================
+
+    @staticmethod
+    def _normalize_company_name(name: str) -> str:
+        """Normalize company name for canonical identity matching."""
+        if not name:
+            return ""
+
+        normalized = name.lower().strip()
+
+        while normalized and normalized[-1] in '.,;:':
+            normalized = normalized[:-1].strip()
+
+        suffixes = [
+            ' ltd', ' llc', ' plc', ' saog', ' sa', ' gmbh', ' ag',
+            ' inc', ' corp', ' corporation', ' limited', ' group', ' holdings',
+            ' company', ' co',
+        ]
+        changed = True
+        while changed:
+            changed = False
+            for suffix in suffixes:
+                if normalized.endswith(suffix):
+                    normalized = normalized[:-len(suffix)].strip()
+                    changed = True
+                    break
+            while normalized and normalized[-1] in '.,;:':
+                normalized = normalized[:-1].strip()
+                changed = True
+
+        return ' '.join(normalized.split())
+
+    @staticmethod
+    def _hash_text(content: Optional[str]) -> Optional[str]:
+        if not content:
+            return None
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
     
     async def add_source(
         self,
@@ -520,6 +566,8 @@ class CompanyResearchService:
         data: SourceDocumentCreate,
     ) -> ResearchSourceDocument:
         """Add a new source document to a research run."""
+        if not data.content_hash and data.content_text:
+            data.content_hash = self._hash_text(data.content_text)
         return await self.repo.create_source_document(tenant_id, data)
     
     async def get_source(
@@ -546,6 +594,246 @@ class CompanyResearchService:
     ) -> Optional[ResearchSourceDocument]:
         """Update a source document."""
         return await self.repo.update_source_document(tenant_id, source_id, data)
+
+    # ========================================================================
+    # List Ingestion
+    # ========================================================================
+
+    async def ingest_list_sources(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> dict:
+        """Ingest manual list sources into prospects and evidence."""
+        sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+        pending = [
+            s
+            for s in sources
+            if s.status in {"new", "fetched"}
+            and (s.source_type in {"manual_list", "text", "list"} or (s.meta or {}).get("kind") == "list")
+        ]
+
+        if not pending:
+            return {"skipped": True, "reason": "no_pending_list_sources"}
+
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        entries_by_norm: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        per_source_stats = []
+
+        for src in pending:
+            raw_lines = [line.strip() for line in (src.content_text or "").splitlines() if line.strip()]
+            normalized_lines = 0
+            for raw in raw_lines:
+                norm = self._normalize_company_name(raw)
+                if not norm:
+                    continue
+                normalized_lines += 1
+                entries_by_norm[norm].append(
+                    {
+                        "raw": raw,
+                        "normalized": norm,
+                        "source_id": src.id,
+                        "source_label": src.title or (src.meta or {}).get("source_name") or "manual_list",
+                        "source_type": src.source_type,
+                    }
+                )
+
+            per_source_stats.append(
+                {
+                    "source_id": str(src.id),
+                    "title": src.title,
+                    "lines": len(raw_lines),
+                    "normalized": normalized_lines,
+                }
+            )
+
+        if not entries_by_norm:
+            for src in pending:
+                src.status = "processed"
+                meta = dict(src.meta or {})
+                meta["ingest_stats"] = {"parsed": 0, "new": 0, "existing": 0}
+                src.meta = meta
+            await self.db.flush()
+            return {
+                "processed_sources": len(pending),
+                "parsed_total": 0,
+                "new": 0,
+                "existing": 0,
+                "duplicates": 0,
+                "sources_detail": per_source_stats,
+            }
+
+        # Query existing prospects in bulk
+        norm_names = list(entries_by_norm.keys())
+        existing_result = await self.db.execute(
+            select(CompanyProspect).where(
+                CompanyProspect.tenant_id == tenant_id,
+                CompanyProspect.company_research_run_id == run_id,
+                CompanyProspect.name_normalized.in_(norm_names),
+            )
+        )
+        existing_map = {p.name_normalized: p for p in existing_result.scalars().all()}
+
+        stats = {
+            "parsed_total": sum(len(v) for v in entries_by_norm.values()),
+            "unique_normalized": len(entries_by_norm),
+            "new": 0,
+            "existing": 0,
+            "duplicates": 0,
+            "processed_sources": len(pending),
+        }
+
+        async def insert_manual_evidence(prospect_id: UUID, entry: dict[str, Any]) -> None:
+            stmt = (
+                insert(CompanyProspectEvidence)
+                .values(
+                    tenant_id=tenant_id,
+                    company_prospect_id=prospect_id,
+                    source_type=entry.get("source_type") or "manual_list",
+                    source_name=entry.get("source_label") or "manual_list",
+                    raw_snippet=entry.get("raw"),
+                )
+                .on_conflict_do_nothing(
+                    index_elements=[
+                        CompanyProspectEvidence.tenant_id,
+                        CompanyProspectEvidence.company_prospect_id,
+                        CompanyProspectEvidence.source_type,
+                        CompanyProspectEvidence.source_name,
+                    ]
+                )
+            )
+            await self.db.execute(stmt)
+
+        for norm_name, entries in entries_by_norm.items():
+            prospect = existing_map.get(norm_name)
+            if prospect:
+                stats["existing"] += 1
+            else:
+                stats["new"] += 1
+                primary_entry = entries[0]
+                prospect = CompanyProspect(
+                    tenant_id=tenant_id,
+                    company_research_run_id=run_id,
+                    role_mandate_id=run.role_mandate_id,
+                    name_raw=primary_entry["raw"],
+                    name_normalized=norm_name,
+                    status="new",
+                )
+                self.db.add(prospect)
+                await self.db.flush()
+                existing_map[norm_name] = prospect
+
+            sources_seen = set()
+            for entry in entries:
+                key = (entry.get("source_type"), entry.get("source_label"))
+                if key in sources_seen:
+                    continue
+                await insert_manual_evidence(prospect.id, entry)
+                sources_seen.add(key)
+
+            if len(entries) > 1:
+                stats["duplicates"] += len(entries) - 1
+
+        for src in pending:
+            meta = dict(src.meta or {})
+            meta["ingest_stats"] = {
+                "parsed": meta.get("ingest_stats", {}).get("parsed", 0) + sum(
+                    1 for entries in entries_by_norm.values() for entry in entries if entry["source_id"] == src.id
+                ),
+                "new": stats["new"],
+                "existing": stats["existing"],
+            }
+            src.meta = meta
+            src.status = "processed"
+            src.error_message = None
+
+        await self.db.flush()
+
+        return {
+            "processed_sources": len(pending),
+            "parsed_total": stats["parsed_total"],
+            "unique_normalized": stats["unique_normalized"],
+            "new": stats["new"],
+            "existing": stats["existing"],
+            "duplicates": stats["duplicates"],
+            "sources_detail": per_source_stats,
+        }
+
+    # ========================================================================
+    # Proposal Ingestion
+    # ========================================================================
+
+    async def ingest_proposal_sources(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> dict:
+        """Ingest proposal sources queued as source documents."""
+        sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+        pending = [
+            s
+            for s in sources
+            if s.status in {"new", "fetched"}
+            and (s.source_type == "ai_proposal" or (s.meta or {}).get("kind") == "proposal")
+        ]
+
+        if not pending:
+            return {"skipped": True, "reason": "no_pending_proposal_sources"}
+
+        proposal_service = AIProposalService(self.db)
+        tenant_uuid = tenant_id if isinstance(tenant_id, UUID) else UUID(str(tenant_id))
+        summary = {
+            "processed_sources": 0,
+            "ingestions_succeeded": 0,
+            "ingestions_failed": 0,
+            "companies_new": 0,
+            "companies_existing": 0,
+            "warnings": 0,
+            "details": [],
+        }
+
+        for src in pending:
+            detail = {"source_id": str(src.id), "title": src.title}
+            try:
+                payload = json.loads(src.content_text or "{}")
+                proposal = AIProposal(**payload)
+                ingestion_result = await proposal_service.ingest_proposal(
+                    tenant_id=tenant_uuid,
+                    run_id=run_id,
+                    proposal=proposal,
+                )
+                summary["processed_sources"] += 1
+                if ingestion_result.success:
+                    summary["ingestions_succeeded"] += 1
+                    summary["companies_new"] += ingestion_result.companies_new
+                    summary["companies_existing"] += ingestion_result.companies_existing
+                    summary["warnings"] += len(ingestion_result.warnings)
+                    detail["companies"] = ingestion_result.companies_ingested
+                    detail["metrics"] = ingestion_result.metrics_ingested
+                    detail["aliases"] = ingestion_result.aliases_ingested
+                    detail["warnings"] = ingestion_result.warnings
+                    src.status = "processed"
+                    src.error_message = None
+                else:
+                    summary["ingestions_failed"] += 1
+                    detail["errors"] = ingestion_result.errors
+                    src.status = "failed"
+                    src.error_message = "; ".join(ingestion_result.errors[:3])
+                src.meta = {**(src.meta or {}), "ingest_detail": detail}
+            except Exception as exc:  # noqa: BLE001
+                summary["ingestions_failed"] += 1
+                detail["errors"] = [str(exc)]
+                src.status = "failed"
+                src.error_message = str(exc)
+                src.meta = {**(src.meta or {}), "ingest_detail": detail}
+
+            summary["details"].append(detail)
+
+        await self.db.flush()
+        return summary
     
     # ========================================================================
     # Research Event Operations

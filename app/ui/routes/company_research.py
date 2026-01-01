@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, Request, Query, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db
@@ -811,133 +810,51 @@ async def ingest_manual_lists(
     Normalize, deduplicate, and create CompanyProspect records with evidence tracking.
     """
     service = CompanyResearchService(session)
-    
-    # Verify run exists and user has access
+
     run = await service.get_research_run(current_user.tenant_id, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Research run not found")
-    
-    # Parse and normalize both lists
-    def parse_list(text: str, source_name: str):
-        """Parse newline-separated names, normalize, track originals."""
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        normalized = []
-        for line in lines:
-            norm = _normalize_company_name(line)
-            if norm:  # Skip empty after normalization
-                normalized.append({
-                    'raw': line,
-                    'normalized': norm,
-                    'source': source_name
-                })
-        return normalized
-    
-    list_a_entries = parse_list(list_a, "List A")
-    list_b_entries = parse_list(list_b, "List B")
-    all_entries = list_a_entries + list_b_entries
-    
-    # Statistics tracking
-    stats = {
-        'parsed_total': len(all_entries),
-        'parsed_a': len(list_a_entries),
-        'parsed_b': len(list_b_entries),
-        'new': 0,
-        'existing': 0,
-        'duplicates': 0,
-    }
-    
-    # Group by normalized name to detect duplicates within submission
-    from collections import defaultdict
-    entries_by_norm = defaultdict(list)
-    for entry in all_entries:
-        entries_by_norm[entry['normalized']].append(entry)
 
-    async def insert_manual_evidence(prospect_id: UUID, entry):
-        stmt = (
-            insert(CompanyProspectEvidence)
-            .values(
-                tenant_id=current_user.tenant_id,
-                company_prospect_id=prospect_id,
-                source_type="manual_list",
-                source_name=entry['source'],
-                raw_snippet=entry['raw'],
-            )
-            .on_conflict_do_nothing(
-                index_elements=[
-                    CompanyProspectEvidence.tenant_id,
-                    CompanyProspectEvidence.company_prospect_id,
-                    CompanyProspectEvidence.source_type,
-                    CompanyProspectEvidence.source_name,
-                ]
-            )
+    created = 0
+    if list_a.strip():
+        payload = SourceDocumentCreate(
+            company_research_run_id=run_id,
+            source_type="manual_list",
+            title="Manual List A",
+            content_text=list_a,
+            meta={"kind": "list", "source_name": "List A", "submitted_via": "ui_form"},
         )
-        await session.execute(stmt)
-    
-    # Process each unique normalized name
-    for norm_name, entries in entries_by_norm.items():
-        # Check if prospect already exists in this run
-        from app.models.company_research import CompanyProspect, CompanyProspectEvidence
-        existing = await session.execute(
-            select(CompanyProspect).where(
-                CompanyProspect.tenant_id == current_user.tenant_id,
-                CompanyProspect.company_research_run_id == run_id,
-                CompanyProspect.name_normalized == norm_name,
-            )
+        await service.add_source(current_user.tenant_id, payload)
+        created += 1
+
+    if list_b.strip():
+        payload = SourceDocumentCreate(
+            company_research_run_id=run_id,
+            source_type="manual_list",
+            title="Manual List B",
+            content_text=list_b,
+            meta={"kind": "list", "source_name": "List B", "submitted_via": "ui_form"},
         )
-        prospect = existing.scalar_one_or_none()
-        
-        if prospect:
-            # Existing prospect - just add new evidence
-            stats['existing'] += 1
-            
-            # Add evidence for each source (dedupe by source)
-            sources_seen = set()
-            for entry in entries:
-                if entry['source'] not in sources_seen:
-                    await insert_manual_evidence(prospect.id, entry)
-                    sources_seen.add(entry['source'])
-        else:
-            # New prospect - create with evidence
-            stats['new'] += 1
-            
-            # Use first entry as primary raw name
-            primary_entry = entries[0]
-            prospect = CompanyProspect(
-                tenant_id=current_user.tenant_id,
-                company_research_run_id=run_id,
-                role_mandate_id=run.role_mandate_id,
-                name_raw=primary_entry['raw'],
-                name_normalized=norm_name,
-                status='new',
-            )
-            session.add(prospect)
-            await session.flush()  # Get prospect.id
-            
-            # Add evidence for each source (dedupe by source)
-            sources_seen = set()
-            for entry in entries:
-                if entry['source'] not in sources_seen:
-                    await insert_manual_evidence(prospect.id, entry)
-                    sources_seen.add(entry['source'])
-        
-        # Count duplicates within submission (multiple entries with same normalized name)
-        if len(entries) > 1:
-            stats['duplicates'] += len(entries) - 1
-    
+        await service.add_source(current_user.tenant_id, payload)
+        created += 1
+
+    if created == 0:
+        return RedirectResponse(
+            url=f"/ui/company-research/runs/{run_id}?error_message=No list data provided",
+            status_code=303,
+        )
+
+    ingest_summary = await service.ingest_list_sources(current_user.tenant_id, run_id)
     await session.commit()
-    
-    # Build success message
-    msg = f"✅ Parsed {stats['parsed_total']} lines "
-    msg += f"(List A: {stats['parsed_a']}, List B: {stats['parsed_b']}). "
-    msg += f"Accepted {len(entries_by_norm)} unique companies: "
-    msg += f"{stats['new']} new, {stats['existing']} existing"
-    if stats['duplicates'] > 0:
-        msg += f", {stats['duplicates']} duplicates within submission"
-    msg += "."
-    
+
+    msg = (
+        f"✅ Stored {created} list source(s); parsed {ingest_summary.get('parsed_total', 0)} lines, "
+        f"unique {ingest_summary.get('unique_normalized', 0)} | new {ingest_summary.get('new', 0)}, "
+        f"existing {ingest_summary.get('existing', 0)}"
+    )
     return RedirectResponse(
         url=f"/ui/company-research/runs/{run_id}?success_message={msg}",
-        status_code=303
+        status_code=303,
     )
 
 

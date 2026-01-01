@@ -128,7 +128,7 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
             return
 
         if step.step_key == "ingest_lists":
-            summary = {"message": "ingest_lists step no-op (manual lists are user-driven in v1)"}
+            summary = await service.ingest_list_sources(tenant_id, run_id)
             await service.repo.mark_step_succeeded(step.id, output_json=summary)
             await service.append_event(tenant_id, run_id, "step_succeeded", "Completed ingest_lists", meta_json=summary)
             job.locked_at = None
@@ -138,7 +138,7 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
             return
 
         if step.step_key == "ingest_proposal":
-            summary = {"message": "No proposals to ingest in worker v1"}
+            summary = await service.ingest_proposal_sources(tenant_id, run_id)
             await service.repo.mark_step_succeeded(step.id, output_json=summary)
             await service.append_event(tenant_id, run_id, "step_succeeded", "Completed ingest_proposal", meta_json=summary)
             job.locked_at = None

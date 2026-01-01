@@ -17,6 +17,8 @@ from pydantic import ValidationError
 from app.core.dependencies import get_db
 from app.ui.dependencies import get_current_ui_user_and_tenant, UIUser
 from app.services.ai_proposal_service import AIProposalService
+from app.services.company_research_service import CompanyResearchService
+from app.schemas.company_research import SourceDocumentCreate
 from app.schemas.ai_proposal import AIProposal
 
 
@@ -93,40 +95,40 @@ async def ingest_ai_proposal(
         # Parse JSON
         proposal_data = json.loads(proposal_json)
         
-        # Validate against schema
-        proposal = AIProposal(**proposal_data)
-        
-        # Ingest
-        service = AIProposalService(session)
-        ingestion_result = await service.ingest_proposal(
-            tenant_id=current_user.tenant_id,
-            run_id=run_id,
-            proposal=proposal,
+        # Validate against schema (early feedback)
+        _ = AIProposal(**proposal_data)
+
+        research_service = CompanyResearchService(session)
+        source_payload = SourceDocumentCreate(
+            company_research_run_id=run_id,
+            source_type="ai_proposal",
+            title="AI Proposal submission",
+            content_text=proposal_json,
+            meta={"kind": "proposal", "submitted_via": "ui_form"},
         )
-        
-        if ingestion_result.success:
-            # Build success message
-            msg = f"✅ AI Proposal Ingested! "
-            msg += f"Companies: {ingestion_result.companies_ingested} "
-            msg += f"({ingestion_result.companies_new} new, {ingestion_result.companies_existing} updated). "
-            msg += f"Metrics: {ingestion_result.metrics_ingested}. "
-            msg += f"Aliases: {ingestion_result.aliases_ingested}. "
-            msg += f"Sources: {ingestion_result.sources_created}."
-            
-            if ingestion_result.warnings:
-                msg += f" ⚠️ Warnings: {'; '.join(ingestion_result.warnings[:3])}"
-            
+        await research_service.add_source(current_user.tenant_id, source_payload)
+        summary = await research_service.ingest_proposal_sources(current_user.tenant_id, run_id)
+        await session.commit()
+
+        if summary.get("ingestions_failed", 0) == 0:
+            msg = (
+                f"✅ AI Proposal ingested | sources {summary.get('processed_sources', 0)}; "
+                f"companies new {summary.get('companies_new', 0)}, existing {summary.get('companies_existing', 0)}"
+            )
             return RedirectResponse(
                 url=f"/ui/company-research/runs/{run_id}?success_message={msg}",
-                status_code=303
+                status_code=303,
             )
-        else:
-            # Build error message
-            error_msg = "❌ Ingestion failed: " + "; ".join(ingestion_result.errors[:5])
-            return RedirectResponse(
-                url=f"/ui/company-research/runs/{run_id}?error_message={error_msg}",
-                status_code=303
-            )
+
+        error_msg = "❌ Ingestion failed"
+        if summary.get("details"):
+            errors = summary["details"][0].get("errors") or []
+            if errors:
+                error_msg += f": {'; '.join(errors[:3])}"
+        return RedirectResponse(
+            url=f"/ui/company-research/runs/{run_id}?error_message={error_msg}",
+            status_code=303,
+        )
         
     except json.JSONDecodeError as e:
         error_msg = f"❌ Invalid JSON: {str(e)}"
