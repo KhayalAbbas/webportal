@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
 
-from sqlalchemy import String, Text, Integer, Numeric, Boolean, DateTime, ForeignKey, Index, Enum as SQLEnum
+from sqlalchemy import String, Text, Integer, Numeric, Boolean, DateTime, ForeignKey, Index, Enum as SQLEnum, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import UniqueConstraint
@@ -94,6 +94,11 @@ class CompanyResearchRun(TenantScopedModel):
         Text,
         nullable=True,
     )
+
+    last_error: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
     
     # Audit fields
     created_by_user_id: Mapped[Optional[UUID]] = mapped_column(
@@ -133,6 +138,12 @@ class CompanyResearchRun(TenantScopedModel):
     
     metrics: Mapped[List["CompanyMetric"]] = relationship(
         "CompanyMetric",
+        back_populates="research_run",
+        cascade="all, delete-orphan",
+    )
+
+    jobs: Mapped[List["CompanyResearchJob"]] = relationship(
+        "CompanyResearchJob",
         back_populates="research_run",
         cascade="all, delete-orphan",
     )
@@ -681,6 +692,90 @@ class CompanyResearchEvent(TenantScopedModel):
         Index("ix_research_events_type", "event_type"),
         Index("ix_research_events_status", "status"),
         Index("ix_research_events_created", "created_at"),
+    )
+
+
+class CompanyResearchJob(TenantScopedModel):
+    """
+    Durable queue entry for company research runs.
+    """
+
+    __tablename__ = "company_research_jobs"
+
+    run_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    job_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default="company_research_run",
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="queued",
+        index=True,
+    )  # queued|running|succeeded|failed|cancelled
+
+    attempt_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    max_attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3,
+    )
+
+    next_retry_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    locked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    locked_by: Mapped[Optional[str]] = mapped_column(
+        String(200),
+        nullable=True,
+    )
+
+    cancel_requested: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    last_error: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    research_run: Mapped["CompanyResearchRun"] = relationship(
+        "CompanyResearchRun",
+        back_populates="jobs",
+    )
+
+    __table_args__ = (
+        Index("ix_company_research_jobs_status_next_retry", "tenant_id", "status", "next_retry_at"),
+        Index("ix_company_research_jobs_tenant_run", "tenant_id", "run_id"),
+        Index(
+            "uq_company_research_jobs_active",
+            "tenant_id",
+            "run_id",
+            "job_type",
+            unique=True,
+            postgresql_where=text("status IN ('queued','running')"),
+        ),
     )
 
 

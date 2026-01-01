@@ -25,7 +25,7 @@ from app.models.bd_opportunity import BDOpportunity
 from app.models.research_run import ResearchRun, ResearchRunStep
 from app.models.research_run_bundle import ResearchRunBundle
 from app.models.research_job import ResearchJob
-from app.models.company_research import CompanyResearchRun
+from app.models.company_research import CompanyResearchRun, CompanyResearchJob
 
 # Export all models
 __all__ = [
@@ -51,4 +51,5 @@ __all__ = [
     "ResearchRunBundle",
     "ResearchJob",
     "CompanyResearchRun",
+    "CompanyResearchJob",
 ]

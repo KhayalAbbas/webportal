@@ -19,6 +19,7 @@ from app.schemas.company_research import (
     CompanyResearchRunRead,
     CompanyResearchRunUpdate,
     CompanyResearchRunSummary,
+    CompanyResearchJobRead,
     CompanyProspectCreate,
     CompanyProspectRead,
     CompanyProspectListItem,
@@ -28,6 +29,7 @@ from app.schemas.company_research import (
     CompanyProspectEvidenceRead,
     CompanyProspectMetricCreate,
     CompanyProspectMetricRead,
+    ResearchEventRead,
 )
 
 router = APIRouter(prefix="/company-research", tags=["company-research"])
@@ -36,6 +38,25 @@ router = APIRouter(prefix="/company-research", tags=["company-research"])
 # ============================================================================
 # Research Run Endpoints
 # ============================================================================
+
+
+@router.get("/runs", response_model=List[CompanyResearchRunRead])
+async def list_research_runs(
+    status: Optional[str] = Query(None, description="Filter by status"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List research runs for the tenant."""
+    service = CompanyResearchService(db)
+    runs = await service.list_research_runs(
+        tenant_id=current_user.tenant_id,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
+    return [CompanyResearchRunRead.model_validate(r) for r in runs]
 
 @router.post("/runs", response_model=CompanyResearchRunRead)
 async def create_research_run(
@@ -85,14 +106,89 @@ async def get_research_run(
         "name": run.name,
         "description": run.description,
         "status": run.status,
+        "sector": run.sector,
+        "region_scope": getattr(run, "region_scope", None),
         "config": run.config,
+        "summary": getattr(run, "summary", None),
+        "last_error": getattr(run, "last_error", None),
         "created_by_user_id": run.created_by_user_id,
+        "started_at": getattr(run, "started_at", None),
+        "finished_at": getattr(run, "finished_at", None),
         "created_at": run.created_at,
         "updated_at": run.updated_at,
         "prospect_count": prospect_count,
     }
     
     return CompanyResearchRunSummary(**run_dict)
+
+
+@router.post("/runs/{run_id}/start", response_model=CompanyResearchJobRead)
+async def start_research_run(
+    run_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enqueue a research run for processing."""
+    service = CompanyResearchService(db)
+    try:
+        job = await service.start_run(current_user.tenant_id, run_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Research run not found")
+    await db.commit()
+    return CompanyResearchJobRead.model_validate(job)
+
+
+@router.post("/runs/{run_id}/retry", response_model=CompanyResearchJobRead)
+async def retry_research_run(
+    run_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retry a research run by enqueuing a new job (idempotent)."""
+    service = CompanyResearchService(db)
+    try:
+        job = await service.retry_run(current_user.tenant_id, run_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Research run not found")
+    await db.commit()
+    return CompanyResearchJobRead.model_validate(job)
+
+
+@router.post("/runs/{run_id}/cancel")
+async def cancel_research_run(
+    run_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Request cancellation for a research run job."""
+    service = CompanyResearchService(db)
+    result = await service.cancel_run(current_user.tenant_id, run_id)
+    await db.commit()
+
+    if result == "not_found":
+        raise HTTPException(status_code=404, detail="Research run not found")
+    if result == "noop_terminal":
+        raise HTTPException(status_code=409, detail="Run already completed")
+    if result == "no_active_job":
+        raise HTTPException(status_code=404, detail="Active job not found")
+
+    return {"status": "cancel_requested"}
+
+
+@router.get("/runs/{run_id}/events", response_model=List[ResearchEventRead])
+async def list_research_events(
+    run_id: UUID,
+    limit: int = Query(50, ge=1, le=500),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List recent events for a research run."""
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+    events = await service.list_events_for_run(current_user.tenant_id, run_id, limit=limit)
+    return [ResearchEventRead.model_validate(e) for e in events]
 
 
 @router.get("/runs/{run_id}/prospects", response_model=List[CompanyProspectListItem])

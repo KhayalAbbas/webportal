@@ -18,7 +18,7 @@ class TenantScopedBase(BaseModel):
     Used when creating new records - you provide the tenant_id.
     """
     
-    tenant_id: str
+    tenant_id: str | UUID
 
 
 class TenantScopedRead(BaseModel):
@@ -29,7 +29,7 @@ class TenantScopedRead(BaseModel):
     """
     
     id: UUID
-    tenant_id: str
+    tenant_id: str | UUID
     created_at: datetime
     updated_at: datetime
     

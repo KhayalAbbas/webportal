@@ -11,6 +11,19 @@
     </div>
 </div>
 
+<!-- Lifecycle Controls -->
+<div style="display: flex; gap: 10px; margin-bottom: 16px;">
+    <form method="post" action="/ui/company-research/runs/{{ run.id }}/start">
+        <button type="submit" class="btn btn-primary">Start</button>
+    </form>
+    <form method="post" action="/ui/company-research/runs/{{ run.id }}/retry">
+        <button type="submit" class="btn btn-secondary">Retry</button>
+    </form>
+    <form method="post" action="/ui/company-research/runs/{{ run.id }}/cancel">
+        <button type="submit" class="btn btn-danger">Cancel</button>
+    </form>
+</div>
+
 <!-- Success Message -->
 {% if success_message %}
 <div style="background: #d4edda; color: #155724; padding: 12px 16px; border: 1px solid #c3e6cb; border-radius: 4px; margin-bottom: 20px;">
@@ -45,6 +58,9 @@
                 <span class="badge">{{ run.status }}</span>
             {% endif %}
         </div>
+
+        <div class="detail-label">Last Error</div>
+        <div class="detail-value">{{ run.last_error or '-' }}</div>
         
         <div class="detail-label">Created</div>
         <div class="detail-value">{{ run.created_at.strftime('%Y-%m-%d %H:%M') if run.created_at else '-' }}</div>
@@ -62,6 +78,35 @@
     <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Description</h3>
     <div class="text-box">{{ run.description }}</div>
     {% endif %}
+</div>
+
+<!-- Events -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Recent Events</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+            <tr style="background: #f8f9fa;">
+                <th style="text-align: left; padding: 8px;">When</th>
+                <th style="text-align: left; padding: 8px;">Type</th>
+                <th style="text-align: left; padding: 8px;">Status</th>
+                <th style="text-align: left; padding: 8px;">Message</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if events %}
+            {% for ev in events %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">{{ ev.created_at.strftime('%Y-%m-%d %H:%M:%S') if ev.created_at else '-' }}</td>
+                <td style="padding: 8px;">{{ ev.event_type }}</td>
+                <td style="padding: 8px;">{{ ev.status }}</td>
+                <td style="padding: 8px;">{{ ev.message or '-' }}</td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr><td colspan="4" style="padding: 8px;">No events yet.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
 </div>
 
 <!-- Source Management (Phase 2A) -->

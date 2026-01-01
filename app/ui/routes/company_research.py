@@ -193,6 +193,69 @@ async def create_research_run(
         )
 
 
+@router.post("/ui/company-research/runs/{run_id}/start")
+async def start_research_run_ui(
+    run_id: UUID,
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    session: AsyncSession = Depends(get_db),
+):
+    """Enqueue a research run from the UI."""
+    raise_if_not_roles(current_user.role, [Roles.ADMIN, Roles.CONSULTANT])
+    service = CompanyResearchService(session)
+    try:
+        await service.start_run(current_user.tenant_id, run_id)
+        await session.commit()
+        return RedirectResponse(
+            url=f"/ui/company-research/runs/{run_id}?success_message=Run queued",
+            status_code=303,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+
+@router.post("/ui/company-research/runs/{run_id}/retry")
+async def retry_research_run_ui(
+    run_id: UUID,
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    session: AsyncSession = Depends(get_db),
+):
+    """Retry a research run from the UI."""
+    raise_if_not_roles(current_user.role, [Roles.ADMIN, Roles.CONSULTANT])
+    service = CompanyResearchService(session)
+    try:
+        await service.retry_run(current_user.tenant_id, run_id)
+        await session.commit()
+        return RedirectResponse(
+            url=f"/ui/company-research/runs/{run_id}?success_message=Run re-queued",
+            status_code=303,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+
+@router.post("/ui/company-research/runs/{run_id}/cancel")
+async def cancel_research_run_ui(
+    run_id: UUID,
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    session: AsyncSession = Depends(get_db),
+):
+    """Request cancellation from the UI."""
+    raise_if_not_roles(current_user.role, [Roles.ADMIN, Roles.CONSULTANT])
+    service = CompanyResearchService(session)
+    result = await service.cancel_run(current_user.tenant_id, run_id)
+    await session.commit()
+    if result == "not_found":
+        raise HTTPException(status_code=404, detail="Research run not found")
+    if result == "noop_terminal":
+        raise HTTPException(status_code=409, detail="Run already completed")
+    if result == "no_active_job":
+        raise HTTPException(status_code=404, detail="Active job not found")
+    return RedirectResponse(
+        url=f"/ui/company-research/runs/{run_id}?success_message=Cancellation requested",
+        status_code=303,
+    )
+
+
 @router.get("/ui/company-research/runs/{run_id}", response_class=HTMLResponse)
 async def company_research_run_detail(
     request: Request,
@@ -236,6 +299,13 @@ async def company_research_run_detail(
         run_id=run_id,
         order_by=order_by,
         limit=200,
+    )
+
+    # Events timeline (recent first)
+    events = await service.list_events_for_run(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        limit=50,
     )
     
     # Fetch evidence for each prospect to show counts and sources
@@ -379,6 +449,7 @@ async def company_research_run_detail(
                 "status": run.status,
                 "config": run.config,
                 "created_at": run.created_at,
+                "last_error": run.last_error,
             },
             "role_info": role_info,
             "prospects": prospects,
@@ -388,6 +459,15 @@ async def company_research_run_detail(
             "order_by": order_by,
             "success_message": success_message,
             "error_message": error_message,
+            "events": [
+                {
+                    "created_at": e.created_at,
+                    "event_type": e.event_type,
+                    "status": e.status,
+                    "message": e.error_message or (e.output_json.get("message") if e.output_json else None),
+                }
+                for e in events
+            ],
         }
     )
 

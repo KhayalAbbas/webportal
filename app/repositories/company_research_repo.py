@@ -5,10 +5,12 @@ Handles CRUD operations for company discovery and agentic sourcing.
 """
 
 from typing import List, Optional
+from datetime import datetime, timedelta
 from uuid import UUID
 import uuid
 
-from sqlalchemy import select, func, desc, asc, and_, or_
+from sqlalchemy import select, func, desc, asc, and_, or_, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,6 +21,7 @@ from app.models.company_research import (
     CompanyProspectMetric,
     ResearchSourceDocument,
     CompanyResearchEvent,
+    CompanyResearchJob,
 )
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -95,6 +98,21 @@ class CompanyResearchRepository:
             .offset(offset)
         )
         return list(result.scalars().all())
+
+    async def list_company_research_runs(
+        self,
+        tenant_id: str,
+        status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[CompanyResearchRun]:
+        query = select(CompanyResearchRun).where(CompanyResearchRun.tenant_id == tenant_id)
+        if status:
+            query = query.where(CompanyResearchRun.status == status)
+
+        query = query.order_by(CompanyResearchRun.created_at.desc()).limit(limit).offset(offset)
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
     
     async def update_company_research_run(
         self,
@@ -111,6 +129,31 @@ class CompanyResearchRepository:
         for field, value in update_data.items():
             setattr(run, field, value)
         
+        await self.db.flush()
+        await self.db.refresh(run)
+        return run
+
+    async def set_run_status(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        status: str,
+        last_error: Optional[str] = None,
+        started_at: Optional[datetime] = None,
+        finished_at: Optional[datetime] = None,
+    ) -> Optional[CompanyResearchRun]:
+        run = await self.get_company_research_run(tenant_id, run_id)
+        if not run:
+            return None
+
+        run.status = status
+        if last_error is not None:
+            run.last_error = last_error
+        if started_at is not None:
+            run.started_at = started_at
+        if finished_at is not None:
+            run.finished_at = finished_at
+
         await self.db.flush()
         await self.db.refresh(run)
         return run
@@ -582,3 +625,201 @@ class CompanyResearchRepository:
             .limit(limit)
         )
         return list(result.scalars().all())
+
+    # ====================================================================
+    # Job Queue Operations
+    # ====================================================================
+
+    async def enqueue_run_job(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        job_type: str = "company_research_run",
+    ) -> CompanyResearchJob:
+        stmt = (
+            insert(CompanyResearchJob)
+            .values(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                run_id=run_id,
+                job_type=job_type,
+                status="queued",
+            )
+            .on_conflict_do_nothing(
+                index_elements=[
+                    CompanyResearchJob.tenant_id,
+                    CompanyResearchJob.run_id,
+                    CompanyResearchJob.job_type,
+                ],
+                index_where=text("status IN ('queued','running')"),
+            )
+            .returning(CompanyResearchJob)
+        )
+
+        result = await self.db.execute(stmt)
+        job = result.scalar_one_or_none()
+        if job:
+            return job
+
+        # Return existing active job if conflict occurred
+        result = await self.db.execute(
+            select(CompanyResearchJob).where(
+                CompanyResearchJob.tenant_id == tenant_id,
+                CompanyResearchJob.run_id == run_id,
+                CompanyResearchJob.job_type == job_type,
+                CompanyResearchJob.status.in_(["queued", "running"]),
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            return existing
+
+        # Fallback: fetch latest job
+        result = await self.db.execute(
+            select(CompanyResearchJob)
+            .where(
+                CompanyResearchJob.tenant_id == tenant_id,
+                CompanyResearchJob.run_id == run_id,
+            )
+            .order_by(CompanyResearchJob.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one()
+
+    async def request_cancel_job(self, tenant_id: str, run_id: UUID) -> bool:
+        result = await self.db.execute(
+            select(CompanyResearchJob)
+            .where(
+                CompanyResearchJob.tenant_id == tenant_id,
+                CompanyResearchJob.run_id == run_id,
+                CompanyResearchJob.status.in_(["queued", "running"]),
+            )
+            .with_for_update()
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            return False
+        job.cancel_requested = True
+        await self.db.flush()
+        return True
+
+    async def claim_next_job(self, worker_id: str) -> Optional[CompanyResearchJob]:
+        now = func.now()
+        result = await self.db.execute(
+            select(CompanyResearchJob)
+            .where(
+                CompanyResearchJob.status.in_(["queued", "failed"]),
+                CompanyResearchJob.attempt_count < CompanyResearchJob.max_attempts,
+                or_(
+                    CompanyResearchJob.next_retry_at.is_(None),
+                    CompanyResearchJob.next_retry_at <= now,
+                ),
+            )
+            .order_by(CompanyResearchJob.created_at)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            return None
+
+        job.locked_by = worker_id
+        job.locked_at = datetime.utcnow()
+        await self.db.flush()
+        await self.db.refresh(job)
+        return job
+
+    async def mark_job_running(self, job_id: UUID, worker_id: str) -> Optional[CompanyResearchJob]:
+        result = await self.db.execute(
+            select(CompanyResearchJob).where(CompanyResearchJob.id == job_id).with_for_update()
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            return None
+
+        job.status = "running"
+        job.attempt_count = job.attempt_count + 1
+        job.locked_by = worker_id
+        job.locked_at = datetime.utcnow()
+        job.next_retry_at = None
+        await self.db.flush()
+        await self.db.refresh(job)
+        return job
+
+    async def mark_job_succeeded(self, job_id: UUID) -> Optional[CompanyResearchJob]:
+        result = await self.db.execute(
+            select(CompanyResearchJob).where(CompanyResearchJob.id == job_id).with_for_update()
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            return None
+        job.status = "succeeded"
+        job.locked_at = None
+        job.locked_by = None
+        job.cancel_requested = False
+        job.last_error = None
+        await self.db.flush()
+        await self.db.refresh(job)
+        return job
+
+    async def mark_job_cancelled(self, job_id: UUID, last_error: Optional[str] = None) -> Optional[CompanyResearchJob]:
+        result = await self.db.execute(
+            select(CompanyResearchJob).where(CompanyResearchJob.id == job_id).with_for_update()
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            return None
+        job.status = "cancelled"
+        job.last_error = last_error
+        job.locked_at = None
+        job.locked_by = None
+        await self.db.flush()
+        await self.db.refresh(job)
+        return job
+
+    async def mark_job_failed(
+        self,
+        job_id: UUID,
+        last_error: str,
+        backoff_seconds: int = 30,
+    ) -> Optional[CompanyResearchJob]:
+        result = await self.db.execute(
+            select(CompanyResearchJob).where(CompanyResearchJob.id == job_id).with_for_update()
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            return None
+
+        job.status = "failed"
+        job.last_error = last_error
+        job.locked_at = None
+        job.locked_by = None
+        job.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
+        await self.db.flush()
+        await self.db.refresh(job)
+        return job
+
+    async def get_job(self, job_id: UUID) -> Optional[CompanyResearchJob]:
+        result = await self.db.execute(select(CompanyResearchJob).where(CompanyResearchJob.id == job_id))
+        return result.scalar_one_or_none()
+
+    async def append_research_event(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        event_type: str,
+        message: str,
+        meta_json: Optional[dict] = None,
+        status: str = "ok",
+    ) -> CompanyResearchEvent:
+        return await self.create_research_event(
+            tenant_id=tenant_id,
+            data=ResearchEventCreate(
+                company_research_run_id=run_id,
+                event_type=event_type,
+                status=status,
+                input_json=meta_json,
+                output_json={"message": message} if message else None,
+                error_message=message if status == "failed" else None,
+            ),
+        )

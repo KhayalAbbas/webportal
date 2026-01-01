@@ -36,6 +36,7 @@ class CompanyResearchRunUpdate(BaseModel):
     status: Optional[str] = Field(None, max_length=50)
     summary: Optional[str] = None
     error_message: Optional[str] = None
+    last_error: Optional[str] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
 
@@ -52,6 +53,7 @@ class CompanyResearchRunRead(TenantScopedRead):
     config: Optional[Dict[str, Any]] = None
     summary: Optional[str] = None
     error_message: Optional[str] = None
+    last_error: Optional[str] = None
     created_by_user_id: Optional[UUID] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -310,10 +312,26 @@ class CompanyResearchRunSummary(BaseModel):
     sector: str
     region_scope: Optional[List[str]] = None
     summary: Optional[str] = None
+    last_error: Optional[str] = None
     created_at: datetime
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     prospect_count: Optional[int] = 0
+
+
+class CompanyResearchJobRead(TenantScopedRead):
+    """Schema for viewing company research jobs."""
+
+    run_id: UUID
+    job_type: str
+    status: str
+    attempt_count: int
+    max_attempts: int
+    next_retry_at: Optional[datetime] = None
+    locked_at: Optional[datetime] = None
+    locked_by: Optional[str] = None
+    cancel_requested: bool
+    last_error: Optional[str] = None
 
 
 # ============================================================================

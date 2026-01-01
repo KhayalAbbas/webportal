@@ -6,6 +6,7 @@ Phase 1: Backend structures only, no external AI/crawling yet.
 """
 
 from typing import List, Optional
+from datetime import datetime
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,7 @@ from app.models.company_research import (
     CompanyProspectMetric,
     ResearchSourceDocument,
     CompanyResearchEvent,
+    CompanyResearchJob,
 )
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -86,6 +88,20 @@ class CompanyResearchService:
             limit=limit,
             offset=offset,
         )
+
+    async def list_research_runs(
+        self,
+        tenant_id: str,
+        status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[CompanyResearchRun]:
+        return await self.repo.list_company_research_runs(
+            tenant_id=tenant_id,
+            status=status,
+            limit=limit,
+            offset=offset,
+        )
     
     async def update_research_run(
         self,
@@ -99,6 +115,56 @@ class CompanyResearchService:
             run_id=run_id,
             data=data,
         )
+
+    async def start_run(self, tenant_id: str, run_id: UUID) -> CompanyResearchJob:
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        job = await self.repo.enqueue_run_job(tenant_id=tenant_id, run_id=run_id)
+        await self.repo.set_run_status(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            status="queued",
+            last_error=None,
+            started_at=None,
+        )
+        await self.db.flush()
+        return job
+
+    async def retry_run(self, tenant_id: str, run_id: UUID) -> CompanyResearchJob:
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        job = await self.repo.enqueue_run_job(tenant_id=tenant_id, run_id=run_id)
+        await self.repo.set_run_status(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            status="queued",
+            last_error=None,
+            started_at=None,
+            finished_at=None,
+        )
+        await self.db.flush()
+        return job
+
+    async def cancel_run(self, tenant_id: str, run_id: UUID) -> str:
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            return "not_found"
+
+        if run.status in {"succeeded", "failed", "cancelled"}:
+            return "noop_terminal"
+
+        requested = await self.repo.request_cancel_job(tenant_id=tenant_id, run_id=run_id)
+        if requested:
+            await self.repo.set_run_status(tenant_id, run_id, status="cancel_requested")
+            await self.db.flush()
+            return "requested"
+
+        await self.db.flush()
+        return "no_active_job"
     
     # ========================================================================
     # Company Prospect Operations
@@ -202,6 +268,44 @@ class CompanyResearchService:
     ) -> int:
         """Count total prospects for a research run."""
         return await self.repo.count_prospects_for_run(tenant_id, run_id)
+
+    async def list_events_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        limit: int = 100,
+    ) -> List[CompanyResearchEvent]:
+        return await self.repo.list_research_events_for_run(tenant_id, run_id, limit)
+
+    # ====================================================================
+    # Job Queue Operations
+    # ====================================================================
+
+    async def claim_next_job(self, worker_id: str) -> Optional[CompanyResearchJob]:
+        return await self.repo.claim_next_job(worker_id)
+
+    async def mark_job_running(self, job_id: UUID, worker_id: str) -> Optional[CompanyResearchJob]:
+        return await self.repo.mark_job_running(job_id, worker_id)
+
+    async def mark_job_succeeded(self, job_id: UUID) -> Optional[CompanyResearchJob]:
+        return await self.repo.mark_job_succeeded(job_id)
+
+    async def mark_job_failed(self, job_id: UUID, last_error: str, backoff_seconds: int = 30) -> Optional[CompanyResearchJob]:
+        return await self.repo.mark_job_failed(job_id, last_error, backoff_seconds)
+
+    async def mark_job_cancelled(self, job_id: UUID, last_error: Optional[str] = None) -> Optional[CompanyResearchJob]:
+        return await self.repo.mark_job_cancelled(job_id, last_error)
+
+    async def append_event(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        event_type: str,
+        message: str,
+        meta_json: Optional[dict] = None,
+        status: str = "ok",
+    ) -> CompanyResearchEvent:
+        return await self.repo.append_research_event(tenant_id, run_id, event_type, message, meta_json, status)
     
     # ========================================================================
     # Evidence Operations
