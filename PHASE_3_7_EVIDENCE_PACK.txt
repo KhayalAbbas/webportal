@@ -1,0 +1,1211 @@
+PHASE 3.7 EVIDENCE PACK
+
+A) git status / git log -n 10 --oneline / git diff
+```plaintext
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   app/models/__init__.py
+        modified:   app/models/company_research.py
+        modified:   app/repositories/company_research_repo.py
+        modified:   app/routers/company_research.py
+        modified:   app/schemas/company_research.py
+        modified:   app/services/company_research_service.py
+        modified:   app/ui/routes/company_research.py
+        modified:   app/ui/templates/company_research_run_detail.html
+        modified:   app/workers/company_research_worker.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        PHASE_3_6_EVIDENCE_PACK.txt
+        PHASE_3_7_EVIDENCE_PACK.txt
+        alembic/versions/c7f2c2a1c4b4_add_research_plan_and_steps.py
+        scripts/proofs/phase_3_7_plan_and_steps.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
+--- git log -n 10 --oneline ---
+6ee5f8a (HEAD -> master) Phase 3.6: run lifecycle orchestration (queue + worker + events + UI + proofs)
+9446d82 (tag: phase_3_5_signed_off) Phase 3.5: finalize URL-less evidence policy; proofs pass; commit deliverables
+26080a4 (tag: phase_3_5_baseline) Baseline import of ATS working tree (includes Phase 3.5 state)
+--- git diff ---
+diff --git a/app/models/__init__.py b/app/models/__init__.py
+index 4eae782..7df0cf5 100644
+--- a/app/models/__init__.py
++++ b/app/models/__init__.py
+@@ -26,6 +26,10 @@ from app.models.research_run import ResearchRun, ResearchRunStep
+ from app.models.research_run_bundle import ResearchRunBundle
+ from app.models.research_job import ResearchJob
+ from app.models.company_research import CompanyResearchRun, CompanyResearchJob
++from app.models.company_research import (
++    CompanyResearchRunPlan,
++    CompanyResearchRunStep,
++)
+ 
+ # Export all models
+ __all__ = [
+@@ -52,4 +56,6 @@ __all__ = [
+     "ResearchJob",
+     "CompanyResearchRun",
+     "CompanyResearchJob",
++        "CompanyResearchRunPlan",
++        "CompanyResearchRunStep",
+ ]
+diff --git a/app/models/company_research.py b/app/models/company_research.py
+index af18dd6..79319d8 100644
+--- a/app/models/company_research.py
++++ b/app/models/company_research.py
+@@ -147,6 +147,19 @@ class CompanyResearchRun(TenantScopedModel):
+         back_populates="research_run",
+         cascade="all, delete-orphan",
+     )
++
++    run_plan: Mapped[Optional["CompanyResearchRunPlan"]] = relationship(
++        "CompanyResearchRunPlan",
++        back_populates="research_run",
++        uselist=False,
++        cascade="all, delete-orphan",
++    )
++
++    run_steps: Mapped[List["CompanyResearchRunStep"]] = relationship(
++        "CompanyResearchRunStep",
++        back_populates="research_run",
++        cascade="all, delete-orphan",
++    )
+ 
+     __table_args__ = (
+         Index("ix_company_research_runs_role_mandate_id", "role_mandate_id"),
+@@ -779,6 +792,68 @@ class CompanyResearchJob(TenantScopedModel):
+     )
+ 
+ 
++class CompanyResearchRunPlan(TenantScopedModel):
++    """Versioned research plan for a run."""
++
++    __tablename__ = "company_research_run_plans"
++
++    run_id: Mapped[UUID] = mapped_column(
++        UUID(as_uuid=True),
++        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
++        nullable=False,
++        index=True,
++    )
++
++    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
++    plan_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
++    locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
++
++    research_run: Mapped["CompanyResearchRun"] = relationship(
++        "CompanyResearchRun",
++        back_populates="run_plan",
++    )
++
++    __table_args__ = (
++        UniqueConstraint("tenant_id", "run_id", name="uq_company_research_run_plans_run"),
++    )
++
++
++class CompanyResearchRunStep(TenantScopedModel):
++    """Deterministic steps for executing a research run."""
++
++    __tablename__ = "company_research_run_steps"
++
++    run_id: Mapped[UUID] = mapped_column(
++        UUID(as_uuid=True),
++        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
++        nullable=False,
++        index=True,
++    )
++
++    step_key: Mapped[str] = mapped_column(Text, nullable=False)
++    step_order: Mapped[int] = mapped_column(Integer, nullable=False)
++    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
++    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
++    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
++    next_retry_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
++    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
++    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
++    input_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
++    output_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
++    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
++
++    research_run: Mapped["CompanyResearchRun"] = relationship(
++        "CompanyResearchRun",
++        back_populates="run_steps",
++    )
++
++    __table_args__ = (
++        UniqueConstraint("tenant_id", "run_id", "step_key", name="uq_company_research_run_steps_key"),
++        Index("ix_company_research_run_steps_order", "tenant_id", "run_id", "step_order"),
++        Index("ix_company_research_run_steps_status_retry", "tenant_id", "status", "next_retry_at"),
++    )
++
++
+ class CompanyMetric(TenantScopedModel):
+     """
+     Company metric - stores quantitative/qualitative metrics for companies.
+diff --git a/app/repositories/company_research_repo.py b/app/repositories/company_research_repo.py
+index e5373b6..500cec2 100644
+--- a/app/repositories/company_research_repo.py
++++ b/app/repositories/company_research_repo.py
+@@ -22,6 +22,8 @@ from app.models.company_research import (
+     ResearchSourceDocument,
+     CompanyResearchEvent,
+     CompanyResearchJob,
++    CompanyResearchRunPlan,
++    CompanyResearchRunStep,
+ )
+ from app.schemas.company_research import (
+     CompanyResearchRunCreate,
+@@ -686,6 +688,205 @@ class CompanyResearchRepository:
+         )
+         return result.scalar_one()
+ 
++    # ====================================================================
++    # Plan and Steps Operations
++    # ====================================================================
++
++    async def get_run_plan(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunPlan]:
++        result = await self.db.execute(
++            select(CompanyResearchRunPlan).where(
++                CompanyResearchRunPlan.tenant_id == tenant_id,
++                CompanyResearchRunPlan.run_id == run_id,
++            )
++        )
++        return result.scalar_one_or_none()
++
++    async def create_plan_if_missing(
++        self,
++        tenant_id: str,
++        run_id: UUID,
++        plan_json: dict,
++        version: int = 1,
++    ) -> CompanyResearchRunPlan:
++        stmt = (
++            insert(CompanyResearchRunPlan)
++            .values(
++                id=uuid.uuid4(),
++                tenant_id=tenant_id,
++                run_id=run_id,
++                version=version,
++                plan_json=plan_json,
++            )
++            .on_conflict_do_nothing(
++                index_elements=[
++                    CompanyResearchRunPlan.tenant_id,
++                    CompanyResearchRunPlan.run_id,
++                ]
++            )
++            .returning(CompanyResearchRunPlan)
++        )
++        result = await self.db.execute(stmt)
++        plan = result.scalar_one_or_none()
++        if plan:
++            return plan
++
++        # fetch existing
++        return await self.get_run_plan(tenant_id, run_id)
++
++    async def lock_plan(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunPlan]:
++        plan = await self.get_run_plan(tenant_id, run_id)
++        if not plan:
++            return None
++        if not plan.locked_at:
++            plan.locked_at = datetime.utcnow()
++            await self.db.flush()
++            await self.db.refresh(plan)
++        return plan
++
++    async def list_steps(self, tenant_id: str, run_id: UUID) -> List[CompanyResearchRunStep]:
++        result = await self.db.execute(
++            select(CompanyResearchRunStep)
++            .where(
++                CompanyResearchRunStep.tenant_id == tenant_id,
++                CompanyResearchRunStep.run_id == run_id,
++            )
++            .order_by(CompanyResearchRunStep.step_order)
++        )
++        return list(result.scalars().all())
++
++    async def upsert_steps(self, tenant_id: str, run_id: UUID, steps: List[dict]) -> List[CompanyResearchRunStep]:
++        created_steps: List[CompanyResearchRunStep] = []
++        for step in steps:
++            stmt = (
++                insert(CompanyResearchRunStep)
++                .values(
++                    id=uuid.uuid4(),
++                    tenant_id=tenant_id,
++                    run_id=run_id,
++                    step_key=step["step_key"],
++                    step_order=step["step_order"],
++                    status=step.get("status", "pending"),
++                    max_attempts=step.get("max_attempts", 2),
++                    input_json=step.get("input_json"),
++                )
++                .on_conflict_do_nothing(
++                    index_elements=[
++                        CompanyResearchRunStep.tenant_id,
++                        CompanyResearchRunStep.run_id,
++                        CompanyResearchRunStep.step_key,
++                    ]
++                )
++                .returning(CompanyResearchRunStep)
++            )
++            result = await self.db.execute(stmt)
++            inserted = result.scalar_one_or_none()
++            if inserted:
++                created_steps.append(inserted)
++        # Return current list
++        return await self.list_steps(tenant_id, run_id)
++
++    async def claim_next_step(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunStep]:
++        now = func.now()
++        result = await self.db.execute(
++            select(CompanyResearchRunStep)
++            .where(
++                CompanyResearchRunStep.tenant_id == tenant_id,
++                CompanyResearchRunStep.run_id == run_id,
++                CompanyResearchRunStep.status.in_(["pending", "failed"]),
++                CompanyResearchRunStep.attempt_count < CompanyResearchRunStep.max_attempts,
++                or_(
++                    CompanyResearchRunStep.next_retry_at.is_(None),
++                    CompanyResearchRunStep.next_retry_at <= now,
++                ),
++            )
++            .order_by(CompanyResearchRunStep.step_order)
++            .limit(1)
++            .with_for_update(skip_locked=True)
++        )
++        step = result.scalar_one_or_none()
++        if not step:
++            return None
++        step.status = "running"
++        step.attempt_count = step.attempt_count + 1
++        if not step.started_at:
++            step.started_at = datetime.utcnow()
++        step.next_retry_at = None
++        await self.db.flush()
++        await self.db.refresh(step)
++        return step
++
++    async def mark_step_succeeded(
++        self,
++        step_id: UUID,
++        output_json: Optional[dict] = None,
++    ) -> Optional[CompanyResearchRunStep]:
++        result = await self.db.execute(
++            select(CompanyResearchRunStep).where(CompanyResearchRunStep.id == step_id).with_for_update()
++        )
++        step = result.scalar_one_or_none()
++        if not step:
++            return None
++        step.status = "succeeded"
++        step.finished_at = datetime.utcnow()
++        if output_json is not None:
++            step.output_json = output_json
++        await self.db.flush()
++        await self.db.refresh(step)
++        return step
++
++    async def mark_step_failed(
++        self,
++        step_id: UUID,
++        last_error: str,
++        backoff_seconds: int = 30,
++    ) -> Optional[CompanyResearchRunStep]:
++        result = await self.db.execute(
++            select(CompanyResearchRunStep).where(CompanyResearchRunStep.id == step_id).with_for_update()
++        )
++        step = result.scalar_one_or_none()
++        if not step:
++            return None
++        step.status = "failed"
++        step.last_error = last_error
++        step.finished_at = datetime.utcnow()
++        step.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
++        await self.db.flush()
++        await self.db.refresh(step)
++        return step
++
++    async def mark_step_cancelled(self, step_id: UUID, reason: Optional[str] = None) -> Optional[CompanyResearchRunStep]:
++        result = await self.db.execute(
++            select(CompanyResearchRunStep).where(CompanyResearchRunStep.id == step_id).with_for_update()
++        )
++        step = result.scalar_one_or_none()
++        if not step:
++            return None
++        step.status = "cancelled"
++        step.last_error = reason
++        step.finished_at = datetime.utcnow()
++        await self.db.flush()
++        await self.db.refresh(step)
++        return step
++
++    async def cancel_pending_steps(self, tenant_id: str, run_id: UUID, reason: Optional[str] = None) -> int:
++        result = await self.db.execute(
++            select(CompanyResearchRunStep).where(
++                CompanyResearchRunStep.tenant_id == tenant_id,
++                CompanyResearchRunStep.run_id == run_id,
++                CompanyResearchRunStep.status.in_(["pending", "running", "failed"]),
++            )
++        )
++        steps = result.scalars().all()
++        count = 0
++        for step in steps:
++            if step.status != "succeeded":
++                step.status = "cancelled"
++                step.last_error = reason
++                step.finished_at = datetime.utcnow()
++                count += 1
++        await self.db.flush()
++        return count
+ 
+     async def request_cancel_job(self, tenant_id: str, run_id: UUID) -> bool:
+         result = await self.db.execute(
+             select(CompanyResearchJob)
+@@ -708,12 +909,16 @@ class CompanyResearchRepository:
+         result = await self.db execute(
+             select(CompanyResearchJob)
+             .where(
+-                CompanyResearchJob.status.in_(["queued", "failed"]),
++                CompanyResearchJob.status.in_(["queued", "failed", "running"]),
+                 CompanyResearchJob.attempt_count < CompanyResearchJob.max_attempts,
+                 or_(
+                     CompanyResearchJob.next_retry_at is None,
+                     CompanyResearchJob.next_retry_at <= now,
+                 ),
++                or_(
++                    CompanyResearchJob.status != "running",
++                    CompanyResearchJob.locked_at is None,
++                ),
+             )
+             .order_by(CompanyResearchJob.created_at)
+             .limit(1)
+@@ -737,8 +942,10 @@ class CompanyResearchRepository:
+         if not job:
+             return None
++
++        increment_attempt = job.status != "running"
+         job.status = "running"
+-        job.attempt_count = job.attempt_count + 1
++        if increment_attempt:
++            job.attempt_count = job.attempt_count + 1
+         job.locked_by = worker_id
+         job.locked_at = datetime.utcnow()
+         job.next_retry_at = None
++diff --git a/app/routers/company_research.py b/app/routers/company_research.py
++index eb634a4..7752548 100644
++--- a/app/routers/company_research.py
+++++ b/app/routers/company_research.py
++@@ -20,6 +20,8 @@ from app.schemas.company_research import (
++     CompanyResearchRunUpdate,
++     CompanyResearchRunSummary,
++     CompanyResearchJobRead,
++    CompanyResearchRunPlanRead,
++    CompanyResearchRunStepRead,
++     CompanyProspectCreate,
++     CompanyProspectRead,
++     CompanyProspectListItem,
++@@ -122,6 +124,38 @@ async def get_research_run(
++     return CompanyResearchRunSummary(**run_dict)
++
++
++@router.get("/runs/{run_id}/plan", response_model=CompanyResearchRunPlanRead)
++async def get_research_run_plan(
++    run_id: UUID,
++    current_user: User = Depends(verify_user_tenant_access),
++    db: AsyncSession = Depends(get_db),
++):
++    """Get or build the deterministic plan for a research run."""
++    service = CompanyResearchService(db)
++    run = await service.get_research_run(current_user.tenant_id, run_id)
++    if not run:
++        raise HTTPException(status_code=404, detail="Research run not found")
++
++    plan, _ = await service.ensure_plan_and_steps(current_user.tenant_id, run_id)
++    return CompanyResearchRunPlanRead.model_validate(plan)
++
++
++@router.get("/runs/{run_id}/steps", response_model=List[CompanyResearchRunStepRead])
++async def list_research_run_steps(
++    run_id: UUID,
++    current_user: User = Depends(verify_user_tenant_access),
++    db: AsyncSession = Depends(get_db),
++):
++    """List deterministic steps for a research run."""
++    service = CompanyResearchService(db)
++    run = await service.get_research_run(current_user.tenant_id, run_id)
++    if not run:
++        raise HTTPException(status_code=404, detail="Research run not found")
++
++    _, steps = await service.ensure_plan_and_steps(current_user.tenant_id, run_id)
++    return [CompanyResearchRunStepRead.model_validate(s) for s in steps]
++
++
++ @router.post("/runs/{run_id}/start", response_model=CompanyResearchJobRead)
++ async def start_research_run(
++     run_id: UUID,
++diff --git a/app/schemas/company_research.py b/app/schemas/company_research.py
+index 25ca850..110da81 100644
+--- a/app/schemas/company_research.py
++++ b/app/schemas/company_research.py
+@@ -59,6 +59,34 @@ class CompanyResearchRunRead(TenantScopedRead):
+     finished_at: Optional[datetime] = None
+ 
+ 
++class CompanyResearchRunPlanRead(TenantScopedRead):
++    """Schema for viewing deterministic run plan."""
++
++    run_id: UUID
++    version: int
++    plan_json: Dict[str, Any]
++    locked_at: Optional[datetime] = None
++    created_at: datetime
++    updated_at: datetime
++
++
++class CompanyResearchRunStepRead(TenantScopedRead):
++    """Schema for viewing run steps."""
++
++    run_id: UUID
++    step_key: str
++    step_order: int
++    status: str
++    attempt_count: int
++    max_attempts: int
++    next_retry_at: Optional[datetime] = None
++    started_at: Optional[datetime] = None
++    finished_at: Optional[datetime] = None
++    input_json: Optional[Dict[str, Any]] = None
++    output_json: Optional[Dict[str, Any]] = None
++    last_error: Optional[str] = None
++
+ 
+ # ============================================================================
+ # Company Prospect Schemas
+ # ============================================================================
+diff --git a/app/services/company_research_service.py b/app/services/company_research_service.py
+index 1ca52e4..314bbb8 100644
+--- a/app/services/company_research_service.py
++++ b/app/services/company_research_service.py
+@@ -19,6 +19,8 @@ from app.models.company_research import (
+     ResearchSourceDocument,
+     CompanyResearchEvent,
+     CompanyResearchJob,
++    CompanyResearchRunPlan,
++    CompanyResearchRunStep,
+ )
+ from app.schemas.company_research import (
+     CompanyResearchRunCreate,
+@@ -116,11 +118,97 @@ class CompanyResearchService:
+             data=data,
+         )
+ 
++    # ====================================================================
++    # Plan & Step Management
++    # ====================================================================
++
++    async def build_deterministic_plan_for_run(self, tenant_id: str, run_id: UUID) -> dict:
++        sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
++        has_list_sources = any(
++            src.source_type in {"manual_list", "list"} or (src.meta or {}).get("kind") == "list"
++            for src in sources
++        )
++        has_proposal_sources = any(src.source_type == "ai_proposal" for src in sources)
++
++        steps = [
++            {
++                "step_key": "process_sources",
++                "step_order": 10,
++                "rationale": "Process queued research sources",
++                "enabled": True,
++            },
++            {
++                "step_key": "ingest_lists",
++                "step_order": 20,
++                "rationale": "Ingest manual list sources if present",
++                "enabled": has_list_sources,
++            },
++            {
++                "step_key": "ingest_proposal",
++                "step_order": 30,
++                "rationale": "Ingest AI proposals if provided",
++                "enabled": has_proposal_sources,
++            },
++            {
++                "step_key": "finalize",
++                "step_order": 99,
++                "rationale": "Mark run complete once all steps succeed",
++                "enabled": True,
++            },
++        ]
++
++        return {
++            "version": 1,
++            "run_id": str(run_id),
++            "steps": steps,
++        }
++
++    async def ensure_plan_and_steps(
++        self,
++        tenant_id: str,
++        run_id: UUID,
++    ) -> tuple[CompanyResearchRunPlan, List[CompanyResearchRunStep]]:
++        plan_json = await self.build_deterministic_plan_for_run(tenant_id, run_id)
++        plan = await self.repo.create_plan_if_missing(
++            tenant_id=tenant_id,
++            run_id=run_id,
++            plan_json=plan_json,
++            version=plan_json.get("version", 1),
++        )
++
++        enabled_steps = []
++        for step in plan_json.get("steps", []):
++            if step.get("enabled", True):
++                enabled_steps.append(
++                    {
++                        "step_key": step["step_key"],
++                        "step_order": step["step_order"],
++                        "status": "pending",
++                        "max_attempts": 2,
++                        "input_json": {"rationale": step.get("rationale")},
++                    }
++                )
++
++        steps = await self.repo.upsert_steps(tenant_id, run_id, enabled_steps)
++        return plan, steps
++
++    async def lock_plan_on_start(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunPlan]:
++        return await self.repo.lock_plan(tenant_id, run_id)
++
++    async def get_run_plan(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunPlan]:
++        return await self.repo.get_run_plan(tenant_id, run_id)
++
++    async def list_run steps(self, tenant_id: str, run_id: UUID) -> List[CompanyResearchRunStep]:
++        return await self.repo.list_steps(tenant_id, run_id)
+ 
+     async def start_run(self, tenant_id: str, run_id: UUID) -> CompanyResearchJob:
+         run = await self get_research_run(tenant_id, run_id)
+         if not run:
+             raise ValueError("run_not_found")
++
++        await self.ensure_plan_and_steps(tenant_id, run_id)
++        await self.lock_plan_on_start(tenant_id, run_id)
++
+         job = await self.repo.enqueue_run_job(tenant_id=tenant_id, run_id=run_id)
+         await self.repo set_run_status(
+             tenant_id=tenant_id,
+@@ -137,6 +225,9 @@ class CompanyResearchService:
+         if not run:
+             raise ValueError("run_not_found")
++
++        await self.ensure_plan_and_steps(tenant_id, run_id)
++        await self.lock_plan_on_start(tenant_id, run_id)
++
+         job = await self.repo enqueue_run_job(tenant_id=tenant_id, run_id=run_id)
+         await self.repo set_run_status(
+             tenant_id=tenant_id,
++diff --git a/app/ui/routes/company_research.py b/app/ui/routes/company_research.py
++index 29c7668..1e3d093 100644
++--- a/app/ui/routes/company_research.py
++++ b/app/ui/routes/company_research.py
++@@ -307,6 +307,9 @@ async def company_research_run_detail(
++         run_id=run_id,
++         limit=50,
++     )
++
++    plan, run_steps = await service ensure_plan_and_steps(current_user.tenant_id, run_id)
++    steps_sorted = sorted(run_steps, key=lambda s: s.step_order)
++
++     # Fetch evidence for each prospect to show counts and sources
++     from app.models.company_research import CompanyProspectEvidence, CompanyMetric
++@@ -430,6 +433,31 @@ async def company_research_run_detail(
++             "status": source.status,
++             "created_at": source.created_at,
++         })
++
++    plan_context = None
++    if plan:
++        plan_context = {
++            "id": str(plan.id),
++            "version": plan.version,
++            "locked_at": plan.locked_at,
++            "plan_json": plan.plan_json,
++        }
++
++    steps_context = [
++        {
++            "id": str(step.id),
++            "step_key": step.step_key,
++            "step_order": step.step_order,
++            "status": step.status,
++            "attempt_count": step.attempt_count,
++            "max_attempts": step.max_attempts,
++            "next_retry_at": step.next_retry_at,
++            "started_at": step.started_at,
++            "finished_at": step.finished_at,
++            "last_error": step.last_error,
++        }
++        for step in steps_sorted
++    ]
++
++     # Extract selected metric key from order_by (e.g., "metric:fleet_size" -> "fleet_size")
++     selected_metric_key = None
++@@ -454,6 +482,8 @@ async def company_research_run_detail(
++             "role_info": role_info,
++             "prospects": prospects,
++             "sources": sources,
++            "plan": plan_context,
++            "steps": steps_context,
++             "available_metrics": available metrics,
++             "selected_metric_key": selected_metric_key,
++             "order_by": order_by,
++diff --git a/app/ui/templates/company_research_run_detail.html b/app/ui/templates/company_research_run_detail.html
+index 5fb7425..0fd98dc 100644
+--- a/app/ui/templates/company_research_run_detail.html
++++ b/app/ui/templates/company_research_run_detail.html
+@@ -80,6 +80,56 @@
+     {% endif %}
+ </div>
+ 
++<!-- Plan -->
++<div class="detail-section" style="margin-bottom: 20px;">
++    <h2 class="section-title">Run Plan</h2>
++    <div style="display: flex; gap: 16px; font-size: 13px; margin-bottom: 8px;">
++        <div><strong>Version:</strong> {{ plan.version if plan else '-' }}</div>
++        <div><strong>Locked:</strong> {{ plan.locked_at.strftime('%Y-%m-%d %H:%M:%S') if plan and plan.locked_at else '-' }}</div>
++    </div>
++    <details>
++        <summary style="cursor: pointer; color: #007bff;">View Plan JSON</summary>
++        <pre style="background: #f8f9fa; padding: 12px; border: 1px solid #e5e5e5; border-radius: 4px; font-size: 12px; overflow: auto;">{{ plan.plan_json | tojson(indent=2) if plan and plan.plan_json else '{}' }}</pre>
++    </details>
++</div>
++
++<!-- Steps -->
++<div class="detail-section" style="margin-bottom: 20px;">
++    <h2 class="section-title">Run Steps</h2>
++    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
++        <thead>
++            <tr style="background: #f8f9fa;">
++                <th style="text-align: left; padding: 8px;">Order</th>
++                <th style="text-align: left; padding: 8px;">Step</th>
++                <th style="text-align: left; padding: 8px;">Status</th>
++                <th style="text-align: left; padding: 8px;">Attempts</th>
++                <th style="text-align: left; padding: 8px;">Started</th>
++                <th style="text-align: left; padding: 8px;">Finished</th>
++                <th style="text-align: left; padding: 8px;">Next Retry</th>
++                <th style="text-align: left; padding: 8px;">Last Error</th>
++            </tr>
++        </thead>
++        <tbody>
++            {% if steps %}
++            {% for step in steps %}
++            <tr style="border-bottom: 1px solid #eee;">
++                <td style="padding: 8px;">{{ step.step_order }}</td>
++                <td style="padding: 8px;">{{ step.step_key }}</td>
++                <td style="padding: 8px;">{{ step.status }}</td>
++                <td style="padding: 8px;">{{ step.attempt_count }} / {{ step.max_attempts }}</td>
++                <td style="padding: 8px;">{{ step.started_at.strftime('%Y-%m-%d %H:%M:%S') if step.started_at else '-' }}</td>
++                <td style="padding: 8px;">{{ step.finished_at.strftime('%Y-%m-%d %H:%M:%S') if step.finished_at else '-' }}</td>
++                <td style="padding: 8px;">{{ step.next_retry_at.strftime('%Y-%m-%d %H:%M:%S') if step.next_retry_at else '-' }}</td>
++                <td style="padding: 8px;">{{ step.last_error or '-' }}</td>
++            </tr>
++            {% endfor %}
++            {% else %}
++            <tr><td colspan="8" style="padding: 8px;">No steps yet.</td></tr>
++            {% endif %}
++        </tbody>
++    </table>
++</div>
++
+ <!-- Events -->
+ <div class="detail-section" style="margin-bottom: 20px;">
+     <h2 class="section-title">Recent Events</h2>
+diff --git a/app/workers/company_research_worker.py b/app/workers/company_research_worker.py
+index 4906d5a..beaf8cf 100644
+--- a/app/workers/company_research_worker.py
++++ b/app/workers/company_research_worker.py
+@@ -22,6 +22,8 @@ async def _handle_cancel(
+     run = await service get_research_run(tenant_id, run_id)
+     allow_status_update = run and run status in {"queued", "running", "cancel_requested"}
+ 
++    await service.repo cancel_pending_steps(tenant_id, run_id, reason=reason or "cancelled")
++
+     await service mark_job_cancelled(job_id, last_error=reason)
+     if allow_status_update:
+         await service repo set_run_status(
+@@ -51,12 +53,12 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) ->
+         await service.db commit()
+         return
+ 
+-    # Move to running state
+     job = await service mark_job_running(job.id, worker_id)
+     if not job:
+         await service append_event(tenant_id, run_id, "worker_failed", "Unable to mark job running", status="failed")
+         await service.db commit()
+         return
++
+     started_at = run.started_at or datetime.utcnow()
+     await service repo set_run_status(
+         tenant_id,
+@@ -68,45 +70,146 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) ->
+     await service.append_event(tenant_id, run_id, "worker_claimed", f"Worker {worker_id} claimed job {job.id}")
+     await service.db commit()
+ 
++    await service ensure_plan_and_steps(tenant_id, run_id)
++    await service lock_plan_on_start(tenant_id, run_id)
++
+     if job.cancel_requested:
+-        await _handle_cancel(service, job.id, tenant_id, run_id, reason="cancelled before start")
++        await _handle_cancel(service, job.id, tenant_id, run_id, reason="cancelled before step")
+         await service.db commit()
+         return
+ 
++    step = await service repo claim_next_step(tenant_id, run_id)
++    if not step:
++        steps = await service repo list_steps(tenant_id, run_id)
++        if steps and all(s.status == "succeeded" for s in steps):
++            await service mark_job_succeeded(job.id)
++            await service repo set_run_status(
++                tenant_id,
++                run_id,
++                status="succeeded",
++                finished_at=datetime.utcnow(),
++                last_error=None,
++            )
++            await service append_event(tenant_id, run_id, "worker_completed", "Run completed")
++        else:
++            job.locked_at = None
++            job.locked_by = None
++            await service.db flush()
++        await service.db commit()
++        return
++
++    await service append_event(
++        tenant_id,
++        run_id,
++        "step_started",
++        f"Starting step {step.step_key}",
++        meta_json={"step_id": str(step.id), "step_key": step.step_key},
++    )
++
+     try:
+-        extractor = CompanyExtractionService(service.db)
+-        extraction_result = await extractor process_sources(
+-            tenant_id=tenant_id,
+-            run_id=run_id,
+-        )
+-        await service append_event(
+-            tenant_id,
+-            run_id,
+-            "process_sources",
+-            f"Processed {extraction_result.get('processed', 0)} sources",
+-            meta_json=extraction_result,
+-        )
++        if step.step_key == "process_sources":
++            extractor = CompanyExtractionService(service.db)
++            result = await extractor process_sources(
++                tenant_id=tenant_id,
++                run_id=run_id,
++            )
++            await service repo mark_step_succeeded(step.id, output_json=result)
++            await service append_event(
++                tenant_id,
++                run_id,
++                "step_succeeded",
++                f"Completed step {step.step_key}",
++                meta_json={"step_key": step.step_key, "result": result},
++            )
++            job.locked_at = None
++            job.locked_by = None
++            await service.db flush()
++            await service.db commit()
++            return
++
++        if step.step_key == "ingest_lists":
++            summary = {"message": "ingest_lists step no-op (manual lists are user-driven in v1)"}
++            await service repo mark_step_succeeded(step.id, output_json=summary)
++            await service append_event(tenant_id, run_id, "step_succeeded", "Completed ingest_lists", meta_json=summary)
++            job.locked_at = None
++            job.locked_by = None
++            await service.db flush()
++            await service.db commit()
++            return
++
++        if step.step_key == "ingest_proposal":
++            summary = {"message": "No proposals to ingest in worker v1"}
++            await service repo mark_step_succeeded(step.id, output_json=summary)
++            await service append_event(tenant_id, run_id, "step_succeeded", "Completed ingest_proposal", meta_json=summary)
++            job.locked_at = None
++            job.locked_by = None
++            await service.db flush()
++            await service.db commit()
++            return
+ 
+-        if job.cancel_requested:
+-            await _handle_cancel(service, job.id, tenant_id, run_id, reason="cancelled after sources")
++        if step.step_key == "finalize":
++            steps_state = await service repo list_steps(tenant_id, run_id)
++            blockers = [
++                s.step_key
++                for s in steps_state
++                if s.step_key != "finalize" and s.status not in {"succeeded", "skipped", "cancelled"}
++            ]
++            if blockers:
++                backoff_seconds = min(300, 30 * max(1, step.attempt_count))
++                await service repo mark_step_failed(
++                    step.id,
++                    "pending steps: " + ", ".join(blockers),
++                    backoff_seconds=backoff_seconds,
++                )
++                await service append_event(
++                    tenant_id,
++                    run_id,
++                    "step_failed",
++                    "Finalize blocked",
++                    meta_json={"blockers": blockers},
++                    status="failed",
++                )
++                job.locked_at = None
++                job.locked_by = None
++                await service.db flush()
++                await service.db commit()
++                return
++
++            await service repo mark_step_succeeded(step.id, output_json={"completed": True})
++            await service mark_job_succeeded(job.id)
++            await service repo set_run_status(
++                tenant_id,
++                run_id,
++                status="succeeded",
++                finished_at=datetime.utcnow(),
++                last_error=None,
++            )
++            await service append_event(tenant_id, run_id, "worker_completed", "Run completed")
+             await service.db commit()
+             return
+ 
+-        await service mark_job_succeeded(job.id)
++        await service repo mark_step_failed(step.id, f"unknown_step:{step.step_key}")
++        await service mark_job_failed(job.id, f"unknown_step:{step.step_key}")
+         await service.repo set_run_status(
+             tenant_id,
+             run_id,
+--            status="succeeded",
+--            finished_at=datetime.utcnow(),
+--            last_error=None,
+-        )
+-        await service append_event(tenant_id, run_id, "worker_completed", "Run completed")
++            status="failed",
++            last_error=f"unknown_step:{step.step_key}",
++        )
++        await service append_event(
++            tenant_id,
++            run_id,
++            "step_failed",
++            f"Unknown step {step.step_key}",
++            status="failed",
++        )
+         await service.db commit()
+ 
+     except Exception as exc:  # noqa: BLE001
+         await service.db rollback()
+--        backoff_seconds = min(300, 30 * (job.attempt_count + 1))
+--        message = str(exc)
+--        await service mark_job_failed(job.id, message, backoff_seconds=backoff_seconds)
+--        await service.repo set_run_status(
+--            tenant_id,
+--            run_id,
+--            status="failed",
+--            last_error=message,
+--        )
+--        await service append_event(tenant_id, run_id, "worker_failed", message, status="failed")
++        backoff_seconds = min(300, 30 * max(1, step.attempt_count))
++        message = str(exc)
++        await service repo mark_step_failed(step.id, message, backoff_seconds=backoff_seconds)
++        await service mark_job_failed(job.id, message, backoff_seconds=backoff_seconds)
++        await service repo set_run_status(
++            tenant_id,
++            run_id,
++            status="failed",
++            last_error=message,
++        )
++        await service append_event(tenant_id, run_id, "step_failed", message, status="failed")
+         await service.db commit()
+ 
+```
+
+B) alembic current/heads
+```plaintext
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+c7f2c2a1c4b4 (head)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+c7f2c2a1c4b4 (head)
+```
+
+C) openapi method+paths for plan/steps/start/events
+```plaintext
+GET /company-research/runs/{run_id}/plan
+GET /company-research/runs/{run_id}/steps
+POST /company-research/runs/{run_id}/start
+GET /company-research/runs/{run_id}/events
+```
+
+D) proof output + exit code
+```plaintext
+=$LASTEXITCODE                                                                                       === PHASE 3.7 PLAN AND STEPS PROOF ===
+API Base URL: http://localhost:8005
+Tenant ID: b3909011-8bd3-439d-a421-3b70fae124e9
+Run created: 9449d665-f8a0-4b28-9b02-c9e2ad32cde1
+Added URL source via UI endpoint
+Run started (job 738c07d8-39bb-4c33-bc34-c804fc92712c)
+=== VALIDATION PASSED ===
+RUN_ID=9449d665-f8a0-4b28-9b02-c9e2ad32cde1
+EXIT_CODE=0
+```
+
+E) raw /plan response snippet
+```plaintext
+=== PLAN JSON ===
+{
+  "id": "0599b935-92b8-41a4-bd98-1c93436e6c74",
+  "tenant_id": "b3909011-8bd3-439d-a421-3b70fae124e9",
+  "created_at": "2026-01-01T18:57:24.737191Z",
+  "updated_at": "2026-01-01T18:57:24.737191Z",
+  "run_id": "9449d665-f8a0-4b28-9b02-c9e2ad32cde1",
+  "version": 1,
+  "plan_json": {
+    "steps": [
+      {
+        "enabled": true,
+        "step_key": "process_sources",
+        "rationale": "Process queued research sources",
+        "step_order": 10
+      },
+      {
+        "enabled": false,
+        "step_key": "ingest_lists",
+        "rationale": "Ingest manual list sources if present",
+        "step_order": 20
+      },
+      {
+        "enabled": false,
+        "step_key": "ingest_proposal",
+        "rationale": "Ingest AI proposals if provided",
+        "step_order": 30
+      },
+      {
+        "enabled": true,
+        "step_key": "finalize",
+        "rationale": "Mark run complete once all steps succeed",
+        "step_order": 99
+      }
+    ],
+    "run_id": "9449d665-f8a0-4b28-9b02-c9e2ad32cde1",
+    "version": 1
+  },
+  "locked_at": "2026-01-01T14:57:24.763171Z"
+}
+```
+
+F) raw /steps response snippet
+```plaintext
+=== STEPS JSON ===
+[
+  {
+    "id": "7f91058e-06cd-472d-9e6d-b95ecc899d55",
+    "tenant_id": "b3909011-8bd3-439d-a421-3b70fae124e9",
+    "created_at": "2026-01-01T18:57:24.737191Z",
+    "updated_at": "2026-01-01T18:57:33.710780Z",
+    "run_id": "9449d665-f8a0-4b28-9b02-c9e2ad32cde1",
+    "step_key": "process_sources",
+    "step_order": 10,
+    "status": "succeeded",
+    "attempt_count": 1,
+    "max_attempts": 2,
+    "next_retry_at": null,
+    "started_at": "2026-01-01T14:57:31.884792Z",
+    "finished_at": "2026-01-01T14:57:33.714615Z",
+    "input_json": {
+      "rationale": "Process queued research sources"
+    },
+    "output_json": {
+      "processed": 1,
+      "companies_new": 2,
+      "sources_detail": [
+        {
+          "new": 2,
+          "chars": 142,
+          "lines": 4,
+          "title": "Phase 3.7 proof source",
+          "existing": 0,
+          "extracted": 2
+        }
+      ],
+      "companies_found": 2,
+      "companies_existing": 0
+    },
+    "last_error": null
+  },
+  {
+    "id": "cdaf220c-fae7-4fdf-bb0f-1fe4d4862fba",
+    "tenant_id": "b3909011-8bd3-439d-a421-3b70fae124e9",
+    "created_at": "2026-01-01T18:57:24.737191Z",
+    "updated_at": "2026-01-01T18:57:38.662899Z",
+    "run_id": "9449d665-f8a0-4b28-9b02-c9e2ad32cde1",
+    "step_key": "finalize",
+    "step_order": 99,
+    "status": "succeeded",
+    "attempt_count": 1,
+    "max_attempts": 2,
+    "next_retry_at": null,
+    "started_at": "2026-01-01T14:57:38.642641Z",
+    "finished_at": "2026-01-01T14:57:38.663648Z",
+    "input_json": {
+      "rationale": "Mark run complete once all steps succeed"
+    },
+    "output_json": {
+      "completed": true
+    },
+    "last_error": null
+  }
+]
+```
+
+G) worker --once raw output
+```plaintext
+PS C:\ATS> C:\ATS\.venv\Scripts\python.exe -m app.workers.company_research_worker --once
+2026-01-01 22:58:26,014 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+2026-01-01 22:58:26,014 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-01-01 22:58:26,014 INFO sqlalchemy.engine.Engine select current_schema()
+2026-01-01 22:58:26,014 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-01-01 22:58:26,014 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+2026-01-01 22:58:26,014 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-01-01 22:58:26,030 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-01-01 22:58:26,174 INFO sqlalchemy.engine.Engine SELECT company_research_jobs.run_id, company_research_jobs.job_type, company_research_jobs.status, company_research_jobs.attempt_count, company_research_jobs.max_attempts, company_research_jobs.next_retry_at, company_research_jobs.locked_at, company_research_jobs.locked_by, company_research_jobs.cancel_requested, company_research_jobs.last_error, company_research_jobs.id, company_research_jobs.tenant_id, company_research_jobs.created_at, company_research_jobs.updated_at FROM company_research_jobs
+WHERE company_research_jobs.status IN ($3::VARCHAR, $4::VARCHAR, $5::VARCHAR) AND company_research_jobs.attempt_count < company_research_jobs.max_attempts AND (company_research_jobs.next_retry_at IS NULL OR company_research_jobs.next_retry_at <= now()) AND (company_research_jobs.status != $1::VARCHAR OR company_research_jobs.locked_at IS NULL) ORDER BY company_research_jobs.created_at LIMIT $2::INTEGER FOR UPDATE SKIP LOCKED
+2026-01-01 22:58:26,174 INFO sqlalchemy.engine.Engine [generated in 0.00112s] ('running', 1, 'queued', 'failed', 'running')
+2026-01-01 22:58:26,188 INFO sqlalchemy.engine.Engine COMMIT
+```
+
+H) UI diff hunks
+```plaintext
+diff --git a/app/ui/templates/company_research_run_detail.html b/app/ui/templates/company_research_run_detail.html
+index 5fb7425..0fd98dc 100644
+--- a/app/ui/templates/company_research_run_detail.html
++++ b/app/ui/templates/company_research_run_detail.html
+@@ -80,6 +80,56 @@
+     {% endif %}
+ </div>
+ 
++<!-- Plan -->
++<div class="detail-section" style="margin-bottom: 20px;">
++    <h2 class="section-title">Run Plan</h2>
++    <div style="display: flex; gap: 16px; font-size: 13px; margin-bottom: 8px;">
++        <div><strong>Version:</strong> {{ plan.version if plan else '-' }}</div>
++        <div><strong>Locked:</strong> {{ plan.locked_at.strftime('%Y-%m-%d %H:%M:%S') if plan and plan.locked_at else '-' }}</div>
++    </div>
++    <details>
++        <summary style="cursor: pointer; color: #007bff;">View Plan JSON</summary>
++        <pre style="background: #f8f9fa; padding: 12px; border: 1px solid #e5e5e5; border-radius: 4px; font-size: 12px; overflow: auto;">{{ plan.plan_json | tojson(indent=2) if plan and plan.plan_json else '{}' }}</pre>
++    </details>
++</div>
++
++<!-- Steps -->
++<div class="detail-section" style="margin-bottom: 20px;">
++    <h2 class="section-title">Run Steps</h2>
++    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
++        <thead>
++            <tr style="background: #f8f9fa;">
++                <th style="text-align: left; padding: 8px;">Order</th>
++                <th style="text-align: left; padding: 8px;">Step</th>
++                <th style="text-align: left; padding: 8px;">Status</th>
++                <th style="text-align: left; padding: 8px;">Attempts</th>
++                <th style="text-align: left; padding: 8px;">Started</th>
++                <th style="text-align: left; padding: 8px;">Finished</th>
++                <th style="text-align: left; padding: 8px;">Next Retry</th>
++                <th style="text-align: left; padding: 8px;">Last Error</th>
++            </tr>
++        </thead>
++        <tbody>
++            {% if steps %}
++            {% for step in steps %}
++            <tr style="border-bottom: 1px solid #eee;">
++                <td style="padding: 8px;">{{ step.step_order }}</td>
++                <td style="padding: 8px;">{{ step.step_key }}</td>
++                <td style="padding: 8px;">{{ step.status }}</td>
++                <td style="padding: 8px;">{{ step.attempt_count }} / {{ step.max_attempts }}</td>
++                <td style="padding: 8px;">{{ step.started_at.strftime('%Y-%m-%d %H:%M:%S') if step.started_at else '-' }}</td>
++                <td style="padding: 8px;">{{ step.finished_at.strftime('%Y-%m-%d %H:%M:%S') if step.finished_at else '-' }}</td>
++                <td style="padding: 8px;">{{ step.next_retry_at.strftime('%Y-%m-%d %H:%M:%S') if step.next_retry_at else '-' }}</td>
++                <td style="padding: 8px;">{{ step.last_error or '-' }}</td>
++            </tr>
++            {% endfor %}
++            {% else %}
++            <tr><td colspan="8" style="padding: 8px;">No steps yet.</td></tr>
++            {% endif %}
++        </tbody>
++    </table>
++</div>
++
+ <!-- Events -->
+ <div class="detail-section" style="margin-bottom: 20px;">
+     <h2 class="section-title">Recent Events</h2>
+diff --git a/app/ui/routes/company_research.py b/app/ui/routes/company_research.py
+index 29c7668..1e3d093 100644
+--- a/app/ui/routes/company_research.py
++++ b/app/ui/routes/company_research.py
+@@ -307,6 +307,9 @@ async def company_research_run_detail(
+         run_id=run_id,
+         limit=50,
+     )
+ 
++    plan, run_steps = await service ensure_plan_and_steps(current_user.tenant_id, run_id)
++    steps_sorted = sorted(run_steps, key=lambda s: s.step_order)
++
+     # Fetch evidence for each prospect to show counts and sources
+     from app.models.company_research import CompanyProspectEvidence, CompanyMetric
+@@ -430,6 +433,31 @@ async def company_research_run_detail(
+             "status": source.status,
+             "created_at": source.created_at,
+         })
+ 
++    plan_context = None
++    if plan:
++        plan_context = {
++            "id": str(plan.id),
++            "version": plan.version,
++            "locked_at": plan.locked_at,
++            "plan_json": plan.plan_json,
++        }
++
++    steps_context = [
++        {
++            "id": str(step.id),
++            "step_key": step.step_key,
++            "step_order": step.step_order,
++            "status": step.status,
++            "attempt_count": step.attempt_count,
++            "max_attempts": step.max_attempts,
++            "next_retry_at": step.next_retry_at,
++            "started_at": step.started_at,
++            "finished_at": step.finished_at,
++            "last_error": step.last_error,
++        }
++        for step in steps_sorted
++    ]
++
+     # Extract selected metric key from order_by (e.g., "metric:fleet_size" -> "fleet_size")
+     selected_metric_key = None
+@@ -454,6 +482,8 @@ async def company_research_run_detail(
+             "role_info": role_info,
+             "prospects": prospects,
+             "sources": sources,
++            "plan": plan_context,
++            "steps": steps_context,
+             "available_metrics": available metrics,
+             "selected_metric_key": selected_metric_key,
+             "order_by": order_by,
+```

@@ -1,0 +1,296 @@
+PHASE 3.6 EVIDENCE PACK (RAW OUTPUTS)
+
+A) git status / git log -n 8 --oneline / git diff
+```
+On branch master
+nothing to commit, working tree clean
+```
+```
+6ee5f8a (HEAD -> master) Phase 3.6: run lifecycle orchestration (queue + worker + events + proofs)
+9446d82 (tag: phase_3_5_signed_off) Phase 3.5: finalize URL-less evidence policy; proofs pass; commit deliverables
+26080a4 (tag: phase_3_5_baseline) Baseline import of ATS working tree (includes Phase 3.5 state)
+```
+```
+```
+
+B) alembic current/heads + FULL migration a8d8d37f9b3d_add_company_research_jobs_queue.py
+```
+--- alembic current ---
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+a8d8d37f9b3d (head)
+--- alembic heads ---
+a8d8d37f9b3d (head)
+```
+```
+"""Add company research jobs queue and last_error
+
+Revision ID: a8d8d37f9b3d
+Revises: 5d4d0e7f2c1f
+Create Date: 2025-12-31 16:30:00.000000
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+
+# revision identifiers, used by Alembic.
+revision: str = "a8d8d37f9b3d"
+down_revision: Union[str, None] = "5d4d0e7f2c1f"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    op.add_column("company_research_runs", sa.Column("last_error", sa.Text(), nullable=True))
+
+    op.create_table(
+        "company_research_jobs",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
+        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column("run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("company_research_runs.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("job_type", sa.String(length=100), nullable=False, server_default=sa.text("'company_research_run'")),
+        sa.Column("status", sa.String(length=50), nullable=False, server_default=sa.text("'queued'"), index=True),
+        sa.Column("attempt_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+        sa.Column("max_attempts", sa.Integer(), nullable=False, server_default=sa.text("3")),
+        sa.Column("next_retry_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("locked_by", sa.String(length=200), nullable=True),
+        sa.Column("cancel_requested", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("last_error", sa.Text(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), onupdate=sa.func.now()),
+    )
+
+    op.create_index(
+        "ix_company_research_jobs_status_next_retry",
+        "company_research_jobs",
+        ["tenant_id", "status", "next_retry_at"],
+    )
+    op.create_index(
+        "ix_company_research_jobs_tenant_run",
+        "company_research_jobs",
+        ["tenant_id", "run_id"],
+    )
+    op.create_index(
+        "uq_company_research_jobs_active",
+        "company_research_jobs",
+        ["tenant_id", "run_id", "job_type"],
+        unique=True,
+        postgresql_where=sa.text("status IN ('queued','running')"),
+    )
+
+
+def downgrade() -> None:
+    op.drop_index("uq_company_research_jobs_active", table_name="company_research_jobs")
+    op.drop_index("ix_company_research_jobs_tenant_run", table_name="company_research_jobs")
+    op.drop_index("ix_company_research_jobs_status_next_retry", table_name="company_research_jobs")
+    op.drop_table("company_research_jobs")
+    op.drop_column("company_research_runs", "last_error")
+```
+
+C) OpenAPI company-research routes
+```
+POST /company-research/prospects
+GET /company-research/prospects/{prospect_id}
+GET,POST /company-research/prospects/{prospect_id}/evidence
+PATCH /company-research/prospects/{prospect_id}/manual
+GET,POST /company-research/prospects/{prospect_id}/metrics
+GET,POST /company-research/runs
+GET,PATCH /company-research/runs/{run_id}
+POST /company-research/runs/{run_id}/cancel
+GET /company-research/runs/{run_id}/events
+GET /company-research/runs/{run_id}/prospects
+GET /company-research/runs/{run_id}/prospects-with-evidence
+POST /company-research/runs/{run_id}/retry
+POST /company-research/runs/{run_id}/seed-dummy-prospects
+POST /company-research/runs/{run_id}/start
+GET /ui/company-research
+POST /ui/company-research/prospects/{prospect_id}/update-manual
+POST /ui/company-research/runs/create
+GET /ui/company-research/runs/{run_id}
+POST /ui/company-research/runs/{run_id}/cancel
+POST /ui/company-research/runs/{run_id}/ingest-lists
+POST /ui/company-research/runs/{run_id}/ingest-proposal
+POST /ui/company-research/runs/{run_id}/retry
+POST /ui/company-research/runs/{run_id}/seed-dummy
+POST /ui/company-research/runs/{run_id}/sources/add-text
+POST /ui/company-research/runs/{run_id}/sources/add-url
+POST /ui/company-research/runs/{run_id}/sources/process
+POST /ui/company-research/runs/{run_id}/start
+POST /ui/company-research/runs/{run_id}/validate-proposal
+```
+
+D) Phase 3.6 orchestration proof output (exit code 0)
+```
+=== PHASE 3.6 RUN ORCHESTRATION PROOF ===
+API Base URL: http://localhost:8006
+Tenant ID: b3909011-8bd3-439d-a421-3b70fae124e9
+Creating runs...
+Run (success path): edda82ee-042d-4b04-9b03-78ecbf58da88
+Run (cancel path): 57971e12-50c5-40ff-a19e-96dd03dd1fac
+ Success run start idempotent (job 5357368d-a11c-4e9d-8db2-c4d0fd15ae35)
+ Success run status: succeeded
+ Success run events: 3 recorded
+ Cancel run start idempotent (job 3aa8a495-1807-404c-8e50-309873016ab6)
+Requested cancel before worker
+ Cancel run status: cancelled
+ Cancel run events: 2 recorded
+=== VALIDATION PASSED ===
+RUN_SUCCESS_ID=edda82ee-042d-4b04-9b03-78ecbf58da88
+RUN_CANCEL_ID=57971e12-50c5-40ff-a19e-96dd03dd1fac
+Exit code: 0
+```
+
+E) Events API output (run_success_id=edda82ee-042d-4b04-9b03-78ecbf58da88)
+```
+[
+  {
+    "id": "69550725-7a8e-43cd-b224-10af74e23c5b",
+    "tenant_id": "b3909011-8bd3-439d-a421-3b70fae124e9",
+    "created_at": "2026-01-01T18:23:45.604225Z",
+    "updated_at": "2026-01-01T18:23:45.604225Z",
+    "company_research_run_id": "edda82ee-042d-4b04-9b03-78ecbf58da88",
+    "event_type": "worker_completed",
+    "status": "ok",
+    "input_json": null,
+    "output_json": {
+      "message": "Run completed"
+    },
+    "error_message": null
+  },
+  {
+    "id": "5a9ce90f-9329-4ef6-ad8d-691fb1fcf503",
+    "tenant_id": "b3909011-8bd3-439d-a421-3b70fae124e9",
+    "created_at": "2026-01-01T18:23:45.592132Z",
+    "updated_at": "2026-01-01T18:23:45.592132Z",
+    "company_research_run_id": "edda82ee-042d-4b04-9b03-78ecbf58da88",
+    "event_type": "process_sources",
+    "status": "ok",
+    "input_json": {
+      "processed": 0,
+      "companies_new": 0,
+      "sources_detail": [],
+      "companies_found": 0,
+      "companies_existing": 0
+    },
+    "output_json": {
+      "message": "Processed 0 sources"
+    },
+    "error_message": null
+  },
+  {
+    "id": "6e398da9-eb7d-452d-a197-8e465a4594b9",
+    "tenant_id": "b3909011-8bd3-439d-a421-3b70fae124e9",
+    "created_at": "2026-01-01T18:23:45.463709Z",
+    "updated_at": "2026-01-01T18:23:45.463709Z",
+    "company_research_run_id": "edda82ee-042d-4b04-9b03-78ecbf58da88",
+    "event_type": "worker_claimed",
+    "status": "ok",
+    "input_json": null,
+    "output_json": {
+      "message": "Worker Iulian:3280 claimed job 5357368d-a11c-4e9d-8db2-c4d0fd15ae35"
+    },
+    "error_message": null
+  }
+]
+```
+
+F) Events API output (run_cancel_id=57971e12-50c5-40ff-a19e-96dd03dd1fac)
+```
+[
+  {
+    "id": "f741a4a3-0248-4e47-b756-ad7e55dd4a45",
+    "tenant_id": "b3909011-8bd3-439d-a421-3b70fae124e9",
+    "created_at": "2026-01-01T18:23:58.201222Z",
+    "updated_at": "2026-01-01T18:23:58.201222Z",
+    "company_research_run_id": "57971e12-50c5-40ff-a19e-96dd03dd1fac",
+    "event_type": "worker_cancelled",
+    "status": "cancelled",
+    "input_json": null,
+    "output_json": {
+      "message": "cancelled before start"
+    },
+    "error_message": null
+  },
+  {
+    "id": "4cd96962-d036-4166-b69f-86836af86bc2",
+    "tenant_id": "b3909011-8bd3-439d-a421-3b70fae124e9",
+    "created_at": "2026-01-01T18:23:58.166695Z",
+    "updated_at": "2026-01-01T18:23:58.166695Z",
+    "company_research_run_id": "57971e12-50c5-40ff-a19e-96dd03dd1fac",
+    "event_type": "worker_claimed",
+    "status": "ok",
+    "input_json": null,
+    "output_json": {
+      "message": "Worker Iulian:1408 claimed job 3aa8a495-1807-404c-8e50-309873016ab6"
+    },
+    "error_message": null
+  }
+]
+```
+
+G) UI lifecycle + events snippet (app/ui/templates/company_research_run_detail.html)
+```
+<!-- Lifecycle Controls -->
+<div style="display: flex; gap: 10px; margin-bottom: 16px;">
+    <form method="post" action="/ui/company-research/runs/{{ run.id }}/start">
+        <button type="submit" class="btn btn-primary">Start</button>
+    </form>
+    <form method="post" action="/ui/company-research/runs/{{ run.id }}/retry">
+        <button type="submit" class="btn btn-secondary">Retry</button>
+    </form>
+    <form method="post" action="/ui/company-research/runs/{{ run.id }}/cancel">
+        <button type="submit" class="btn btn-danger">Cancel</button>
+    </form>
+</div>
+...
+<!-- Events -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Recent Events</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+            <tr style="background: #f8f9fa;">
+                <th style="text-align: left; padding: 8px;">When</th>
+                <th style="text-align: left; padding: 8px;">Type</th>
+                <th style="text-align: left; padding: 8px;">Status</th>
+                <th style="text-align: left; padding: 8px;">Message</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if events %}
+            {% for ev in events %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">{{ ev.created_at.strftime('%Y-%m-%d %H:%M:%S') if ev.created_at else '-' }}</td>
+                <td style="padding: 8px;">{{ ev.event_type }}</td>
+                <td style="padding: 8px;">{{ ev.status }}</td>
+                <td style="padding: 8px;">{{ ev.message or '-' }}</td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr><td colspan="4" style="padding: 8px;">No events yet.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+```
+
+H) Worker invocation evidence
+```
+Command: C:/ATS/.venv/Scripts/python.exe -m app.workers.company_research_worker --once
+2026-01-01 22:24:35,120 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+2026-01-01 22:24:35,134 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-01-01 22:24:35,134 INFO sqlalchemy.engine.Engine select current_schema()
+2026-01-01 22:24:35,134 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-01-01 22:24:35,134 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+2026-01-01 22:24:35,134 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-01-01 22:24:35,134 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-01-01 22:24:35,177 INFO sqlalchemy.engine.Engine SELECT company_research_jobs.run_id, company_research_jobs.job_type, company_research_jobs.status, company_research_jobs.attempt_count, company_research_jobs.max_attempts, company_research_jobs.next_retry_at, company_research_jobs.locked_at, company_research_jobs.locked_by, company_research_jobs.cancel_requested, company_research_jobs.last_error, company_research_jobs.id, company_research_jobs.tenant_id, company_research_jobs.created_at, company_research_jobs.updated_at
+FROM company_research_jobs
+WHERE company_research_jobs.status IN ($2::VARCHAR, $3::VARCHAR) AND company_research_jobs.attempt_count < company_research_jobs.max_attempts AND (company_research_jobs.next_retry_at IS NULL OR company_research_jobs.next_retry_at <= now()) ORDER BY company_research_jobs.created_at
+LIMIT $1::INTEGER FOR UPDATE SKIP LOCKED
+2026-01-01 22:24:35,177 INFO sqlalchemy.engine.Engine [generated in 0.00060s] (1, 'queued', 'failed')
+2026-01-01 22:24:35,189 INFO sqlalchemy.engine.Engine COMMIT
+```

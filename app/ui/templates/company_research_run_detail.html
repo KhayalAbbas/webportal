@@ -80,6 +80,56 @@
     {% endif %}
 </div>
 
+<!-- Plan -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Run Plan</h2>
+    <div style="display: flex; gap: 16px; font-size: 13px; margin-bottom: 8px;">
+        <div><strong>Version:</strong> {{ plan.version if plan else '-' }}</div>
+        <div><strong>Locked:</strong> {{ plan.locked_at.strftime('%Y-%m-%d %H:%M:%S') if plan and plan.locked_at else '-' }}</div>
+    </div>
+    <details>
+        <summary style="cursor: pointer; color: #007bff;">View Plan JSON</summary>
+        <pre style="background: #f8f9fa; padding: 12px; border: 1px solid #e5e5e5; border-radius: 4px; font-size: 12px; overflow: auto;">{{ plan.plan_json | tojson(indent=2) if plan and plan.plan_json else '{}' }}</pre>
+    </details>
+</div>
+
+<!-- Steps -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Run Steps</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+            <tr style="background: #f8f9fa;">
+                <th style="text-align: left; padding: 8px;">Order</th>
+                <th style="text-align: left; padding: 8px;">Step</th>
+                <th style="text-align: left; padding: 8px;">Status</th>
+                <th style="text-align: left; padding: 8px;">Attempts</th>
+                <th style="text-align: left; padding: 8px;">Started</th>
+                <th style="text-align: left; padding: 8px;">Finished</th>
+                <th style="text-align: left; padding: 8px;">Next Retry</th>
+                <th style="text-align: left; padding: 8px;">Last Error</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if steps %}
+            {% for step in steps %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">{{ step.step_order }}</td>
+                <td style="padding: 8px;">{{ step.step_key }}</td>
+                <td style="padding: 8px;">{{ step.status }}</td>
+                <td style="padding: 8px;">{{ step.attempt_count }} / {{ step.max_attempts }}</td>
+                <td style="padding: 8px;">{{ step.started_at.strftime('%Y-%m-%d %H:%M:%S') if step.started_at else '-' }}</td>
+                <td style="padding: 8px;">{{ step.finished_at.strftime('%Y-%m-%d %H:%M:%S') if step.finished_at else '-' }}</td>
+                <td style="padding: 8px;">{{ step.next_retry_at.strftime('%Y-%m-%d %H:%M:%S') if step.next_retry_at else '-' }}</td>
+                <td style="padding: 8px;">{{ step.last_error or '-' }}</td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr><td colspan="8" style="padding: 8px;">No steps yet.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
 <!-- Events -->
 <div class="detail-section" style="margin-bottom: 20px;">
     <h2 class="section-title">Recent Events</h2>

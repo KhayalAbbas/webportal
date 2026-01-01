@@ -307,6 +307,9 @@ async def company_research_run_detail(
         run_id=run_id,
         limit=50,
     )
+
+    plan, run_steps = await service.ensure_plan_and_steps(current_user.tenant_id, run_id)
+    steps_sorted = sorted(run_steps, key=lambda s: s.step_order)
     
     # Fetch evidence for each prospect to show counts and sources
     from app.models.company_research import CompanyProspectEvidence, CompanyMetric
@@ -430,6 +433,31 @@ async def company_research_run_detail(
             "status": source.status,
             "created_at": source.created_at,
         })
+
+    plan_context = None
+    if plan:
+        plan_context = {
+            "id": str(plan.id),
+            "version": plan.version,
+            "locked_at": plan.locked_at,
+            "plan_json": plan.plan_json,
+        }
+
+    steps_context = [
+        {
+            "id": str(step.id),
+            "step_key": step.step_key,
+            "step_order": step.step_order,
+            "status": step.status,
+            "attempt_count": step.attempt_count,
+            "max_attempts": step.max_attempts,
+            "next_retry_at": step.next_retry_at,
+            "started_at": step.started_at,
+            "finished_at": step.finished_at,
+            "last_error": step.last_error,
+        }
+        for step in steps_sorted
+    ]
     
     # Extract selected metric key from order_by (e.g., "metric:fleet_size" -> "fleet_size")
     selected_metric_key = None
@@ -454,6 +482,8 @@ async def company_research_run_detail(
             "role_info": role_info,
             "prospects": prospects,
             "sources": sources,
+            "plan": plan_context,
+            "steps": steps_context,
             "available_metrics": available_metrics,
             "selected_metric_key": selected_metric_key,
             "order_by": order_by,

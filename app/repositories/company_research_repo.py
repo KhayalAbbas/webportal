@@ -22,6 +22,8 @@ from app.models.company_research import (
     ResearchSourceDocument,
     CompanyResearchEvent,
     CompanyResearchJob,
+    CompanyResearchRunPlan,
+    CompanyResearchRunStep,
 )
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -686,6 +688,205 @@ class CompanyResearchRepository:
         )
         return result.scalar_one()
 
+    # ====================================================================
+    # Plan and Steps Operations
+    # ====================================================================
+
+    async def get_run_plan(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunPlan]:
+        result = await self.db.execute(
+            select(CompanyResearchRunPlan).where(
+                CompanyResearchRunPlan.tenant_id == tenant_id,
+                CompanyResearchRunPlan.run_id == run_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def create_plan_if_missing(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        plan_json: dict,
+        version: int = 1,
+    ) -> CompanyResearchRunPlan:
+        stmt = (
+            insert(CompanyResearchRunPlan)
+            .values(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                run_id=run_id,
+                version=version,
+                plan_json=plan_json,
+            )
+            .on_conflict_do_nothing(
+                index_elements=[
+                    CompanyResearchRunPlan.tenant_id,
+                    CompanyResearchRunPlan.run_id,
+                ]
+            )
+            .returning(CompanyResearchRunPlan)
+        )
+        result = await self.db.execute(stmt)
+        plan = result.scalar_one_or_none()
+        if plan:
+            return plan
+
+        # fetch existing
+        return await self.get_run_plan(tenant_id, run_id)
+
+    async def lock_plan(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunPlan]:
+        plan = await self.get_run_plan(tenant_id, run_id)
+        if not plan:
+            return None
+        if not plan.locked_at:
+            plan.locked_at = datetime.utcnow()
+            await self.db.flush()
+            await self.db.refresh(plan)
+        return plan
+
+    async def list_steps(self, tenant_id: str, run_id: UUID) -> List[CompanyResearchRunStep]:
+        result = await self.db.execute(
+            select(CompanyResearchRunStep)
+            .where(
+                CompanyResearchRunStep.tenant_id == tenant_id,
+                CompanyResearchRunStep.run_id == run_id,
+            )
+            .order_by(CompanyResearchRunStep.step_order)
+        )
+        return list(result.scalars().all())
+
+    async def upsert_steps(self, tenant_id: str, run_id: UUID, steps: List[dict]) -> List[CompanyResearchRunStep]:
+        created_steps: List[CompanyResearchRunStep] = []
+        for step in steps:
+            stmt = (
+                insert(CompanyResearchRunStep)
+                .values(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                    step_key=step["step_key"],
+                    step_order=step["step_order"],
+                    status=step.get("status", "pending"),
+                    max_attempts=step.get("max_attempts", 2),
+                    input_json=step.get("input_json"),
+                )
+                .on_conflict_do_nothing(
+                    index_elements=[
+                        CompanyResearchRunStep.tenant_id,
+                        CompanyResearchRunStep.run_id,
+                        CompanyResearchRunStep.step_key,
+                    ]
+                )
+                .returning(CompanyResearchRunStep)
+            )
+            result = await self.db.execute(stmt)
+            inserted = result.scalar_one_or_none()
+            if inserted:
+                created_steps.append(inserted)
+        # Return current list
+        return await self.list_steps(tenant_id, run_id)
+
+    async def claim_next_step(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunStep]:
+        now = func.now()
+        result = await self.db.execute(
+            select(CompanyResearchRunStep)
+            .where(
+                CompanyResearchRunStep.tenant_id == tenant_id,
+                CompanyResearchRunStep.run_id == run_id,
+                CompanyResearchRunStep.status.in_(["pending", "failed"]),
+                CompanyResearchRunStep.attempt_count < CompanyResearchRunStep.max_attempts,
+                or_(
+                    CompanyResearchRunStep.next_retry_at.is_(None),
+                    CompanyResearchRunStep.next_retry_at <= now,
+                ),
+            )
+            .order_by(CompanyResearchRunStep.step_order)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        step = result.scalar_one_or_none()
+        if not step:
+            return None
+        step.status = "running"
+        step.attempt_count = step.attempt_count + 1
+        if not step.started_at:
+            step.started_at = datetime.utcnow()
+        step.next_retry_at = None
+        await self.db.flush()
+        await self.db.refresh(step)
+        return step
+
+    async def mark_step_succeeded(
+        self,
+        step_id: UUID,
+        output_json: Optional[dict] = None,
+    ) -> Optional[CompanyResearchRunStep]:
+        result = await self.db.execute(
+            select(CompanyResearchRunStep).where(CompanyResearchRunStep.id == step_id).with_for_update()
+        )
+        step = result.scalar_one_or_none()
+        if not step:
+            return None
+        step.status = "succeeded"
+        step.finished_at = datetime.utcnow()
+        if output_json is not None:
+            step.output_json = output_json
+        await self.db.flush()
+        await self.db.refresh(step)
+        return step
+
+    async def mark_step_failed(
+        self,
+        step_id: UUID,
+        last_error: str,
+        backoff_seconds: int = 30,
+    ) -> Optional[CompanyResearchRunStep]:
+        result = await self.db.execute(
+            select(CompanyResearchRunStep).where(CompanyResearchRunStep.id == step_id).with_for_update()
+        )
+        step = result.scalar_one_or_none()
+        if not step:
+            return None
+        step.status = "failed"
+        step.last_error = last_error
+        step.finished_at = datetime.utcnow()
+        step.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
+        await self.db.flush()
+        await self.db.refresh(step)
+        return step
+
+    async def mark_step_cancelled(self, step_id: UUID, reason: Optional[str] = None) -> Optional[CompanyResearchRunStep]:
+        result = await self.db.execute(
+            select(CompanyResearchRunStep).where(CompanyResearchRunStep.id == step_id).with_for_update()
+        )
+        step = result.scalar_one_or_none()
+        if not step:
+            return None
+        step.status = "cancelled"
+        step.last_error = reason
+        step.finished_at = datetime.utcnow()
+        await self.db.flush()
+        await self.db.refresh(step)
+        return step
+
+    async def cancel_pending_steps(self, tenant_id: str, run_id: UUID, reason: Optional[str] = None) -> int:
+        result = await self.db.execute(
+            select(CompanyResearchRunStep).where(
+                CompanyResearchRunStep.tenant_id == tenant_id,
+                CompanyResearchRunStep.run_id == run_id,
+                CompanyResearchRunStep.status.in_(["pending", "running", "failed"]),
+            )
+        )
+        steps = result.scalars().all()
+        count = 0
+        for step in steps:
+            if step.status != "succeeded":
+                step.status = "cancelled"
+                step.last_error = reason
+                step.finished_at = datetime.utcnow()
+                count += 1
+        await self.db.flush()
+        return count
+
     async def request_cancel_job(self, tenant_id: str, run_id: UUID) -> bool:
         result = await self.db.execute(
             select(CompanyResearchJob)
@@ -708,11 +909,15 @@ class CompanyResearchRepository:
         result = await self.db.execute(
             select(CompanyResearchJob)
             .where(
-                CompanyResearchJob.status.in_(["queued", "failed"]),
+                CompanyResearchJob.status.in_(["queued", "failed", "running"]),
                 CompanyResearchJob.attempt_count < CompanyResearchJob.max_attempts,
                 or_(
                     CompanyResearchJob.next_retry_at.is_(None),
                     CompanyResearchJob.next_retry_at <= now,
+                ),
+                or_(
+                    CompanyResearchJob.status != "running",
+                    CompanyResearchJob.locked_at.is_(None),
                 ),
             )
             .order_by(CompanyResearchJob.created_at)
@@ -737,8 +942,10 @@ class CompanyResearchRepository:
         if not job:
             return None
 
+        increment_attempt = job.status != "running"
         job.status = "running"
-        job.attempt_count = job.attempt_count + 1
+        if increment_attempt:
+            job.attempt_count = job.attempt_count + 1
         job.locked_by = worker_id
         job.locked_at = datetime.utcnow()
         job.next_retry_at = None

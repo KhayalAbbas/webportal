@@ -22,6 +22,8 @@ async def _handle_cancel(
     run = await service.get_research_run(tenant_id, run_id)
     allow_status_update = run and run.status in {"queued", "running", "cancel_requested"}
 
+    await service.repo.cancel_pending_steps(tenant_id, run_id, reason=reason or "cancelled")
+
     await service.mark_job_cancelled(job_id, last_error=reason)
     if allow_status_update:
         await service.repo.set_run_status(
@@ -51,12 +53,12 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
         await service.db.commit()
         return
 
-    # Move to running state
     job = await service.mark_job_running(job.id, worker_id)
     if not job:
         await service.append_event(tenant_id, run_id, "worker_failed", "Unable to mark job running", status="failed")
         await service.db.commit()
         return
+
     started_at = run.started_at or datetime.utcnow()
     await service.repo.set_run_status(
         tenant_id,
@@ -68,45 +70,146 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
     await service.append_event(tenant_id, run_id, "worker_claimed", f"Worker {worker_id} claimed job {job.id}")
     await service.db.commit()
 
+    await service.ensure_plan_and_steps(tenant_id, run_id)
+    await service.lock_plan_on_start(tenant_id, run_id)
+
     if job.cancel_requested:
-        await _handle_cancel(service, job.id, tenant_id, run_id, reason="cancelled before start")
+        await _handle_cancel(service, job.id, tenant_id, run_id, reason="cancelled before step")
         await service.db.commit()
         return
 
+    step = await service.repo.claim_next_step(tenant_id, run_id)
+    if not step:
+        steps = await service.repo.list_steps(tenant_id, run_id)
+        if steps and all(s.status == "succeeded" for s in steps):
+            await service.mark_job_succeeded(job.id)
+            await service.repo.set_run_status(
+                tenant_id,
+                run_id,
+                status="succeeded",
+                finished_at=datetime.utcnow(),
+                last_error=None,
+            )
+            await service.append_event(tenant_id, run_id, "worker_completed", "Run completed")
+        else:
+            job.locked_at = None
+            job.locked_by = None
+            await service.db.flush()
+        await service.db.commit()
+        return
+
+    await service.append_event(
+        tenant_id,
+        run_id,
+        "step_started",
+        f"Starting step {step.step_key}",
+        meta_json={"step_id": str(step.id), "step_key": step.step_key},
+    )
+
     try:
-        extractor = CompanyExtractionService(service.db)
-        extraction_result = await extractor.process_sources(
-            tenant_id=tenant_id,
-            run_id=run_id,
+        if step.step_key == "process_sources":
+            extractor = CompanyExtractionService(service.db)
+            result = await extractor.process_sources(
+                tenant_id=tenant_id,
+                run_id=run_id,
+            )
+            await service.repo.mark_step_succeeded(step.id, output_json=result)
+            await service.append_event(
+                tenant_id,
+                run_id,
+                "step_succeeded",
+                f"Completed step {step.step_key}",
+                meta_json={"step_key": step.step_key, "result": result},
+            )
+            job.locked_at = None
+            job.locked_by = None
+            await service.db.flush()
+            await service.db.commit()
+            return
+
+        if step.step_key == "ingest_lists":
+            summary = {"message": "ingest_lists step no-op (manual lists are user-driven in v1)"}
+            await service.repo.mark_step_succeeded(step.id, output_json=summary)
+            await service.append_event(tenant_id, run_id, "step_succeeded", "Completed ingest_lists", meta_json=summary)
+            job.locked_at = None
+            job.locked_by = None
+            await service.db.flush()
+            await service.db.commit()
+            return
+
+        if step.step_key == "ingest_proposal":
+            summary = {"message": "No proposals to ingest in worker v1"}
+            await service.repo.mark_step_succeeded(step.id, output_json=summary)
+            await service.append_event(tenant_id, run_id, "step_succeeded", "Completed ingest_proposal", meta_json=summary)
+            job.locked_at = None
+            job.locked_by = None
+            await service.db.flush()
+            await service.db.commit()
+            return
+
+        if step.step_key == "finalize":
+            steps_state = await service.repo.list_steps(tenant_id, run_id)
+            blockers = [
+                s.step_key
+                for s in steps_state
+                if s.step_key != "finalize" and s.status not in {"succeeded", "skipped", "cancelled"}
+            ]
+            if blockers:
+                backoff_seconds = min(300, 30 * max(1, step.attempt_count))
+                await service.repo.mark_step_failed(
+                    step.id,
+                    "pending steps: " + ", ".join(blockers),
+                    backoff_seconds=backoff_seconds,
+                )
+                await service.append_event(
+                    tenant_id,
+                    run_id,
+                    "step_failed",
+                    "Finalize blocked",
+                    meta_json={"blockers": blockers},
+                    status="failed",
+                )
+                job.locked_at = None
+                job.locked_by = None
+                await service.db.flush()
+                await service.db.commit()
+                return
+
+            await service.repo.mark_step_succeeded(step.id, output_json={"completed": True})
+            await service.mark_job_succeeded(job.id)
+            await service.repo.set_run_status(
+                tenant_id,
+                run_id,
+                status="succeeded",
+                finished_at=datetime.utcnow(),
+                last_error=None,
+            )
+            await service.append_event(tenant_id, run_id, "worker_completed", "Run completed")
+            await service.db.commit()
+            return
+
+        await service.repo.mark_step_failed(step.id, f"unknown_step:{step.step_key}")
+        await service.mark_job_failed(job.id, f"unknown_step:{step.step_key}")
+        await service.repo.set_run_status(
+            tenant_id,
+            run_id,
+            status="failed",
+            last_error=f"unknown_step:{step.step_key}",
         )
         await service.append_event(
             tenant_id,
             run_id,
-            "process_sources",
-            f"Processed {extraction_result.get('processed', 0)} sources",
-            meta_json=extraction_result,
+            "step_failed",
+            f"Unknown step {step.step_key}",
+            status="failed",
         )
-
-        if job.cancel_requested:
-            await _handle_cancel(service, job.id, tenant_id, run_id, reason="cancelled after sources")
-            await service.db.commit()
-            return
-
-        await service.mark_job_succeeded(job.id)
-        await service.repo.set_run_status(
-            tenant_id,
-            run_id,
-            status="succeeded",
-            finished_at=datetime.utcnow(),
-            last_error=None,
-        )
-        await service.append_event(tenant_id, run_id, "worker_completed", "Run completed")
         await service.db.commit()
 
     except Exception as exc:  # noqa: BLE001
         await service.db.rollback()
-        backoff_seconds = min(300, 30 * (job.attempt_count + 1))
+        backoff_seconds = min(300, 30 * max(1, step.attempt_count))
         message = str(exc)
+        await service.repo.mark_step_failed(step.id, message, backoff_seconds=backoff_seconds)
         await service.mark_job_failed(job.id, message, backoff_seconds=backoff_seconds)
         await service.repo.set_run_status(
             tenant_id,
@@ -114,7 +217,7 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
             status="failed",
             last_error=message,
         )
-        await service.append_event(tenant_id, run_id, "worker_failed", message, status="failed")
+        await service.append_event(tenant_id, run_id, "step_failed", message, status="failed")
         await service.db.commit()
 
 

@@ -26,6 +26,10 @@ from app.models.research_run import ResearchRun, ResearchRunStep
 from app.models.research_run_bundle import ResearchRunBundle
 from app.models.research_job import ResearchJob
 from app.models.company_research import CompanyResearchRun, CompanyResearchJob
+from app.models.company_research import (
+    CompanyResearchRunPlan,
+    CompanyResearchRunStep,
+)
 
 # Export all models
 __all__ = [
@@ -52,4 +56,6 @@ __all__ = [
     "ResearchJob",
     "CompanyResearchRun",
     "CompanyResearchJob",
+        "CompanyResearchRunPlan",
+        "CompanyResearchRunStep",
 ]

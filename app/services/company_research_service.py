@@ -19,6 +19,8 @@ from app.models.company_research import (
     ResearchSourceDocument,
     CompanyResearchEvent,
     CompanyResearchJob,
+    CompanyResearchRunPlan,
+    CompanyResearchRunStep,
 )
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -116,10 +118,96 @@ class CompanyResearchService:
             data=data,
         )
 
+    # ====================================================================
+    # Plan & Step Management
+    # ====================================================================
+
+    async def build_deterministic_plan_for_run(self, tenant_id: str, run_id: UUID) -> dict:
+        sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+        has_list_sources = any(
+            src.source_type in {"manual_list", "list"} or (src.meta or {}).get("kind") == "list"
+            for src in sources
+        )
+        has_proposal_sources = any(src.source_type == "ai_proposal" for src in sources)
+
+        steps = [
+            {
+                "step_key": "process_sources",
+                "step_order": 10,
+                "rationale": "Process queued research sources",
+                "enabled": True,
+            },
+            {
+                "step_key": "ingest_lists",
+                "step_order": 20,
+                "rationale": "Ingest manual list sources if present",
+                "enabled": has_list_sources,
+            },
+            {
+                "step_key": "ingest_proposal",
+                "step_order": 30,
+                "rationale": "Ingest AI proposals if provided",
+                "enabled": has_proposal_sources,
+            },
+            {
+                "step_key": "finalize",
+                "step_order": 99,
+                "rationale": "Mark run complete once all steps succeed",
+                "enabled": True,
+            },
+        ]
+
+        return {
+            "version": 1,
+            "run_id": str(run_id),
+            "steps": steps,
+        }
+
+    async def ensure_plan_and_steps(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> tuple[CompanyResearchRunPlan, List[CompanyResearchRunStep]]:
+        plan_json = await self.build_deterministic_plan_for_run(tenant_id, run_id)
+        plan = await self.repo.create_plan_if_missing(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            plan_json=plan_json,
+            version=plan_json.get("version", 1),
+        )
+
+        enabled_steps = []
+        for step in plan_json.get("steps", []):
+            if step.get("enabled", True):
+                enabled_steps.append(
+                    {
+                        "step_key": step["step_key"],
+                        "step_order": step["step_order"],
+                        "status": "pending",
+                        "max_attempts": 2,
+                        "input_json": {"rationale": step.get("rationale")},
+                    }
+                )
+
+        steps = await self.repo.upsert_steps(tenant_id, run_id, enabled_steps)
+        return plan, steps
+
+    async def lock_plan_on_start(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunPlan]:
+        return await self.repo.lock_plan(tenant_id, run_id)
+
+    async def get_run_plan(self, tenant_id: str, run_id: UUID) -> Optional[CompanyResearchRunPlan]:
+        return await self.repo.get_run_plan(tenant_id, run_id)
+
+    async def list_run_steps(self, tenant_id: str, run_id: UUID) -> List[CompanyResearchRunStep]:
+        return await self.repo.list_steps(tenant_id, run_id)
+
     async def start_run(self, tenant_id: str, run_id: UUID) -> CompanyResearchJob:
         run = await self.get_research_run(tenant_id, run_id)
         if not run:
             raise ValueError("run_not_found")
+
+        await self.ensure_plan_and_steps(tenant_id, run_id)
+        await self.lock_plan_on_start(tenant_id, run_id)
 
         job = await self.repo.enqueue_run_job(tenant_id=tenant_id, run_id=run_id)
         await self.repo.set_run_status(
@@ -136,6 +224,9 @@ class CompanyResearchService:
         run = await self.get_research_run(tenant_id, run_id)
         if not run:
             raise ValueError("run_not_found")
+
+        await self.ensure_plan_and_steps(tenant_id, run_id)
+        await self.lock_plan_on_start(tenant_id, run_id)
 
         job = await self.repo.enqueue_run_job(tenant_id=tenant_id, run_id=run_id)
         await self.repo.set_run_status(

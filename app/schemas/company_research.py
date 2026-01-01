@@ -59,6 +59,34 @@ class CompanyResearchRunRead(TenantScopedRead):
     finished_at: Optional[datetime] = None
 
 
+class CompanyResearchRunPlanRead(TenantScopedRead):
+    """Schema for viewing deterministic run plan."""
+
+    run_id: UUID
+    version: int
+    plan_json: Dict[str, Any]
+    locked_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CompanyResearchRunStepRead(TenantScopedRead):
+    """Schema for viewing run steps."""
+
+    run_id: UUID
+    step_key: str
+    step_order: int
+    status: str
+    attempt_count: int
+    max_attempts: int
+    next_retry_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    input_json: Optional[Dict[str, Any]] = None
+    output_json: Optional[Dict[str, Any]] = None
+    last_error: Optional[str] = None
+
+
 # ============================================================================
 # Company Prospect Schemas
 # ============================================================================

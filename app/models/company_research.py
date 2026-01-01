@@ -147,6 +147,19 @@ class CompanyResearchRun(TenantScopedModel):
         back_populates="research_run",
         cascade="all, delete-orphan",
     )
+
+    run_plan: Mapped[Optional["CompanyResearchRunPlan"]] = relationship(
+        "CompanyResearchRunPlan",
+        back_populates="research_run",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    run_steps: Mapped[List["CompanyResearchRunStep"]] = relationship(
+        "CompanyResearchRunStep",
+        back_populates="research_run",
+        cascade="all, delete-orphan",
+    )
     
     __table_args__ = (
         Index("ix_company_research_runs_role_mandate_id", "role_mandate_id"),
@@ -776,6 +789,68 @@ class CompanyResearchJob(TenantScopedModel):
             unique=True,
             postgresql_where=text("status IN ('queued','running')"),
         ),
+    )
+
+
+class CompanyResearchRunPlan(TenantScopedModel):
+    """Versioned research plan for a run."""
+
+    __tablename__ = "company_research_run_plans"
+
+    run_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    plan_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    research_run: Mapped["CompanyResearchRun"] = relationship(
+        "CompanyResearchRun",
+        back_populates="run_plan",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "run_id", name="uq_company_research_run_plans_run"),
+    )
+
+
+class CompanyResearchRunStep(TenantScopedModel):
+    """Deterministic steps for executing a research run."""
+
+    __tablename__ = "company_research_run_steps"
+
+    run_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    step_key: Mapped[str] = mapped_column(Text, nullable=False)
+    step_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+    next_retry_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    input_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    output_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    research_run: Mapped["CompanyResearchRun"] = relationship(
+        "CompanyResearchRun",
+        back_populates="run_steps",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "run_id", "step_key", name="uq_company_research_run_steps_key"),
+        Index("ix_company_research_run_steps_order", "tenant_id", "run_id", "step_order"),
+        Index("ix_company_research_run_steps_status_retry", "tenant_id", "status", "next_retry_at"),
     )
 
 

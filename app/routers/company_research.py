@@ -20,6 +20,8 @@ from app.schemas.company_research import (
     CompanyResearchRunUpdate,
     CompanyResearchRunSummary,
     CompanyResearchJobRead,
+    CompanyResearchRunPlanRead,
+    CompanyResearchRunStepRead,
     CompanyProspectCreate,
     CompanyProspectRead,
     CompanyProspectListItem,
@@ -120,6 +122,38 @@ async def get_research_run(
     }
     
     return CompanyResearchRunSummary(**run_dict)
+
+
+@router.get("/runs/{run_id}/plan", response_model=CompanyResearchRunPlanRead)
+async def get_research_run_plan(
+    run_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get or build the deterministic plan for a research run."""
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    plan, _ = await service.ensure_plan_and_steps(current_user.tenant_id, run_id)
+    return CompanyResearchRunPlanRead.model_validate(plan)
+
+
+@router.get("/runs/{run_id}/steps", response_model=List[CompanyResearchRunStepRead])
+async def list_research_run_steps(
+    run_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List deterministic steps for a research run."""
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    _, steps = await service.ensure_plan_and_steps(current_user.tenant_id, run_id)
+    return [CompanyResearchRunStepRead.model_validate(s) for s in steps]
 
 
 @router.post("/runs/{run_id}/start", response_model=CompanyResearchJobRead)
