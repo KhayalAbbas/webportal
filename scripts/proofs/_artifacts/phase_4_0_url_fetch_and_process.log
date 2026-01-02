@@ -1,0 +1,30 @@
+=== PHASE 4.0 URL FETCH + PROCESS PROOF ===
+API Base: http://localhost:8005
+Tenant: b3909011-8bd3-439d-a421-3b70fae124e9
+--- PRE-FLIGHT ---
+Python: 3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]
+git status unavailable (git rc=127): [WinError 2] The system cannot find the file specified
+alembic current: d4f5a63d2f32 (head)
+alembic heads: d4f5a63d2f32 (head)
+Preflight saved to scripts\proofs\_artifacts\phase_4_0_preflight.txt
+--- PRE-FLIGHT DONE ---
+Starting local uvicorn for proof...
+Run created: 947b7a00-2dc1-4dd9-922b-a60dc9923532
+URL sources attached: good=b8652d72-32e3-4d15-b314-a2fc02e03ce3 bad=31fca921-a3b3-4bef-acc0-f41c9dc51c9d
+Run started (job d13cb460-a3e3-46b4-8424-7baa419e1605)
+After worker pass 1: {'fetch_url_sources': 'succeeded', 'process_sources': 'pending', 'finalize': 'pending'}
+After worker pass 2: {'fetch_url_sources': 'succeeded', 'process_sources': 'succeeded', 'finalize': 'pending'}
+After worker pass 3: {'fetch_url_sources': 'succeeded', 'process_sources': 'succeeded', 'finalize': 'succeeded'}
+Sources endpoint snapshot:
+ - https://nonexistent.invalid/: status=failed attempts=1 last_error=Failed to fetch URL: All connection attempts failed next_retry=2026-01-02T15:10:04.564560Z
+ - https://example.com/: status=fetched attempts=1 last_error=None next_retry=None
+Recent events (API):
+ - fetch_failed status=failed at 2026-01-02T19:09:31.820328Z
+ - fetch_started status=ok at 2026-01-02T19:09:31.806034Z
+ - fetch_succeeded status=ok at 2026-01-02T19:09:30.605568Z
+ - fetch_started status=ok at 2026-01-02T19:09:30.589410Z
+next_retry_at (bad)=2026-01-02T15:10:04.564560+00:00 db_now=2026-01-02T19:09:56.211910+00:00
+DB sources snapshot:
+ - https://example.com/ status=fetched attempts=1 next_retry=None fetched_at=2026-01-02 15:09:31.463444+00:00 hash=e639c656ee40993c86c194936ccd14fb20b5c9d483d5b49d90e3246a8a2b87d3
+ - https://nonexistent.invalid/ status=failed attempts=1 next_retry=2026-01-02 15:10:04.564560+00:00 fetched_at=None hash=None
+Idempotency verified: no new fetch events and attempts unchanged on re-run
