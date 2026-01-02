@@ -3,40 +3,28 @@ API Base: http://localhost:8005
 Tenant: b3909011-8bd3-439d-a421-3b70fae124e9
 --- PRE-FLIGHT ---
 Python: 3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]
-git status -sb (C:\\Program Files\\Git\\cmd\\git.exe): ## master
- M app/models/company_research.py
- M app/repositories/company_research_repo.py
- M app/routers/company_research.py
- M app/schemas/company_research.py
- M app/services/company_extraction_service.py
- M app/services/company_research_service.py
- M app/workers/company_research_worker.py
- M scripts/proofs/_artifacts/phase_4_0_preflight.txt
- M scripts/proofs/_artifacts/phase_4_0_url_fetch_and_process.log
- M scripts/proofs/phase_4_0_url_fetch_and_process.py
-?? alembic/versions/d4f5a63d2f32_phase4_url_lifecycle.py
-?? app/utils/
+git status -sb (C:/Program Files/Git/cmd/git.exe): ## master
 alembic current: d4f5a63d2f32 (head)
 alembic heads: d4f5a63d2f32 (head)
 Preflight saved to scripts\proofs\_artifacts\phase_4_0_preflight.txt
 --- PRE-FLIGHT DONE ---
 Starting local uvicorn for proof...
-Run created: 69235e67-0a7f-439b-9ae1-5d1087cc6641
-URL sources attached: good=b89d7e1f-ebf2-4d66-b1f0-6fe58fba0a37 bad=6cacc5be-a7bf-41ca-8f74-75e97a7adb6a
-Run started (job 729e01ab-0404-40d9-b948-0e38ec122055)
+Run created: 30ebbac5-95ee-472a-bcd3-81d15c9515af
+URL sources attached: good=ebeb048f-38ae-4026-bf0a-2515a403a707 bad=59662564-b47b-487d-a901-fbe38583c89d
+Run started (job 5ed9e2cb-ee02-4f65-80d0-66e748cb25f1)
 After worker pass 1: {'fetch_url_sources': 'succeeded', 'process_sources': 'pending', 'finalize': 'pending'}
 After worker pass 2: {'fetch_url_sources': 'succeeded', 'process_sources': 'succeeded', 'finalize': 'pending'}
 After worker pass 3: {'fetch_url_sources': 'succeeded', 'process_sources': 'succeeded', 'finalize': 'succeeded'}
 Sources endpoint snapshot:
- - https://nonexistent.invalid/: status=failed attempts=1 last_error=Failed to fetch URL: All connection attempts failed next_retry=2026-01-02T19:36:22.549699Z
+ - https://nonexistent.invalid/: status=failed attempts=1 last_error=Failed to fetch URL: All connection attempts failed next_retry=2026-01-02T19:41:23.009447Z
  - https://example.com/: status=fetched attempts=1 last_error=None next_retry=None
 Recent events (API):
- - fetch_failed status=failed at 2026-01-02T19:35:49.819315Z
- - fetch_started status=ok at 2026-01-02T19:35:49.806232Z
- - fetch_succeeded status=ok at 2026-01-02T19:35:48.684447Z
- - fetch_started status=ok at 2026-01-02T19:35:48.669763Z
-next_retry_at (bad)=2026-01-02T19:36:22.549699+00:00 db_now=2026-01-02T19:36:11.407109+00:00
+ - fetch_failed status=failed at 2026-01-02T19:40:49.879561Z
+ - fetch_started status=ok at 2026-01-02T19:40:49.863484Z
+ - fetch_succeeded status=ok at 2026-01-02T19:40:48.054919Z
+ - fetch_started status=ok at 2026-01-02T19:40:48.024680Z
+next_retry_at (bad)=2026-01-02T19:41:23.009447+00:00 db_now=2026-01-02T19:41:13.432517+00:00
 DB sources snapshot:
- - https://example.com/ status=fetched attempts=1 next_retry=None fetched_at=2026-01-02 19:35:49.551968+00:00 hash=e639c656ee40993c86c194936ccd14fb20b5c9d483d5b49d90e3246a8a2b87d3
- - https://nonexistent.invalid/ status=failed attempts=1 next_retry=2026-01-02 19:36:22.549699+00:00 fetched_at=None hash=None
+ - https://example.com/ status=fetched attempts=1 next_retry=None fetched_at=2026-01-02 19:40:49.835331+00:00 hash=e639c656ee40993c86c194936ccd14fb20b5c9d483d5b49d90e3246a8a2b87d3
+ - https://nonexistent.invalid/ status=failed attempts=1 next_retry=2026-01-02 19:41:23.009447+00:00 fetched_at=None hash=None
 Idempotency verified: no new fetch events and attempts unchanged on re-run
