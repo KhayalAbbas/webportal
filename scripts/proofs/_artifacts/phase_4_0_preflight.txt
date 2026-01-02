@@ -1,4 +1,16 @@
 Python: 3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]
-git status unavailable (git rc=127): [WinError 2] The system cannot find the file specified
+git status -sb (C:\\Program Files\\Git\\cmd\\git.exe): ## master
+ M app/models/company_research.py
+ M app/repositories/company_research_repo.py
+ M app/routers/company_research.py
+ M app/schemas/company_research.py
+ M app/services/company_extraction_service.py
+ M app/services/company_research_service.py
+ M app/workers/company_research_worker.py
+ M scripts/proofs/_artifacts/phase_4_0_preflight.txt
+ M scripts/proofs/_artifacts/phase_4_0_url_fetch_and_process.log
+ M scripts/proofs/phase_4_0_url_fetch_and_process.py
+?? alembic/versions/d4f5a63d2f32_phase4_url_lifecycle.py
+?? app/utils/
 alembic current: d4f5a63d2f32 (head)
 alembic heads: d4f5a63d2f32 (head)

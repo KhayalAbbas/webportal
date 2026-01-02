@@ -37,6 +37,7 @@ from app.schemas.company_research import (
     SourceDocumentUpdate,
     ResearchEventCreate,
 )
+from app.utils.time import utc_now
 
 
 class CompanyResearchRepository:
@@ -516,7 +517,10 @@ class CompanyResearchRepository:
         source = ResearchSourceDocument(
             id=uuid.uuid4(),
             tenant_id=tenant_id,
-            status="new",  # Explicitly set initial status
+            status="queued" if data.source_type == "url" else "new",
+            attempt_count=0,
+            next_retry_at=None,
+            last_error=None,
             **data.model_dump(),
         )
         self.db.add(source)
@@ -573,18 +577,52 @@ class CompanyResearchRepository:
         await self.db.refresh(source)
         return source
     
-    async def get_processable_sources(
+    async def get_extractable_sources(
         self,
         tenant_id: str,
         run_id: UUID,
     ) -> List[ResearchSourceDocument]:
-        """Get sources that need processing (new or fetched status)."""
+        """Get sources ready for extraction.
+
+        URL sources must already be fetched; non-URL sources can be new or fetched.
+        """
         result = await self.db.execute(
             select(ResearchSourceDocument)
             .where(
                 ResearchSourceDocument.tenant_id == tenant_id,
                 ResearchSourceDocument.company_research_run_id == run_id,
-                ResearchSourceDocument.status.in_(['new', 'fetched']),
+                or_(
+                    and_(
+                        ResearchSourceDocument.source_type == 'url',
+                        ResearchSourceDocument.status == 'fetched',
+                    ),
+                    and_(
+                        ResearchSourceDocument.source_type != 'url',
+                        ResearchSourceDocument.status.in_(['new', 'fetched']),
+                    ),
+                ),
+            )
+            .order_by(ResearchSourceDocument.created_at)
+        )
+        return list(result.scalars().all())
+
+    async def get_url_sources_to_fetch(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> List[ResearchSourceDocument]:
+        """Return URL sources needing fetch attempts."""
+        result = await self.db.execute(
+            select(ResearchSourceDocument)
+            .where(
+                ResearchSourceDocument.tenant_id == tenant_id,
+                ResearchSourceDocument.company_research_run_id == run_id,
+                ResearchSourceDocument.source_type == 'url',
+                ResearchSourceDocument.status.in_(['queued', 'fetch_failed', 'failed']),
+                or_(
+                    ResearchSourceDocument.next_retry_at.is_(None),
+                    ResearchSourceDocument.next_retry_at <= func.now(),
+                ),
             )
             .order_by(ResearchSourceDocument.created_at)
         )
@@ -738,7 +776,7 @@ class CompanyResearchRepository:
         if not plan:
             return None
         if not plan.locked_at:
-            plan.locked_at = datetime.utcnow()
+            plan.locked_at = utc_now()
             await self.db.flush()
             await self.db.refresh(plan)
         return plan
@@ -809,7 +847,7 @@ class CompanyResearchRepository:
         step.status = "running"
         step.attempt_count = step.attempt_count + 1
         if not step.started_at:
-            step.started_at = datetime.utcnow()
+            step.started_at = utc_now()
         step.next_retry_at = None
         await self.db.flush()
         await self.db.refresh(step)
@@ -827,7 +865,7 @@ class CompanyResearchRepository:
         if not step:
             return None
         step.status = "succeeded"
-        step.finished_at = datetime.utcnow()
+        step.finished_at = utc_now()
         if output_json is not None:
             step.output_json = output_json
         await self.db.flush()
@@ -848,8 +886,8 @@ class CompanyResearchRepository:
             return None
         step.status = "failed"
         step.last_error = last_error
-        step.finished_at = datetime.utcnow()
-        step.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
+        step.finished_at = utc_now()
+        step.next_retry_at = utc_now() + timedelta(seconds=backoff_seconds)
         await self.db.flush()
         await self.db.refresh(step)
         return step
@@ -863,7 +901,7 @@ class CompanyResearchRepository:
             return None
         step.status = "cancelled"
         step.last_error = reason
-        step.finished_at = datetime.utcnow()
+        step.finished_at = utc_now()
         await self.db.flush()
         await self.db.refresh(step)
         return step
@@ -882,7 +920,7 @@ class CompanyResearchRepository:
             if step.status != "succeeded":
                 step.status = "cancelled"
                 step.last_error = reason
-                step.finished_at = datetime.utcnow()
+                step.finished_at = utc_now()
                 count += 1
         await self.db.flush()
         return count
@@ -929,7 +967,7 @@ class CompanyResearchRepository:
             return None
 
         job.locked_by = worker_id
-        job.locked_at = datetime.utcnow()
+        job.locked_at = utc_now()
         await self.db.flush()
         await self.db.refresh(job)
         return job
@@ -947,7 +985,7 @@ class CompanyResearchRepository:
         if increment_attempt:
             job.attempt_count = job.attempt_count + 1
         job.locked_by = worker_id
-        job.locked_at = datetime.utcnow()
+        job.locked_at = utc_now()
         job.next_retry_at = None
         await self.db.flush()
         await self.db.refresh(job)
@@ -1001,7 +1039,7 @@ class CompanyResearchRepository:
         job.last_error = last_error
         job.locked_at = None
         job.locked_by = None
-        job.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
+        job.next_retry_at = utc_now() + timedelta(seconds=backoff_seconds)
         await self.db.flush()
         await self.db.refresh(job)
         return job

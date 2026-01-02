@@ -10,7 +10,7 @@ import re
 import httpx
 from typing import List, Tuple, Optional, Set, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import timedelta
 from urllib.parse import urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 from bs4 import BeautifulSoup
@@ -23,6 +23,7 @@ from app.schemas.company_research import (
     CompanyProspectEvidenceCreate,
     SourceDocumentUpdate,
 )
+from app.utils.time import utc_now, utc_now_iso
 
 
 class CompanyExtractionService:
@@ -42,31 +43,13 @@ class CompanyExtractionService:
         """
         if not text:
             return ""
-        
-        # Normalize all line endings to \\n
+        # Normalize all line endings to \n
         text = text.replace('\r\n', '\n').replace('\r', '\n')
-        
         # Strip trailing whitespace from each line
         lines = text.split('\n')
         lines = [line.rstrip() for line in lines]
         text = '\n'.join(lines)
-        
         return text
-    
-    def _extract_text_from_html(self, html: str) -> str:
-        """Extract plain text from HTML (generic fallback)."""
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        # Remove script and style elements
-        for element in soup(["script", "style", "nav", "footer", "header"]):
-            element.decompose()
-        
-        # Get text
-        text = soup.get_text(separator='\n')
-        
-        # Clean up whitespace
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        return '\n'.join(lines)
     
     def _extract_from_wikipedia(self, html: str) -> List[str]:
         """
@@ -230,8 +213,8 @@ class CompanyExtractionService:
         
         Returns summary of processing results with detailed stats.
         """
-        # Load processable sources
-        sources = await self.repo.get_processable_sources(tenant_id, run_id)
+        # Load extractable sources (URL sources must already be fetched)
+        sources = await self.repo.get_extractable_sources(tenant_id, run_id)
         
         if not sources:
             return {
@@ -247,7 +230,7 @@ class CompanyExtractionService:
             tenant_id=tenant_id,
             data=ResearchEventCreate(
                 company_research_run_id=run_id,
-                event_type="fetch",
+                event_type="process_sources",
                 status="ok",
                 input_json={"source_count": len(sources)},
             ),
@@ -261,13 +244,40 @@ class CompanyExtractionService:
         # Process each source
         for source in sources:
             try:
+                meta = dict(source.meta or {})
+                if meta.get("processed_at"):
+                    sources_detail.append(
+                        {
+                            "source_id": str(source.id),
+                            "title": source.title or source.url or "Unknown",
+                            "status": "skipped",
+                            "reason": "already_processed",
+                        }
+                    )
+                    continue
                 # Extract text content if needed
                 fetch_metadata = {}
-                if source.status == "new":
+                if source.source_type == "url" and source.status != "fetched":
+                    sources_detail.append({
+                        "source_id": str(source.id),
+                        "title": source.title or source.url or "Unknown",
+                        "chars": 0,
+                        "lines": 0,
+                        "extracted": 0,
+                        "companies_found": 0,
+                        "new_companies": 0,
+                        "existing_companies": 0,
+                        "status": "skipped",
+                        "error": "url_not_fetched",
+                        "extraction_method": "pending_fetch",
+                    })
+                    continue
+
+                if source.source_type != "url" and source.status == "new":
                     fetch_metadata = await self._fetch_content(tenant_id, source)
                 
                 # Skip processing if fetch failed
-                if source.status == "failed":
+                if source.status in {"failed", "fetch_failed"}:
                     sources_detail.append({
                         "source_id": str(source.id),
                         "title": source.title or source.url or "Unknown",
@@ -345,23 +355,24 @@ class CompanyExtractionService:
                     "existing": existing_count,
                 })
                 
-                # Mark source as processed
-                await self.repo.update_source_document(
-                    tenant_id=tenant_id,
-                    source_id=source.id,
-                    data=SourceDocumentUpdate(status="processed"),
-                )
+                meta["processed_at"] = utc_now_iso()
+                meta["processed_summary"] = {
+                    "extracted": companies_count,
+                    "new": new_count,
+                    "existing": existing_count,
+                }
+                source.meta = meta
+
+                if source.source_type != "url":
+                    source.status = "processed"
+                await self.db.flush()
                 
             except Exception as e:
                 # Mark source as failed
-                await self.repo.update_source_document(
-                    tenant_id=tenant_id,
-                    source_id=source.id,
-                    data=SourceDocumentUpdate(
-                        status="failed",
-                        error_message=str(e),
-                    ),
-                )
+                source.status = "failed"
+                source.error_message = str(e)
+                source.last_error = str(e)
+                await self.db.flush()
                 
                 # Log error event
                 await self.repo.create_research_event(
@@ -382,6 +393,106 @@ class CompanyExtractionService:
             "companies_existing": total_existing,
             "sources_detail": sources_detail,
         }
+
+    async def fetch_url_sources(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> dict:
+        """Fetch URL sources ahead of extraction."""
+        sources = await self.repo.get_url_sources_to_fetch(tenant_id, run_id)
+
+        if not sources:
+            return {"processed": 0, "fetched": 0, "failed": 0, "skipped": True}
+
+        fetched = 0
+        failed = 0
+        details = []
+
+        for source in sources:
+            meta_before = dict(source.meta or {})
+            source.status = "fetching"
+            source.attempt_count = (source.attempt_count or 0) + 1
+            source.next_retry_at = None
+            source.last_error = None
+            await self.db.flush()
+
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=ResearchEventCreate(
+                    company_research_run_id=run_id,
+                    event_type="fetch_started",
+                    status="ok",
+                    input_json={
+                        "source_id": str(source.id),
+                        "url": source.url,
+                        "attempt": source.attempt_count,
+                    },
+                ),
+            )
+
+            fetch_meta = await self._fetch_content(tenant_id, source)
+
+            if source.status == "fetched":
+                fetched += 1
+                status = "ok"
+                source.last_error = None
+                source.error_message = None
+                source.next_retry_at = None
+
+                await self.repo.create_research_event(
+                    tenant_id=tenant_id,
+                    data=ResearchEventCreate(
+                        company_research_run_id=run_id,
+                        event_type="fetch_succeeded",
+                        status="ok",
+                        input_json={"source_id": str(source.id), "url": source.url},
+                        output_json=fetch_meta,
+                    ),
+                )
+            else:
+                failed += 1
+                status = "failed"
+                source.last_error = source.error_message or (fetch_meta or {}).get("error")
+                backoff_seconds = min(300, 30 * max(1, source.attempt_count))
+                source.next_retry_at = utc_now() + timedelta(seconds=backoff_seconds)
+                fetch_meta = fetch_meta or {}
+                fetch_meta.update(
+                    {
+                        "attempt": source.attempt_count,
+                        "next_retry_at": source.next_retry_at.isoformat(),
+                        "backoff_seconds": backoff_seconds,
+                    }
+                )
+
+                await self.repo.create_research_event(
+                    tenant_id=tenant_id,
+                    data=ResearchEventCreate(
+                        company_research_run_id=run_id,
+                        event_type="fetch_failed",
+                        status="failed",
+                        input_json={"source_id": str(source.id), "url": source.url},
+                        output_json=fetch_meta,
+                        error_message=source.last_error,
+                    ),
+                )
+
+            details.append(
+                {
+                    "source_id": str(source.id),
+                    "url": source.url,
+                    "status": source.status,
+                    "error": source.last_error,
+                    "attempt": source.attempt_count,
+                    "next_retry_at": source.next_retry_at.isoformat() if source.next_retry_at else None,
+                    "meta": fetch_meta,
+                }
+            )
+
+            source.meta = {**meta_before, "fetch_info": fetch_meta, "fetch_attempt": source.attempt_count}
+
+        # Let the worker-level commit persist changes
+        return {"processed": len(sources), "fetched": fetched, "failed": failed, "details": details}
     
     async def _fetch_content(
         self,
@@ -392,17 +503,27 @@ class CompanyExtractionService:
         metadata = {"extraction_method": "unknown", "items_found": 0}
         
         if source.source_type == "url":
+            if source.content_text and source.content_hash:
+                metadata["extraction_method"] = "cached"
+                source.status = "fetched"
+                source.fetched_at = source.fetched_at or utc_now()
+                return metadata
+
             if not source.content_text and source.url:
                 try:
                     # Detect Wikipedia early to use appropriate fetch method
                     parsed_url = urlparse(source.url)
                     is_wikipedia = 'wikipedia.org' in parsed_url.netloc
+                    fetch_opts = (source.meta or {}).get("fetch_options", {}) or {}
                     
                     headers = {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        **(fetch_opts.get("headers") or {}),
                     }
+
+                    timeout_seconds = fetch_opts.get("timeout_seconds") or 30.0
                     
-                    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                    async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
                         response = await client.get(source.url, headers=headers)
                         response.raise_for_status()
                         html_content = response.text
@@ -431,11 +552,12 @@ class CompanyExtractionService:
                     
                     source.content_hash = hashlib.sha256(source.content_text.encode()).hexdigest()
                     source.status = "fetched"
-                    source.fetched_at = datetime.utcnow()
+                    source.fetched_at = utc_now()
                     
                 except Exception as e:
                     source.status = "failed"
                     source.error_message = f"Failed to fetch URL: {str(e)}"
+                    source.last_error = source.error_message
                     metadata["extraction_method"] = "error"
                     metadata["error"] = str(e)
         
@@ -445,7 +567,10 @@ class CompanyExtractionService:
                 source.content_text = self.normalize_text(source.content_text)
                 source.content_hash = hashlib.sha256(source.content_text.encode()).hexdigest()
                 source.status = "fetched"
-                source.fetched_at = datetime.utcnow()
+                source.fetched_at = utc_now()
+                source.content_hash = hashlib.sha256(source.content_text.encode()).hexdigest()
+                source.status = "fetched"
+                source.fetched_at = utc_now()
                 metadata["extraction_method"] = "manual_text"
         
         elif source.source_type == "pdf":
@@ -454,7 +579,7 @@ class CompanyExtractionService:
                 source.content_text = "PDF content placeholder"
                 source.content_hash = hashlib.sha256(source.content_text.encode()).hexdigest()
                 source.status = "fetched"
-                source.fetched_at = datetime.utcnow()
+                source.fetched_at = utc_now()
                 metadata["extraction_method"] = "pdf_placeholder"
         
         return metadata

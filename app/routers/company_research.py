@@ -10,7 +10,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.dependencies import get_db, verify_user_tenant_access
 from app.models.user import User
@@ -48,6 +48,13 @@ class ManualListSourcePayload(BaseModel):
 class ProposalSourcePayload(BaseModel):
     title: Optional[str] = None
     content_text: str
+
+
+class UrlSourcePayload(BaseModel):
+    title: Optional[str] = None
+    url: str
+    headers: Optional[dict[str, str]] = None
+    timeout_seconds: Optional[int] = Field(default=30, ge=1, le=120)
 
 
 # ============================================================================
@@ -225,6 +232,45 @@ async def add_manual_list_source(
             title=payload.title or "Manual List",
             content_text=payload.content_text,
             meta={"kind": "list", "source_name": payload.title or "manual_list", "submitted_via": "api"},
+        ),
+    )
+    await db.commit()
+    return SourceDocumentRead.model_validate(doc)
+
+
+@router.post("/runs/{run_id}/sources/url", response_model=SourceDocumentRead)
+async def add_url_source(
+    run_id: UUID,
+    payload: UrlSourcePayload,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Attach a URL source document to a run for fetching."""
+    service = CompanyResearchService(db)
+    try:
+        await service.ensure_sources_unlocked(current_user.tenant_id, run_id)
+    except ValueError as e:
+        if str(e) == "run_not_found":
+            raise HTTPException(status_code=404, detail="Research run not found")
+        raise HTTPException(status_code=409, detail="Sources are locked after run start")
+
+    meta = {
+        "kind": "url",
+        "submitted_via": "api",
+        "fetch_options": {
+            "headers": payload.headers,
+            "timeout_seconds": payload.timeout_seconds,
+        },
+    }
+
+    doc = await service.add_source(
+        current_user.tenant_id,
+        SourceDocumentCreate(
+            company_research_run_id=run_id,
+            source_type="url",
+            title=payload.title or payload.url,
+            url=payload.url,
+            meta=meta,
         ),
     )
     await db.commit()

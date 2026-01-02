@@ -11,6 +11,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from uuid import UUID
+from urllib.parse import urlparse, urlunparse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -146,6 +147,10 @@ class CompanyResearchService:
 
     async def build_deterministic_plan_for_run(self, tenant_id: str, run_id: UUID) -> dict:
         sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+        has_url_sources = any(
+            src.source_type == "url" or (src.meta or {}).get("kind") == "url"
+            for src in sources
+        )
         has_list_sources = any(
             src.source_type in {"manual_list", "list"} or (src.meta or {}).get("kind") == "list"
             for src in sources
@@ -156,6 +161,12 @@ class CompanyResearchService:
         )
 
         steps = [
+            {
+                "step_key": "fetch_url_sources",
+                "step_order": 5,
+                "rationale": "Fetch URL sources before extraction",
+                "enabled": has_url_sources,
+            },
             {
                 "step_key": "process_sources",
                 "step_order": 10,
@@ -574,6 +585,24 @@ class CompanyResearchService:
         if not content:
             return None
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _normalize_url_value(url: Optional[str]) -> Optional[str]:
+        if not url:
+            return None
+        parsed = urlparse(url)
+        scheme = (parsed.scheme or "http").lower()
+        netloc = parsed.netloc.lower()
+        path = parsed.path or "/"
+        normalized = parsed._replace(
+            scheme=scheme,
+            netloc=netloc,
+            path=path.rstrip("/") or "/",
+            params="",
+            query="",
+            fragment="",
+        )
+        return urlunparse(normalized)
     
     async def add_source(
         self,
@@ -583,6 +612,8 @@ class CompanyResearchService:
         """Add a new source document to a research run."""
         if not data.content_hash and data.content_text:
             data.content_hash = self._hash_text(data.content_text)
+        if not data.url_normalized and data.url:
+            data.url_normalized = self._normalize_url_value(data.url)
         return await self.repo.create_source_document(tenant_id, data)
     
     async def get_source(
@@ -609,6 +640,15 @@ class CompanyResearchService:
     ) -> Optional[ResearchSourceDocument]:
         """Update a source document."""
         return await self.repo.update_source_document(tenant_id, source_id, data)
+
+    async def fetch_url_sources(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> dict:
+        """Fetch pending URL sources for a run."""
+        extractor = CompanyExtractionService(self.db)
+        return await extractor.fetch_url_sources(tenant_id=tenant_id, run_id=run_id)
 
     # ========================================================================
     # List Ingestion

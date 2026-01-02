@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -43,6 +44,33 @@ def run_cmd(cmd: list[str]) -> tuple[int, str, str]:
         return 127, "", str(exc)
 
 
+def git_candidates() -> list[str]:
+    """Return possible git executables (prefer PATH, then common Windows paths)."""
+    candidates: list[str] = []
+    git_in_path = shutil.which("git")
+    if git_in_path:
+        candidates.append(git_in_path)
+
+    env_git = os.environ.get("GIT")
+    if env_git:
+        candidates.append(env_git)
+
+    if os.name == "nt":
+        candidates.extend([
+            r"C:\\Program Files\\Git\\cmd\\git.exe",
+            r"C:\\Program Files (x86)\\Git\\cmd\\git.exe",
+        ])
+
+    # Deduplicate while preserving order
+    seen = set()
+    unique: list[str] = []
+    for path in candidates:
+        if path and path not in seen:
+            seen.add(path)
+            unique.append(path)
+    return unique
+
+
 def preflight() -> None:
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     log("--- PRE-FLIGHT ---")
@@ -50,11 +78,16 @@ def preflight() -> None:
     lines = []
     lines.append(f"Python: {py_ver}")
 
-    rc_git, git_out, git_err = run_cmd(["git", "status", "-sb"])
-    if rc_git == 0:
-        git_line = f"git status -sb: {git_out}"
+    git_line = "git status unavailable"
+    git_attempts: list[str] = []
+    for git_exe in git_candidates() or ["git"]:
+        rc_git, git_out, git_err = run_cmd([git_exe, "status", "-sb"])
+        git_attempts.append(f"{git_exe} rc={rc_git} err={git_err or 'ok'}")
+        if rc_git == 0:
+            git_line = f"git status -sb ({git_exe}): {git_out}"
+            break
     else:
-        git_line = f"git status unavailable (git rc={rc_git}): {git_err or 'git not in PATH'}"
+        git_line = f"git status unavailable (tried {len(git_attempts)}): {'; '.join(git_attempts)}"
     lines.append(git_line)
 
     rc_alembic, alembic_out, alembic_err = run_cmd([sys.executable, "-m", "alembic", "current"])

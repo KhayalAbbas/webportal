@@ -4,12 +4,12 @@ import argparse
 import asyncio
 import os
 import socket
-from datetime import datetime
 from typing import Optional
 
 from app.db.session import get_async_session_context
 from app.services.company_research_service import CompanyResearchService
 from app.services.company_extraction_service import CompanyExtractionService
+from app.utils.time import utc_now
 
 
 async def _handle_cancel(
@@ -31,7 +31,7 @@ async def _handle_cancel(
             run_id,
             status="cancelled",
             last_error=reason,
-            finished_at=datetime.utcnow(),
+            finished_at=utc_now(),
         )
     await service.append_event(
         tenant_id,
@@ -59,7 +59,7 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
         await service.db.commit()
         return
 
-    started_at = run.started_at or datetime.utcnow()
+    started_at = run.started_at or utc_now()
     await service.repo.set_run_status(
         tenant_id,
         run_id,
@@ -87,7 +87,7 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                 tenant_id,
                 run_id,
                 status="succeeded",
-                finished_at=datetime.utcnow(),
+                finished_at=utc_now(),
                 last_error=None,
             )
             await service.append_event(tenant_id, run_id, "worker_completed", "Run completed")
@@ -107,6 +107,26 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
     )
 
     try:
+        if step.step_key == "fetch_url_sources":
+            extractor = CompanyExtractionService(service.db)
+            result = await extractor.fetch_url_sources(
+                tenant_id=tenant_id,
+                run_id=run_id,
+            )
+            await service.repo.mark_step_succeeded(step.id, output_json=result)
+            await service.append_event(
+                tenant_id,
+                run_id,
+                "step_succeeded",
+                f"Completed step {step.step_key}",
+                meta_json={"step_key": step.step_key, "result": result},
+            )
+            job.locked_at = None
+            job.locked_by = None
+            await service.db.flush()
+            await service.db.commit()
+            return
+
         if step.step_key == "process_sources":
             extractor = CompanyExtractionService(service.db)
             result = await extractor.process_sources(
@@ -181,7 +201,7 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                 tenant_id,
                 run_id,
                 status="succeeded",
-                finished_at=datetime.utcnow(),
+                finished_at=utc_now(),
                 last_error=None,
             )
             await service.append_event(tenant_id, run_id, "worker_completed", "Run completed")

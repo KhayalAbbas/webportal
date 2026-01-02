@@ -580,6 +580,12 @@ class ResearchSourceDocument(TenantScopedModel):
         nullable=True,
     )
 
+    url_normalized: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        index=True,
+    )
+
     mime_type: Mapped[Optional[str]] = mapped_column(
         String(100),
         nullable=True,
@@ -618,9 +624,25 @@ class ResearchSourceDocument(TenantScopedModel):
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        default="new",
+        default="queued",
         index=True,
-    )  # enum: new|fetched|processed|failed
+    )  # enum: queued|fetching|fetched|failed|processed
+
+    attempt_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    next_retry_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    last_error: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
     
     error_message: Mapped[Optional[str]] = mapped_column(
         Text,

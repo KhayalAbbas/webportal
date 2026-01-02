@@ -77,7 +77,7 @@ class CompanyResearchRunStepRead(TenantScopedRead):
     step_key: str
     step_order: int
     status: str
-    attempt_count: int
+    attempt_count: int = 0
     max_attempts: int
     next_retry_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
@@ -373,6 +373,7 @@ class SourceDocumentCreate(BaseModel):
     source_type: str = Field(..., max_length=50)  # url|pdf|text
     title: Optional[str] = Field(None, max_length=500)
     url: Optional[str] = None
+    url_normalized: Optional[str] = None
     content_text: Optional[str] = None
     content_hash: Optional[str] = Field(None, max_length=64)
     meta: dict[str, Any] = Field(default_factory=dict)
@@ -385,9 +386,13 @@ class SourceDocumentUpdate(BaseModel):
     content_hash: Optional[str] = Field(None, max_length=64)
     status: Optional[str] = Field(None, max_length=50)
     error_message: Optional[str] = None
+    last_error: Optional[str] = None
+    attempt_count: Optional[int] = None
+    next_retry_at: Optional[datetime] = None
     fetched_at: Optional[datetime] = None
     meta: Optional[dict[str, Any]] = None
     title: Optional[str] = Field(None, max_length=500)
+    url_normalized: Optional[str] = None
 
 
 class SourceDocumentRead(TenantScopedRead):
@@ -397,10 +402,14 @@ class SourceDocumentRead(TenantScopedRead):
     source_type: str
     title: Optional[str] = None
     url: Optional[str] = None
+    url_normalized: Optional[str] = None
     content_text: Optional[str] = None
     content_hash: Optional[str] = None
     status: str
     error_message: Optional[str] = None
+    last_error: Optional[str] = None
+    attempt_count: int
+    next_retry_at: Optional[datetime] = None
     fetched_at: Optional[datetime] = None
     meta: dict[str, Any] = Field(default_factory=dict)
 
