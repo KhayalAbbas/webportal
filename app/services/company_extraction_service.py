@@ -42,6 +42,14 @@ class CompanyExtractionService:
     _per_domain_concurrency: int = 1
     _per_domain_min_delay: float = 0.0
     _global_concurrency: int = 8
+    _max_redirects: int = 5
+    _fetch_timeout_seconds: float = 30.0
+    _max_fetch_bytes: int = 2_000_000
+    _allowed_content_types: set[str] = {
+        "text/html",
+        "application/pdf",
+        "text/plain",
+    }
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -50,6 +58,11 @@ class CompanyExtractionService:
         desired_min_delay = max(0, int(os.getenv("PER_DOMAIN_MIN_DELAY_MS", "0"))) / 1000.0
         desired_global = int(os.getenv("GLOBAL_CONCURRENCY", "8"))
         self._max_redirects = max(1, int(os.getenv("MAX_REDIRECTS", "5")))
+        self._fetch_timeout_seconds = max(1.0, float(os.getenv("FETCH_TIMEOUT_SECONDS", "30")))
+        self._max_fetch_bytes = max(1024, int(os.getenv("MAX_FETCH_BYTES", str(2_000_000))))
+        allowed_raw = os.getenv("ALLOWED_CONTENT_TYPES")
+        if allowed_raw:
+            CompanyExtractionService._allowed_content_types = {c.strip().lower() for c in allowed_raw.split(",") if c.strip()}
 
         if (
             not CompanyExtractionService._limiter_initialized
@@ -800,13 +813,29 @@ class CompanyExtractionService:
                     parsed_url = urlparse(fetch_url)
                     is_wikipedia = 'wikipedia.org' in parsed_url.netloc
                     fetch_opts = (source.meta or {}).get("fetch_options", {}) or {}
-                    
+
                     headers = {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         **(fetch_opts.get("headers") or {}),
                     }
 
-                    timeout_seconds = fetch_opts.get("timeout_seconds") or 30.0
+                    timeout_override = fetch_opts.get("timeout_seconds")
+                    try:
+                        if timeout_override is None:
+                            timeout_seconds = float(self._fetch_timeout_seconds)
+                        else:
+                            timeout_seconds = max(0.1, min(float(timeout_override), float(self._fetch_timeout_seconds)))
+                    except (TypeError, ValueError):
+                        timeout_seconds = float(self._fetch_timeout_seconds)
+
+                    max_bytes_override = fetch_opts.get("max_fetch_bytes")
+                    try:
+                        if max_bytes_override is None:
+                            max_fetch_bytes = int(self._max_fetch_bytes)
+                        else:
+                            max_fetch_bytes = max(1, min(int(max_bytes_override), int(self._max_fetch_bytes)))
+                    except (TypeError, ValueError):
+                        max_fetch_bytes = int(self._max_fetch_bytes)
                     
                     # Prefer HTTP/1.1 to avoid intermittent httpstat.us disconnects
                     urls_to_try = [fetch_url]
@@ -815,7 +844,9 @@ class CompanyExtractionService:
 
                     response = None
                     last_exc: Optional[Exception] = None
-                    async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=False, http2=False) as client:
+                    fetched_payload: Optional[Dict[str, Any]] = None
+                    timeout = httpx.Timeout(timeout_seconds)
+                    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, http2=False) as client:
                         for candidate_url in urls_to_try:
                             try:
                                 redirect_chain: list[Dict[str, Any]] = []
@@ -844,163 +875,284 @@ class CompanyExtractionService:
                                                 ),
                                             )
 
-                                        response = await client.get(current_url, headers=headers, follow_redirects=False)
+                                        async with client.stream(
+                                            "GET",
+                                            current_url,
+                                            headers=headers,
+                                            follow_redirects=False,
+                                        ) as response:
 
-                                    status_code = response.status_code or 0
-                                    location = response.headers.get("location")
+                                            status_code = response.status_code or 0
+                                            location = response.headers.get("location")
 
-                                    if status_code in {301, 302, 303, 307, 308}:
-                                        if not location:
-                                            source.status = "failed"
-                                            source.error_message = "redirect_missing_location"
-                                            source.last_error = source.error_message
-                                            source.http_error_message = source.error_message
-                                            http_info = {
-                                                "status_code": status_code,
-                                                "headers": dict(response.headers),
-                                                "final_url": str(response.url),
-                                                "redirect_chain": redirect_chain,
-                                                "error": source.error_message,
-                                            }
-                                            source.http_status_code = status_code
-                                            source.http_headers = dict(response.headers)
-                                            source.http_final_url = str(response.url)
-                                            metadata["extraction_method"] = "http_error"
-                                            metadata["error"] = source.error_message
-                                            metadata["http"] = http_info
-                                            await self.repo.create_research_event(
-                                                tenant_id=tenant_id,
-                                                data=ResearchEventCreate(
-                                                    company_research_run_id=source.company_research_run_id,
-                                                    event_type="redirect_missing_location",
-                                                    status="failed",
-                                                    input_json={
-                                                        "source_id": str(source.id),
-                                                        "requested_url": current_url,
-                                                    },
-                                                    output_json={
+                                            if status_code in {301, 302, 303, 307, 308}:
+                                                if not location:
+                                                    source.status = "failed"
+                                                    source.error_message = "redirect_missing_location"
+                                                    source.last_error = source.error_message
+                                                    source.http_error_message = source.error_message
+                                                    http_info = {
                                                         "status_code": status_code,
                                                         "headers": dict(response.headers),
+                                                        "final_url": str(response.url),
                                                         "redirect_chain": redirect_chain,
-                                                    },
-                                                    error_message=source.error_message,
-                                                ),
-                                            )
-                                            return metadata
+                                                        "error": source.error_message,
+                                                    }
+                                                    source.http_status_code = status_code
+                                                    source.http_headers = dict(response.headers)
+                                                    source.http_final_url = str(response.url)
+                                                    metadata["extraction_method"] = "http_error"
+                                                    metadata["error"] = source.error_message
+                                                    metadata["http"] = http_info
+                                                    await self.repo.create_research_event(
+                                                        tenant_id=tenant_id,
+                                                        data=ResearchEventCreate(
+                                                            company_research_run_id=source.company_research_run_id,
+                                                            event_type="redirect_missing_location",
+                                                            status="failed",
+                                                            input_json={
+                                                                "source_id": str(source.id),
+                                                                "requested_url": current_url,
+                                                            },
+                                                            output_json={
+                                                                "status_code": status_code,
+                                                                "headers": dict(response.headers),
+                                                                "redirect_chain": redirect_chain,
+                                                            },
+                                                            error_message=source.error_message,
+                                                        ),
+                                                    )
+                                                    return metadata
 
-                                        next_url = str(httpx.URL(current_url).join(location))
-                                        redirect_hop = {
-                                            "from": current_url,
-                                            "to": next_url,
-                                            "status_code": status_code,
-                                        }
-                                        redirect_chain.append(redirect_hop)
-
-                                        await self.repo.create_research_event(
-                                            tenant_id=tenant_id,
-                                            data=ResearchEventCreate(
-                                                company_research_run_id=source.company_research_run_id,
-                                                event_type="redirect_followed",
-                                                status="ok",
-                                                input_json={
-                                                    "source_id": str(source.id),
-                                                    "requested_url": current_url,
-                                                },
-                                                output_json={
-                                                    "next_url": next_url,
+                                                next_url = str(httpx.URL(current_url).join(location))
+                                                redirect_hop = {
+                                                    "from": current_url,
+                                                    "to": next_url,
                                                     "status_code": status_code,
-                                                    "hop_index": len(redirect_chain),
-                                                    "max_redirects": self._max_redirects,
-                                                },
-                                            ),
-                                        )
+                                                }
+                                                redirect_chain.append(redirect_hop)
 
-                                        if next_url in visited:
-                                            source.status = "failed"
-                                            source.error_message = "redirect_loop_detected"
-                                            source.last_error = source.error_message
-                                            source.http_error_message = source.error_message
-                                            http_info = {
-                                                "status_code": status_code,
-                                                "headers": dict(response.headers),
-                                                "final_url": str(response.url),
-                                                "redirect_chain": redirect_chain,
-                                                "error": source.error_message,
-                                            }
-                                            source.http_status_code = status_code
-                                            source.http_headers = dict(response.headers)
-                                            source.http_final_url = str(response.url)
-                                            metadata["extraction_method"] = "http_error"
-                                            metadata["error"] = source.error_message
-                                            metadata["http"] = http_info
-                                            await self.repo.create_research_event(
-                                                tenant_id=tenant_id,
-                                                data=ResearchEventCreate(
-                                                    company_research_run_id=source.company_research_run_id,
-                                                    event_type="redirect_loop_detected",
-                                                    status="failed",
-                                                    input_json={
-                                                        "source_id": str(source.id),
-                                                        "requested_url": current_url,
-                                                    },
-                                                    output_json={
-                                                        "loop_url": next_url,
+                                                await self.repo.create_research_event(
+                                                    tenant_id=tenant_id,
+                                                    data=ResearchEventCreate(
+                                                        company_research_run_id=source.company_research_run_id,
+                                                        event_type="redirect_followed",
+                                                        status="ok",
+                                                        input_json={
+                                                            "source_id": str(source.id),
+                                                            "requested_url": current_url,
+                                                        },
+                                                        output_json={
+                                                            "next_url": next_url,
+                                                            "status_code": status_code,
+                                                            "hop_index": len(redirect_chain),
+                                                            "max_redirects": self._max_redirects,
+                                                        },
+                                                    ),
+                                                )
+
+                                                if next_url in visited:
+                                                    source.status = "failed"
+                                                    source.error_message = "redirect_loop_detected"
+                                                    source.last_error = source.error_message
+                                                    source.http_error_message = source.error_message
+                                                    http_info = {
+                                                        "status_code": status_code,
+                                                        "headers": dict(response.headers),
+                                                        "final_url": str(response.url),
                                                         "redirect_chain": redirect_chain,
-                                                    },
-                                                    error_message=source.error_message,
-                                                ),
-                                            )
-                                            return metadata
+                                                        "error": source.error_message,
+                                                    }
+                                                    source.http_status_code = status_code
+                                                    source.http_headers = dict(response.headers)
+                                                    source.http_final_url = str(response.url)
+                                                    metadata["extraction_method"] = "http_error"
+                                                    metadata["error"] = source.error_message
+                                                    metadata["http"] = http_info
+                                                    await self.repo.create_research_event(
+                                                        tenant_id=tenant_id,
+                                                        data=ResearchEventCreate(
+                                                            company_research_run_id=source.company_research_run_id,
+                                                            event_type="redirect_loop_detected",
+                                                            status="failed",
+                                                            input_json={
+                                                                "source_id": str(source.id),
+                                                                "requested_url": current_url,
+                                                            },
+                                                            output_json={
+                                                                "loop_url": next_url,
+                                                                "redirect_chain": redirect_chain,
+                                                            },
+                                                            error_message=source.error_message,
+                                                        ),
+                                                    )
+                                                    return metadata
 
-                                        if len(redirect_chain) > self._max_redirects:
-                                            source.status = "failed"
-                                            source.error_message = "redirect_limit_exceeded"
-                                            source.last_error = source.error_message
-                                            source.http_error_message = source.error_message
-                                            http_info = {
-                                                "status_code": status_code,
-                                                "headers": dict(response.headers),
-                                                "final_url": str(response.url),
-                                                "redirect_chain": redirect_chain,
-                                                "error": source.error_message,
-                                            }
-                                            source.http_status_code = status_code
-                                            source.http_headers = dict(response.headers)
-                                            source.http_final_url = str(response.url)
-                                            metadata["extraction_method"] = "http_error"
-                                            metadata["error"] = source.error_message
-                                            metadata["http"] = http_info
-                                            await self.repo.create_research_event(
-                                                tenant_id=tenant_id,
-                                                data=ResearchEventCreate(
-                                                    company_research_run_id=source.company_research_run_id,
-                                                    event_type="redirect_limit_reached",
-                                                    status="failed",
-                                                    input_json={
-                                                        "source_id": str(source.id),
-                                                        "requested_url": current_url,
-                                                    },
-                                                    output_json={
-                                                        "max_redirects": self._max_redirects,
+                                                if len(redirect_chain) > self._max_redirects:
+                                                    source.status = "failed"
+                                                    source.error_message = "redirect_limit_exceeded"
+                                                    source.last_error = source.error_message
+                                                    source.http_error_message = source.error_message
+                                                    http_info = {
+                                                        "status_code": status_code,
+                                                        "headers": dict(response.headers),
+                                                        "final_url": str(response.url),
                                                         "redirect_chain": redirect_chain,
-                                                    },
-                                                    error_message=source.error_message,
-                                                ),
-                                            )
-                                            return metadata
+                                                        "error": source.error_message,
+                                                    }
+                                                    source.http_status_code = status_code
+                                                    source.http_headers = dict(response.headers)
+                                                    source.http_final_url = str(response.url)
+                                                    metadata["extraction_method"] = "http_error"
+                                                    metadata["error"] = source.error_message
+                                                    metadata["http"] = http_info
+                                                    await self.repo.create_research_event(
+                                                        tenant_id=tenant_id,
+                                                        data=ResearchEventCreate(
+                                                            company_research_run_id=source.company_research_run_id,
+                                                            event_type="redirect_limit_reached",
+                                                            status="failed",
+                                                            input_json={
+                                                                "source_id": str(source.id),
+                                                                "requested_url": current_url,
+                                                            },
+                                                            output_json={
+                                                                "max_redirects": self._max_redirects,
+                                                                "redirect_chain": redirect_chain,
+                                                            },
+                                                            error_message=source.error_message,
+                                                        ),
+                                                    )
+                                                    return metadata
 
-                                        visited.add(current_url)
-                                        current_url = next_url
-                                        continue
+                                                visited.add(current_url)
+                                                current_url = next_url
+                                                continue
 
-                                    break
+                                            # Not a redirect; proceed to content handling inside the stream context
+                                            raw_content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                                            if raw_content_type and raw_content_type not in CompanyExtractionService._allowed_content_types:
+                                                source.status = "failed"
+                                                source.error_message = "unsupported_content_type"
+                                                source.last_error = source.error_message
+                                                source.http_error_message = source.error_message
+                                                http_info = {
+                                                    "status_code": response.status_code,
+                                                    "headers": dict(response.headers),
+                                                    "final_url": str(response.url),
+                                                    "content_type": response.headers.get("content-type"),
+                                                }
+                                                source.http_status_code = response.status_code
+                                                source.http_headers = dict(response.headers)
+                                                source.http_final_url = str(response.url)
+                                                metadata["extraction_method"] = "http_error"
+                                                metadata["error"] = source.error_message
+                                                metadata["http"] = http_info
+                                                await self.repo.create_research_event(
+                                                    tenant_id=tenant_id,
+                                                    data=ResearchEventCreate(
+                                                        company_research_run_id=source.company_research_run_id,
+                                                        event_type="fetch_unsupported_content_type",
+                                                        status="failed",
+                                                        input_json={
+                                                            "source_id": str(source.id),
+                                                            "requested_url": fetch_url,
+                                                        },
+                                                        output_json={
+                                                            "content_type": response.headers.get("content-type"),
+                                                            "allowed": sorted(CompanyExtractionService._allowed_content_types),
+                                                        },
+                                                        error_message=source.error_message,
+                                                    ),
+                                                )
+                                                return metadata
+
+                                            content_chunks: list[bytes] = []
+                                            bytes_read = 0
+                                            async for chunk in response.aiter_bytes():
+                                                content_chunks.append(chunk)
+                                                bytes_read += len(chunk)
+                                                if bytes_read > max_fetch_bytes:
+                                                    source.status = "failed"
+                                                    source.error_message = "fetch_too_large"
+                                                    source.last_error = source.error_message
+                                                    source.http_error_message = source.error_message
+                                                    http_info = {
+                                                        "status_code": response.status_code,
+                                                        "headers": dict(response.headers),
+                                                        "final_url": str(response.url),
+                                                        "bytes_read": bytes_read,
+                                                        "content_type": response.headers.get("content-type"),
+                                                    }
+                                                    source.http_status_code = response.status_code
+                                                    source.http_headers = dict(response.headers)
+                                                    source.http_final_url = str(response.url)
+                                                    metadata["extraction_method"] = "http_error"
+                                                    metadata["error"] = source.error_message
+                                                    metadata["http"] = http_info
+                                                    metadata["bytes_read"] = bytes_read
+                                                    await self.repo.create_research_event(
+                                                        tenant_id=tenant_id,
+                                                        data=ResearchEventCreate(
+                                                            company_research_run_id=source.company_research_run_id,
+                                                            event_type="fetch_too_large",
+                                                            status="failed",
+                                                            input_json={
+                                                                "source_id": str(source.id),
+                                                                "requested_url": fetch_url,
+                                                            },
+                                                            output_json={
+                                                                "bytes_read": bytes_read,
+                                                                "max_bytes": max_fetch_bytes,
+                                                                "content_type": response.headers.get("content-type"),
+                                                            },
+                                                            error_message=source.error_message,
+                                                        ),
+                                                    )
+                                                    return metadata
+
+                                            content_bytes = b"".join(content_chunks)
+                                            fetched_payload = {
+                                                "status": response.status_code,
+                                                "headers": dict(response.headers),
+                                                "url": str(response.url),
+                                                "bytes_read": bytes_read,
+                                                "content_type": response.headers.get("content-type"),
+                                                "reason_phrase": response.reason_phrase,
+                                                "content_bytes": content_bytes,
+                                            }
+                                            response = None  # release reference
+                                            break
 
                                 break
+                            except httpx.TimeoutException as exc:
+                                last_exc = exc
+                                source.status = "failed"
+                                source.error_message = "fetch_timeout"
+                                source.last_error = source.error_message
+                                source.http_error_message = str(exc)
+                                metadata["extraction_method"] = "error"
+                                metadata["error"] = source.error_message
+                                await self.repo.create_research_event(
+                                    tenant_id=tenant_id,
+                                    data=ResearchEventCreate(
+                                        company_research_run_id=source.company_research_run_id,
+                                        event_type="fetch_timed_out",
+                                        status="failed",
+                                        input_json={
+                                            "source_id": str(source.id),
+                                            "requested_url": current_url,
+                                        },
+                                        output_json={"timeout_seconds": timeout_seconds},
+                                        error_message=source.error_message,
+                                    ),
+                                )
+                                return metadata
                             except httpx.RequestError as exc:  # connection/transport errors
                                 last_exc = exc
                                 continue
 
-                    if response is None:
+                    if response is None and not fetched_payload:
                         inferred_status: Optional[int] = None
                         # httpstat.us encodes the desired status in path; fall back to that when the server drops the connection
                         if parsed_url.netloc.endswith("httpstat.us") and parsed_url.path.strip("/").startswith("404"):
@@ -1027,44 +1179,66 @@ class CompanyExtractionService:
                             metadata["http"] = http_info
                         return metadata
 
-                    html_content = response.text
+                    if not fetched_payload:
+                        source.status = "failed"
+                        source.error_message = "Failed to fetch URL"
+                        source.last_error = source.error_message
+                        metadata["extraction_method"] = "error"
+                        metadata["error"] = source.error_message
+                        return metadata
 
-                    content_length = response.headers.get("content-length")
+                    content_bytes = fetched_payload.get("content_bytes", b"")
+                    bytes_read = fetched_payload.get("bytes_read", 0)
+                    response_status_code = fetched_payload.get("status")
+                    response_headers = fetched_payload.get("headers", {})
+                    response_url = fetched_payload.get("url")
+                    content_type_header = response_headers.get("content-type") or response_headers.get("Content-Type")
+
+                    encoding = "utf-8"
+                    if content_type_header:
+                        match = re.search(r"charset=([\w-]+)", content_type_header, re.IGNORECASE)
+                        if match:
+                            encoding = match.group(1)
+                    html_content = content_bytes.decode(encoding, errors="replace") if content_bytes else ""
+
+                    content_length = response_headers.get("content-length") or response_headers.get("Content-Length")
                     if content_length is None:
-                        content_length = str(len(response.content)) if response.content is not None else None
+                        content_length = str(len(content_bytes)) if content_bytes else None
 
                     canonical_final_url = None
-                    try:
-                        canonical_final_url = canonicalize_url(str(response.url))
-                    except Exception as exc:  # noqa: BLE001
-                        await self.repo.create_research_event(
-                            tenant_id=tenant_id,
-                            data=ResearchEventCreate(
-                                company_research_run_id=source.company_research_run_id,
-                                event_type="redirect_resolved",
-                                status="failed",
-                                input_json={"source_id": str(source.id), "requested_url": fetch_url},
-                                output_json={"error": str(exc), "final_url": str(response.url)},
-                                error_message=str(exc),
-                            ),
-                        )
+                    if response_url:
+                        try:
+                            canonical_final_url = canonicalize_url(str(response_url))
+                        except Exception as exc:  # noqa: BLE001
+                            await self.repo.create_research_event(
+                                tenant_id=tenant_id,
+                                data=ResearchEventCreate(
+                                    company_research_run_id=source.company_research_run_id,
+                                    event_type="redirect_resolved",
+                                    status="failed",
+                                    input_json={"source_id": str(source.id), "requested_url": fetch_url},
+                                    output_json={"error": str(exc), "final_url": str(response_url)},
+                                    error_message=str(exc),
+                                ),
+                            )
 
                     http_info = {
-                        "status_code": response.status_code,
-                        "headers": dict(response.headers),
-                        "final_url": str(response.url),
+                        "status_code": response_status_code,
+                        "headers": response_headers,
+                        "final_url": str(response_url) if response_url else None,
                         "canonical_final_url": canonical_final_url,
-                        "content_type": response.headers.get("content-type"),
+                        "content_type": content_type_header,
                         "content_length": content_length,
+                        "bytes_read": bytes_read,
                     }
                     if redirect_chain:
                         http_info["redirect_chain"] = redirect_chain
                         metadata["redirect_chain"] = redirect_chain
-                    source.http_status_code = response.status_code
-                    source.http_headers = dict(response.headers)
-                    source.http_final_url = str(response.url)
+                    source.http_status_code = response_status_code
+                    source.http_headers = response_headers
+                    source.http_final_url = str(response_url) if response_url else None
                     source.canonical_final_url = canonical_final_url
-                    source.mime_type = response.headers.get("content-type")
+                    source.mime_type = content_type_header
 
                     if canonical_final_url:
                         await self.repo.create_research_event(
@@ -1078,9 +1252,9 @@ class CompanyExtractionService:
                                     "requested_url": fetch_url,
                                 },
                                 output_json={
-                                    "final_url": str(response.url),
+                                    "final_url": str(response_url),
                                     "canonical_final_url": canonical_final_url,
-                                    "status_code": response.status_code,
+                                    "status_code": response_status_code,
                                 },
                             ),
                         )
@@ -1097,10 +1271,10 @@ class CompanyExtractionService:
                         metadata["http"] = http_info
                         return metadata
 
-                    if response.status_code and response.status_code >= 400:
+                    if response_status_code and response_status_code >= 400:
                         retry_after_seconds = None
-                        if response.status_code in {429, 503}:
-                            retry_after_seconds = self._parse_retry_after(response.headers.get("retry-after"))
+                        if response_status_code in {429, 503}:
+                            retry_after_seconds = self._parse_retry_after(response_headers.get("retry-after") or response_headers.get("Retry-After"))
 
                         if retry_after_seconds is not None:
                             source.status = "failed"
@@ -1127,7 +1301,7 @@ class CompanyExtractionService:
                                     },
                                     output_json={
                                         "url_normalized": source.url_normalized,
-                                        "http_status": response.status_code,
+                                        "http_status": response_status_code,
                                         "retry_after_seconds": retry_after_seconds,
                                         "next_retry_at": source.next_retry_at.isoformat(),
                                     },
@@ -1138,9 +1312,9 @@ class CompanyExtractionService:
 
                         # Record HTTP error details but treat as failed fetch
                         source.status = "failed"
-                        source.error_message = f"HTTP {response.status_code}"
+                        source.error_message = f"HTTP {response_status_code}"
                         source.last_error = source.error_message
-                        source.http_error_message = response.reason_phrase or source.error_message
+                        source.http_error_message = fetched_payload.get("reason_phrase") or source.error_message
                         metadata["extraction_method"] = "http_error"
                         metadata["error"] = source.error_message
                         metadata["http"] = http_info
