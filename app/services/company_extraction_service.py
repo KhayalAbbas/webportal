@@ -5,9 +5,14 @@ Handles source fetching, company name extraction, deduplication,
 and prospect creation from raw sources.
 """
 
+import asyncio
 import hashlib
 import io
+import os
 import re
+import time
+from contextlib import asynccontextmanager
+from email.utils import parsedate_to_datetime
 import httpx
 from typing import List, Tuple, Optional, Set, Dict, Any
 from uuid import UUID
@@ -31,10 +36,36 @@ from app.utils.url_canonicalizer import canonicalize_url
 
 class CompanyExtractionService:
     """Service for extracting companies from source documents."""
+    _global_semaphore: Optional[asyncio.Semaphore] = None
+    _domain_limiters: Dict[str, Dict[str, Any]] = {}
+    _limiter_initialized = False
+    _per_domain_concurrency: int = 1
+    _per_domain_min_delay: float = 0.0
+    _global_concurrency: int = 8
     
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = CompanyResearchRepository(db)
+        desired_per_domain = max(1, int(os.getenv("PER_DOMAIN_CONCURRENCY", "1")))
+        desired_min_delay = max(0, int(os.getenv("PER_DOMAIN_MIN_DELAY_MS", "0"))) / 1000.0
+        desired_global = int(os.getenv("GLOBAL_CONCURRENCY", "8"))
+
+        if (
+            not CompanyExtractionService._limiter_initialized
+            or desired_per_domain != CompanyExtractionService._per_domain_concurrency
+            or desired_min_delay != CompanyExtractionService._per_domain_min_delay
+            or desired_global != CompanyExtractionService._global_concurrency
+        ):
+            CompanyExtractionService._per_domain_concurrency = desired_per_domain
+            CompanyExtractionService._per_domain_min_delay = desired_min_delay
+            CompanyExtractionService._global_concurrency = desired_global
+            CompanyExtractionService._global_semaphore = (
+                asyncio.Semaphore(CompanyExtractionService._global_concurrency)
+                if CompanyExtractionService._global_concurrency > 0
+                else None
+            )
+            CompanyExtractionService._domain_limiters = {}
+            CompanyExtractionService._limiter_initialized = True
     
     @staticmethod
     def normalize_text(text: str) -> str:
@@ -58,6 +89,62 @@ class CompanyExtractionService:
     def _compute_backoff_seconds(attempt: int) -> int:
         """Deterministic retry backoff with an upper bound."""
         return min(300, 30 * max(1, attempt))
+
+    def _get_domain_limiter(self, domain: str) -> Dict[str, Any]:
+        key = (domain or "unknown").lower()
+        limiter = CompanyExtractionService._domain_limiters.get(key)
+        concurrency = CompanyExtractionService._per_domain_concurrency
+        if not limiter or limiter.get("concurrency") != concurrency:
+            limiter = {
+                "semaphore": asyncio.Semaphore(concurrency),
+                "last_start": None,
+                "concurrency": concurrency,
+            }
+            CompanyExtractionService._domain_limiters[key] = limiter
+        return limiter
+
+    @asynccontextmanager
+    async def _acquire_request_slot(self, url: str):
+        domain = urlparse(url).netloc or "unknown"
+        global_sem = CompanyExtractionService._global_semaphore
+        limiter = self._get_domain_limiter(domain)
+        wait_start = time.monotonic()
+        try:
+            if global_sem:
+                await global_sem.acquire()
+            await limiter["semaphore"].acquire()
+
+            waited_ms = (time.monotonic() - wait_start) * 1000
+            min_delay = CompanyExtractionService._per_domain_min_delay
+            last_start = limiter.get("last_start")
+            if min_delay > 0 and last_start is not None:
+                elapsed = time.monotonic() - last_start
+                sleep_for = min_delay if elapsed >= min_delay else (min_delay - elapsed)
+                await asyncio.sleep(sleep_for)
+                waited_ms += sleep_for * 1000
+
+            limiter["last_start"] = time.monotonic()
+            yield domain, waited_ms
+        finally:
+            limiter["semaphore"].release()
+            if global_sem:
+                global_sem.release()
+
+    @staticmethod
+    def _parse_retry_after(header_value: Optional[str]) -> Optional[int]:
+        if not header_value:
+            return None
+        try:
+            return int(header_value)
+        except (TypeError, ValueError):
+            try:
+                parsed = parsedate_to_datetime(header_value)
+                if parsed:
+                    delta = parsed - datetime.now(tz=parsed.tzinfo)
+                    return max(0, int(delta.total_seconds()))
+            except Exception:  # noqa: BLE001
+                return None
+        return None
     
     def _extract_from_wikipedia(self, html: str) -> List[str]:
         """
@@ -574,6 +661,7 @@ class CompanyExtractionService:
                 retry_reason = "dns_or_invalid_host" if dns_like_failure else "http_error_or_status"
                 fetch_meta["retry_reason"] = retry_reason
 
+                retry_after_seconds = fetch_meta.get("retry_after_seconds")
                 backoff_seconds = self._compute_backoff_seconds(source.attempt_count)
 
                 if source.attempt_count >= (source.max_attempts or 0):
@@ -601,13 +689,25 @@ class CompanyExtractionService:
                         ),
                     )
                 else:
-                    source.next_retry_at = utc_now() + timedelta(seconds=backoff_seconds)
-                    fetch_meta.update(
-                        {
-                            "next_retry_at": source.next_retry_at.isoformat(),
-                            "backoff_seconds": backoff_seconds,
-                        }
-                    )
+                    if source.next_retry_at is None:
+                        source.next_retry_at = utc_now() + timedelta(seconds=backoff_seconds)
+                        fetch_meta.update(
+                            {
+                                "next_retry_at": source.next_retry_at.isoformat(),
+                                "backoff_seconds": backoff_seconds,
+                            }
+                        )
+                    else:
+                        backoff_seconds = max(1, int((source.next_retry_at - utc_now()).total_seconds()))
+                        fetch_meta.update(
+                            {
+                                "next_retry_at": source.next_retry_at.isoformat(),
+                                "backoff_seconds": backoff_seconds,
+                            }
+                        )
+                        if retry_after_seconds is not None:
+                            fetch_meta["retry_after_seconds"] = retry_after_seconds
+
                     if next_retry_at is None or (source.next_retry_at and source.next_retry_at < next_retry_at):
                         next_retry_at = source.next_retry_at
 
@@ -627,6 +727,7 @@ class CompanyExtractionService:
                                 "retry_reason": retry_reason,
                                 "next_retry_at": source.next_retry_at.isoformat(),
                                 "backoff_seconds": backoff_seconds,
+                                **({"retry_after_seconds": retry_after_seconds} if retry_after_seconds is not None else {}),
                             },
                         ),
                     )
@@ -716,8 +817,29 @@ class CompanyExtractionService:
                     async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True, http2=False) as client:
                         for candidate_url in urls_to_try:
                             try:
-                                response = await client.get(candidate_url, headers=headers)
-                                break
+                                async with self._acquire_request_slot(candidate_url) as (domain, waited_ms):
+                                    if waited_ms > 0:
+                                        await self.repo.create_research_event(
+                                            tenant_id=tenant_id,
+                                            data=ResearchEventCreate(
+                                                company_research_run_id=source.company_research_run_id,
+                                                event_type="domain_rate_limited",
+                                                status="ok",
+                                                input_json={
+                                                    "source_id": str(source.id),
+                                                    "url": source.url,
+                                                    "url_normalized": source.url_normalized,
+                                                },
+                                                output_json={
+                                                    "domain": domain,
+                                                    "waited_ms": waited_ms,
+                                                    "url_normalized": source.url_normalized,
+                                                },
+                                            ),
+                                        )
+
+                                    response = await client.get(candidate_url, headers=headers)
+                                    break
                             except httpx.RequestError as exc:  # connection/transport errors
                                 last_exc = exc
                                 continue
@@ -817,6 +939,44 @@ class CompanyExtractionService:
                         return metadata
 
                     if response.status_code and response.status_code >= 400:
+                        retry_after_seconds = None
+                        if response.status_code in {429, 503}:
+                            retry_after_seconds = self._parse_retry_after(response.headers.get("retry-after"))
+
+                        if retry_after_seconds is not None:
+                            source.status = "failed"
+                            source.error_message = f"retry-after {retry_after_seconds}s"
+                            source.last_error = source.error_message
+                            source.http_error_message = source.error_message
+                            source.next_retry_at = utc_now() + timedelta(seconds=retry_after_seconds)
+                            metadata["extraction_method"] = "http_error"
+                            metadata["error"] = source.error_message
+                            metadata["http"] = http_info
+                            metadata["retry_after_seconds"] = retry_after_seconds
+                            metadata["next_retry_at"] = source.next_retry_at.isoformat()
+
+                            await self.repo.create_research_event(
+                                tenant_id=tenant_id,
+                                data=ResearchEventCreate(
+                                    company_research_run_id=source.company_research_run_id,
+                                    event_type="retry_after_honored",
+                                    status="failed",
+                                    input_json={
+                                        "source_id": str(source.id),
+                                        "url": source.url,
+                                        "url_normalized": source.url_normalized,
+                                    },
+                                    output_json={
+                                        "url_normalized": source.url_normalized,
+                                        "http_status": response.status_code,
+                                        "retry_after_seconds": retry_after_seconds,
+                                        "next_retry_at": source.next_retry_at.isoformat(),
+                                    },
+                                    error_message=source.error_message,
+                                ),
+                            )
+                            return metadata
+
                         # Record HTTP error details but treat as failed fetch
                         source.status = "failed"
                         source.error_message = f"HTTP {response.status_code}"

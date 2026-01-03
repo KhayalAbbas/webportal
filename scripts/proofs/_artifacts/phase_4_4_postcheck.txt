@@ -1,0 +1,12 @@
+== git status -sb ==
+## master...origin/master
+ M app/services/company_extraction_service.py
+?? scripts/proofs/phase_4_4_rate_limit_and_retry_after.py
+== git log -1 --decorate ==
+commit 18dce5d479120a1b210c23f112e47c352c4c9007 (HEAD -> master, tag: phase_4_3_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Sat Jan 3 17:01:14 2026 +0400
+
+    Phase 4.3: refresh evidence pack (fail-fast openapi)
+== alembic current ==
+72d5c1b8d3e3 (head)
