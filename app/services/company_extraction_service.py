@@ -1118,8 +1118,9 @@ class CompanyExtractionService:
                             source.http_final_url = str(resp.url)
                             source.http_error_message = None
 
-                            validators["pending_recheck"] = False
-                            validators["pending_recheck_attempts"] = recheck_attempts + 1
+                            next_attempt = recheck_attempts + 1
+                            validators["pending_recheck_attempts"] = next_attempt
+                            validators["pending_recheck"] = False if next_attempt >= 3 else True
                             validators["last_checked_at"] = utc_now_iso()
                             meta["validators"] = validators
                             source.meta = meta
@@ -1294,8 +1295,9 @@ class CompanyExtractionService:
                                                 source.http_final_url = str(response.url)
                                                 source.http_error_message = None
 
-                                                validators["pending_recheck"] = True
-                                                validators["pending_recheck_attempts"] = recheck_attempts + 1
+                                                next_attempt = recheck_attempts + 1
+                                                validators["pending_recheck_attempts"] = next_attempt
+                                                validators["pending_recheck"] = False if next_attempt >= 3 else True
                                                 validators["last_checked_at"] = utc_now_iso()
                                                 meta["validators"] = validators
                                                 source.meta = meta
