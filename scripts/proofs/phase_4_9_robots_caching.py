@@ -451,7 +451,8 @@ def main() -> int:
             postcheck_lines.append(f"events_total={len(events_p3)}")
             postcheck_lines.append(f"events_by_type={json.dumps(events_by_type_p3, sort_keys=True)}")
             postcheck_lines.append(f"robots_txt_counts={{'domain1': {robots_counter('domain1')}, 'domain2': {robots_counter('domain2')}}}")
-            postcheck_lines.append(f"events_not_modified_p2={events_by_type_p2.get('not_modified', 0)}")
+            not_modified_count = events_by_type_p2.get("not_modified", 0) + events_by_type_p2.get("page_not_modified", 0)
+            postcheck_lines.append(f"events_not_modified_p2={not_modified_count}")
 
             git_exe = shutil.which("git") or r"C:\\Program Files\\Git\\cmd\\git.exe"
             rc_status, status_out, _ = run_cmd([git_exe, "status", "-sb"])

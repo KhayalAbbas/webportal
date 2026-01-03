@@ -1049,6 +1049,21 @@ class CompanyExtractionService:
             "details": details,
         }
     
+    @staticmethod
+    def _has_no_store(headers: dict[str, Any]) -> bool:
+        cache_control = headers.get("cache-control") or headers.get("Cache-Control")
+        if not cache_control:
+            return False
+        return "no-store" in str(cache_control).lower()
+
+    @staticmethod
+    def _should_revalidate(validators: dict[str, Any]) -> bool:
+        if not validators:
+            return False
+        if validators.get("no_store"):
+            return True
+        return bool(validators.get("etag") or validators.get("last_modified"))
+
     async def _fetch_content(
         self,
         tenant_id: str,
@@ -1060,10 +1075,10 @@ class CompanyExtractionService:
         
         if source.source_type == "url":
             meta = dict(source.meta or {})
-            validators = meta.get("validators") or {}
-            pending_recheck = bool(validators.get("pending_recheck"))
+            validators = dict(meta.get("validators") or {})
+            should_revalidate = self._should_revalidate(validators)
 
-            if source.content_text and source.content_hash and not pending_recheck:
+            if source.content_text and source.content_hash and not should_revalidate:
                 metadata["extraction_method"] = "cached"
                 source.status = "fetched"
                 source.fetched_at = source.fetched_at or utc_now()
@@ -1083,9 +1098,9 @@ class CompanyExtractionService:
                     }
 
                     conditional_headers: dict[str, str] = {}
-                    if validators.get("etag"):
+                    if validators.get("etag") and not validators.get("no_store"):
                         conditional_headers["If-None-Match"] = str(validators.get("etag"))
-                    if validators.get("last_modified"):
+                    if validators.get("last_modified") and not validators.get("no_store"):
                         conditional_headers["If-Modified-Since"] = str(validators.get("last_modified"))
 
                     if conditional_headers:
@@ -1157,156 +1172,6 @@ class CompanyExtractionService:
                             )
                             return metadata
 
-                    if pending_recheck:
-                        recheck_attempts = int(validators.get("pending_recheck_attempts") or 0)
-
-                        if recheck_attempts == 0:
-                            # Defer the first conditional recheck to a subsequent worker pass.
-                            validators["pending_recheck_attempts"] = 1
-                            validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
-                            meta["validators"] = validators
-                            source.meta = meta
-                            source.status = "fetched"
-                            metadata["extraction_method"] = metadata.get("extraction_method") or "conditional_pending"
-                            metadata["not_modified"] = metadata.get("not_modified", True)
-                            return metadata
-
-                        timeout = httpx.Timeout(timeout_seconds)
-                        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, http2=False) as client:
-                            resp = await client.get(fetch_url, headers=headers)
-
-                        status_code = resp.status_code or 0
-                        response_headers = dict(resp.headers)
-
-                        if status_code == 304:
-                            source.status = "fetched"
-                            source.error_message = None
-                            source.last_error = None
-                            source.http_status_code = status_code
-                            source.http_headers = response_headers
-                            source.http_final_url = str(resp.url)
-                            source.http_error_message = None
-
-                            next_attempt = recheck_attempts + 1
-                            validators["pending_recheck_attempts"] = next_attempt
-                            validators["pending_recheck"] = False if next_attempt >= 3 else True
-                            validators["last_checked_at"] = utc_now_iso()
-                            meta["validators"] = validators
-                            source.meta = meta
-
-                            http_info = {
-                                "status_code": status_code,
-                                "headers": response_headers,
-                                "final_url": str(resp.url),
-                            }
-                            metadata["extraction_method"] = "not_modified"
-                            metadata["http"] = http_info
-                            metadata["not_modified"] = True
-
-                            await self.repo.create_research_event(
-                                tenant_id=tenant_id,
-                                data=ResearchEventCreate(
-                                    company_research_run_id=source.company_research_run_id,
-                                    event_type="not_modified",
-                                    status="ok",
-                                    input_json={
-                                        "source_id": str(source.id),
-                                        "requested_url": fetch_url,
-                                        "url_normalized": source.url_normalized,
-                                    },
-                                    output_json={
-                                        "status_code": status_code,
-                                        "headers": response_headers,
-                                        "validators": {
-                                            "etag": validators.get("etag"),
-                                            "last_modified": validators.get("last_modified"),
-                                        },
-                                    },
-                                ),
-                            )
-
-                            return metadata
-
-                        if status_code >= 400:
-                            source.status = "failed"
-                            source.error_message = f"HTTP {status_code}"
-                            source.last_error = source.error_message
-                            source.http_error_message = source.error_message
-                            source.http_status_code = status_code
-                            source.http_headers = response_headers
-                            source.http_final_url = str(resp.url)
-                            metadata["extraction_method"] = "http_error"
-                            metadata["error"] = source.error_message
-                            metadata["http"] = {
-                                "status_code": status_code,
-                                "headers": response_headers,
-                                "final_url": str(resp.url),
-                            }
-                            return metadata
-
-                        content_bytes = resp.content or b""
-                        content_type_header = response_headers.get("content-type") or response_headers.get("Content-Type")
-                        encoding = "utf-8"
-                        if content_type_header:
-                            match = re.search(r"charset=([\w-]+)", content_type_header, re.IGNORECASE)
-                            if match:
-                                encoding = match.group(1)
-                        html_content = content_bytes.decode(encoding, errors="replace") if content_bytes else ""
-
-                        canonical_final_url = None
-                        try:
-                            canonical_final_url = canonicalize_url(str(resp.url))
-                        except Exception:
-                            canonical_final_url = None
-
-                        http_info = {
-                            "status_code": status_code,
-                            "headers": response_headers,
-                            "final_url": str(resp.url),
-                            "canonical_final_url": canonical_final_url,
-                            "content_type": content_type_header,
-                            "content_length": str(len(content_bytes)),
-                            "bytes_read": len(content_bytes),
-                        }
-                        source.http_status_code = status_code
-                        source.http_headers = response_headers
-                        source.http_final_url = str(resp.url)
-                        source.canonical_final_url = canonical_final_url
-                        source.mime_type = content_type_header
-
-                        etag_header = response_headers.get("etag") or response_headers.get("ETag")
-                        last_modified_header = response_headers.get("last-modified") or response_headers.get("Last-Modified")
-                        if etag_header or last_modified_header:
-                            if etag_header:
-                                validators["etag"] = etag_header
-                            if last_modified_header:
-                                validators["last_modified"] = last_modified_header
-                            validators["last_seen_at"] = utc_now_iso()
-                            validators["pending_recheck"] = True
-                            validators["pending_recheck_attempts"] = 0
-                            meta["validators"] = validators
-                            source.meta = meta
-                            metadata["validators"] = {
-                                "etag": validators.get("etag"),
-                                "last_modified": validators.get("last_modified"),
-                                "pending_recheck": True,
-                            }
-                        elif validators:
-                            validators["pending_recheck"] = True
-                            validators["pending_recheck_attempts"] = 0
-                            meta["validators"] = validators
-                            source.meta = meta
-
-                        source.content_text = self.normalize_text(self._extract_text_from_html(html_content))
-                        source.content_hash = hashlib.sha256(source.content_text.encode()).hexdigest()
-                        source.status = "fetched"
-                        source.fetched_at = utc_now()
-                        metadata["extraction_method"] = "conditional_html"
-                        metadata["items_found"] = metadata.get("items_found", 0)
-                        metadata["http"] = http_info
-                        metadata.update(await self._apply_content_dedupe(tenant_id, source.company_research_run_id, source))
-                        return metadata
-                    
                     # Prefer HTTP/1.1 to avoid intermittent httpstat.us disconnects
                     urls_to_try = [fetch_url]
                     if fetch_url.startswith("https://"):
@@ -1364,12 +1229,11 @@ class CompanyExtractionService:
                                                 source.http_final_url = str(response.url)
                                                 source.http_error_message = None
 
-                                                next_attempt = recheck_attempts + 1
-                                                validators["pending_recheck_attempts"] = next_attempt
-                                                validators["pending_recheck"] = False if next_attempt >= 3 else True
+                                                validators["pending_recheck"] = False
                                                 validators["last_checked_at"] = utc_now_iso()
                                                 meta["validators"] = validators
                                                 source.meta = meta
+                                                source.fetched_at = source.fetched_at or utc_now()
 
                                                 http_info = {
                                                     "status_code": status_code,
@@ -1384,7 +1248,7 @@ class CompanyExtractionService:
                                                     tenant_id=tenant_id,
                                                     data=ResearchEventCreate(
                                                         company_research_run_id=source.company_research_run_id,
-                                                        event_type="not_modified",
+                                                        event_type="page_not_modified",
                                                         status="ok",
                                                         input_json={
                                                             "source_id": str(source.id),
@@ -1780,21 +1644,36 @@ class CompanyExtractionService:
 
                     etag_header = response_headers.get("etag") or response_headers.get("ETag")
                     last_modified_header = response_headers.get("last-modified") or response_headers.get("Last-Modified")
-                    if etag_header or last_modified_header:
+                    if self._has_no_store(response_headers):
+                        validators.clear()
+                        validators["no_store"] = True
+                        validators["last_seen_at"] = utc_now_iso()
+                        validators["last_checked_at"] = utc_now_iso()
+                        validators["pending_recheck"] = False
+                        meta["validators"] = validators
+                        source.meta = meta
+                        metadata["validators"] = {"no_store": True}
+                    elif etag_header or last_modified_header:
                         if etag_header:
                             validators["etag"] = etag_header
+                        else:
+                            validators.pop("etag", None)
                         if last_modified_header:
                             validators["last_modified"] = last_modified_header
+                        else:
+                            validators.pop("last_modified", None)
                         validators["last_seen_at"] = utc_now_iso()
-                        validators["pending_recheck"] = False if pending_recheck else True
+                        validators["last_checked_at"] = utc_now_iso()
+                        validators["pending_recheck"] = False
                         meta["validators"] = validators
                         source.meta = meta
                         metadata["validators"] = {
                             "etag": validators.get("etag"),
                             "last_modified": validators.get("last_modified"),
-                            "pending_recheck": validators.get("pending_recheck"),
                         }
                     elif validators:
+                        validators.pop("etag", None)
+                        validators.pop("last_modified", None)
                         validators["pending_recheck"] = False
                         meta["validators"] = validators
                         source.meta = meta

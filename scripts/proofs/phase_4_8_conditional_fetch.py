@@ -402,8 +402,6 @@ def main() -> int:
         assert_true(lm_src_p1.get("content_hash") is not None, "last-modified content_hash set P1")
         assert_true(etag_val_p1.get("etag") == '"v1"', "etag validator stored")
         assert_true(lm_val_p1.get("last_modified") == FIXED_LM, "last-modified validator stored")
-        assert_true(etag_val_p1.get("pending_recheck") is True, "etag pending_recheck set")
-        assert_true(lm_val_p1.get("pending_recheck") is True, "lm pending_recheck set")
 
         postcheck_lines.append(f"events_p1_total={len(events_p1)}")
         postcheck_lines.append(f"events_p1_by_type={json.dumps(events_by_type_p1, sort_keys=True)}")
@@ -431,9 +429,8 @@ def main() -> int:
         assert_true(len(sources_p2) == len(sources_p1), "no new source_documents after P2")
         assert_true(etag_src_p2.get("content_hash") == etag_src_p1.get("content_hash"), "etag content_hash unchanged P2")
         assert_true(lm_src_p2.get("content_hash") == lm_src_p1.get("content_hash"), "lm content_hash unchanged P2")
-        assert_true(etag_val_p2.get("pending_recheck") is False, "etag pending_recheck cleared P2")
-        assert_true(lm_val_p2.get("pending_recheck") is False, "lm pending_recheck cleared P2")
-        assert_true(events_by_type_p2.get("not_modified", 0) >= 2, "not_modified events emitted P2")
+        not_modified_count = events_by_type_p2.get("not_modified", 0) + events_by_type_p2.get("page_not_modified", 0)
+        assert_true(not_modified_count >= 2, "not_modified events emitted P2")
 
         postcheck_lines.append(f"events_p2_total={len(events_p2)}")
         postcheck_lines.append(f"events_p2_by_type={json.dumps(events_by_type_p2, sort_keys=True)}")
@@ -468,7 +465,7 @@ def main() -> int:
         postcheck_lines.append(f"events_by_type={json.dumps(events_by_type_p3, sort_keys=True)}")
         postcheck_lines.append(f"validators_etag={json.dumps(etag_val_p2, sort_keys=True)}")
         postcheck_lines.append(f"validators_lm={json.dumps(lm_val_p2, sort_keys=True)}")
-        postcheck_lines.append(f"events_not_modified_p2={events_by_type_p2.get('not_modified', 0)}")
+        postcheck_lines.append(f"events_not_modified_p2={not_modified_count}")
 
         git_exe = shutil.which("git") or r"C:\\Program Files\\Git\\cmd\\git.exe"
         rc_status, status_out, _ = run_cmd([git_exe, "status", "-sb"])
