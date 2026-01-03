@@ -953,6 +953,10 @@ class CompanyExtractionService:
             if src.source_type == "url"
         )
 
+        pending_recheck_next_retry_at: Optional[datetime] = None
+        if pending_recheck and not retry_scheduled:
+            pending_recheck_next_retry_at = utc_now() + timedelta(seconds=1)
+
         return {
             "processed": len(sources),
             "fetched": fetched,
@@ -962,6 +966,7 @@ class CompanyExtractionService:
             "next_retry_at": next_retry_at.isoformat() if next_retry_at else None,
             "retry_backoff_seconds": retry_backoff_seconds,
             "pending_recheck": pending_recheck,
+            "pending_recheck_next_retry_at": pending_recheck_next_retry_at.isoformat() if pending_recheck_next_retry_at else None,
             "details": details,
         }
     

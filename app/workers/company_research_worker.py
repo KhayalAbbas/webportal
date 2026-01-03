@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import os
 import socket
+from datetime import datetime, timedelta
 from typing import Optional
 
 from app.db.session import get_async_session_context
@@ -145,7 +146,17 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
 
             if result.get("pending_recheck"):
                 step.status = "pending"
-                step.next_retry_at = utc_now()
+                pending_next = result.get("pending_recheck_next_retry_at")
+                next_retry_at = None
+                if isinstance(pending_next, str):
+                    try:
+                        next_retry_at = datetime.fromisoformat(pending_next)
+                    except ValueError:
+                        next_retry_at = None
+                elif isinstance(pending_next, datetime):
+                    next_retry_at = pending_next
+
+                step.next_retry_at = next_retry_at or (utc_now() + timedelta(seconds=1))
                 job.locked_at = None
                 job.locked_by = None
                 await service.append_event(
