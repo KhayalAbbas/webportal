@@ -38,6 +38,7 @@ LOG_LINES: list[str] = []
 class ConditionalHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         path = self.path
+        log(f"REQ {path} inm={self.headers.get('If-None-Match')} ims={self.headers.get('If-Modified-Since')}")
         if path.startswith("/etag"):
             inm = self.headers.get("If-None-Match")
             if inm and inm.strip() == '"v1"':
