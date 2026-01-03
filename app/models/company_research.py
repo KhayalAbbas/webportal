@@ -590,6 +590,11 @@ class ResearchSourceDocument(TenantScopedModel):
         String(100),
         nullable=True,
     )
+
+    http_status_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    http_headers: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    http_error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    http_final_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Content
     content_text: Mapped[Optional[str]] = mapped_column(
@@ -632,6 +637,12 @@ class ResearchSourceDocument(TenantScopedModel):
         Integer,
         nullable=False,
         default=0,
+    )
+
+    max_attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3,
     )
 
     next_retry_at: Mapped[Optional[datetime]] = mapped_column(

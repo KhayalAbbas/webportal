@@ -53,6 +53,11 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
         await service.db.commit()
         return
 
+    if job.cancel_requested or run.status == "cancel_requested":
+        await _handle_cancel(service, job.id, tenant_id, run_id, reason="cancel requested")
+        await service.db.commit()
+        return
+
     job = await service.mark_job_running(job.id, worker_id)
     if not job:
         await service.append_event(tenant_id, run_id, "worker_failed", "Unable to mark job running", status="failed")
@@ -98,6 +103,11 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
         await service.db.commit()
         return
 
+    if job.cancel_requested:
+        await _handle_cancel(service, job.id, tenant_id, run_id, reason="cancelled during step")
+        await service.db.commit()
+        return
+
     await service.append_event(
         tenant_id,
         run_id,
@@ -113,6 +123,25 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                 tenant_id=tenant_id,
                 run_id=run_id,
             )
+            if result.get("retry_scheduled"):
+                backoff_seconds = result.get("retry_backoff_seconds") or min(300, 30 * max(1, step.attempt_count))
+                await service.repo.mark_step_failed(
+                    step.id,
+                    "pending_url_retries",
+                    backoff_seconds=backoff_seconds,
+                )
+                await service.mark_job_failed(job.id, "pending_url_retries", backoff_seconds=backoff_seconds)
+                await service.append_event(
+                    tenant_id,
+                    run_id,
+                    "step_failed",
+                    f"Retrying step {step.step_key}",
+                    meta_json={"step_key": step.step_key, "result": result},
+                    status="failed",
+                )
+                await service.db.commit()
+                return
+
             await service.repo.mark_step_succeeded(step.id, output_json=result)
             await service.append_event(
                 tenant_id,

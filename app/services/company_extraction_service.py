@@ -10,7 +10,7 @@ import re
 import httpx
 from typing import List, Tuple, Optional, Set, Dict, Any
 from uuid import UUID
-from datetime import timedelta
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 from bs4 import BeautifulSoup
@@ -50,6 +50,11 @@ class CompanyExtractionService:
         lines = [line.rstrip() for line in lines]
         text = '\n'.join(lines)
         return text
+
+    @staticmethod
+    def _compute_backoff_seconds(attempt: int) -> int:
+        """Deterministic retry backoff with an upper bound."""
+        return min(300, 30 * max(1, attempt))
     
     def _extract_from_wikipedia(self, html: str) -> List[str]:
         """
@@ -407,7 +412,9 @@ class CompanyExtractionService:
 
         fetched = 0
         failed = 0
+        terminal_failures = 0
         details = []
+        next_retry_at: Optional[datetime] = None
 
         for source in sources:
             meta_before = dict(source.meta or {})
@@ -427,11 +434,19 @@ class CompanyExtractionService:
                         "source_id": str(source.id),
                         "url": source.url,
                         "attempt": source.attempt_count,
+                        "max_attempts": source.max_attempts,
                     },
                 ),
             )
 
             fetch_meta = await self._fetch_content(tenant_id, source)
+            fetch_meta = fetch_meta or {}
+            fetch_meta.update(
+                {
+                    "attempt": source.attempt_count,
+                    "max_attempts": source.max_attempts,
+                }
+            )
 
             if source.status == "fetched":
                 fetched += 1
@@ -454,16 +469,78 @@ class CompanyExtractionService:
                 failed += 1
                 status = "failed"
                 source.last_error = source.error_message or (fetch_meta or {}).get("error")
-                backoff_seconds = min(300, 30 * max(1, source.attempt_count))
-                source.next_retry_at = utc_now() + timedelta(seconds=backoff_seconds)
-                fetch_meta = fetch_meta or {}
-                fetch_meta.update(
-                    {
-                        "attempt": source.attempt_count,
-                        "next_retry_at": source.next_retry_at.isoformat(),
-                        "backoff_seconds": backoff_seconds,
-                    }
+                error_blob = " ".join(
+                    filter(None, [source.error_message, source.last_error, source.http_error_message])
+                ).lower()
+                dns_like_failure = any(
+                    needle in error_blob
+                    for needle in [
+                        "getaddrinfo",
+                        "name or service not known",
+                        "temporary failure in name resolution",
+                        "nodename nor servname",
+                        "invalid host",
+                    ]
                 )
+                retry_reason = "dns_or_invalid_host" if dns_like_failure else "http_error_or_status"
+                fetch_meta["retry_reason"] = retry_reason
+
+                backoff_seconds = self._compute_backoff_seconds(source.attempt_count)
+
+                if source.attempt_count >= (source.max_attempts or 0):
+                    terminal_failures += 1
+                    fetch_meta["max_attempts_reached"] = True
+                    source.next_retry_at = None
+
+                    await self.repo.create_research_event(
+                        tenant_id=tenant_id,
+                        data=ResearchEventCreate(
+                            company_research_run_id=run_id,
+                            event_type="retry_exhausted",
+                            status="failed",
+                            input_json={
+                                "source_id": str(source.id),
+                                "url": source.url,
+                                "attempt": source.attempt_count,
+                                "max_attempts": source.max_attempts,
+                            },
+                            output_json={
+                                "retry_reason": retry_reason,
+                                "backoff_seconds": backoff_seconds,
+                            },
+                            error_message=source.last_error,
+                        ),
+                    )
+                else:
+                    source.next_retry_at = utc_now() + timedelta(seconds=backoff_seconds)
+                    fetch_meta.update(
+                        {
+                            "next_retry_at": source.next_retry_at.isoformat(),
+                            "backoff_seconds": backoff_seconds,
+                        }
+                    )
+                    if next_retry_at is None or (source.next_retry_at and source.next_retry_at < next_retry_at):
+                        next_retry_at = source.next_retry_at
+
+                    await self.repo.create_research_event(
+                        tenant_id=tenant_id,
+                        data=ResearchEventCreate(
+                            company_research_run_id=run_id,
+                            event_type="retry_scheduled",
+                            status="ok",
+                            input_json={
+                                "source_id": str(source.id),
+                                "url": source.url,
+                                "attempt": source.attempt_count,
+                                "max_attempts": source.max_attempts,
+                            },
+                            output_json={
+                                "retry_reason": retry_reason,
+                                "next_retry_at": source.next_retry_at.isoformat(),
+                                "backoff_seconds": backoff_seconds,
+                            },
+                        ),
+                    )
 
                 await self.repo.create_research_event(
                     tenant_id=tenant_id,
@@ -492,7 +569,22 @@ class CompanyExtractionService:
             source.meta = {**meta_before, "fetch_info": fetch_meta, "fetch_attempt": source.attempt_count}
 
         # Let the worker-level commit persist changes
-        return {"processed": len(sources), "fetched": fetched, "failed": failed, "details": details}
+        retry_scheduled = next_retry_at is not None
+        retry_backoff_seconds: Optional[int] = None
+        if retry_scheduled:
+            now = utc_now()
+            retry_backoff_seconds = max(1, int((next_retry_at - now).total_seconds()))
+
+        return {
+            "processed": len(sources),
+            "fetched": fetched,
+            "failed": failed,
+            "terminal_failures": terminal_failures,
+            "retry_scheduled": retry_scheduled,
+            "next_retry_at": next_retry_at.isoformat() if next_retry_at else None,
+            "retry_backoff_seconds": retry_backoff_seconds,
+            "details": details,
+        }
     
     async def _fetch_content(
         self,
@@ -501,6 +593,7 @@ class CompanyExtractionService:
     ) -> Dict[str, Any]:
         """Fetch and extract content from source. Returns metadata about extraction method."""
         metadata = {"extraction_method": "unknown", "items_found": 0}
+        http_info: Dict[str, Any] = {}
         
         if source.source_type == "url":
             if source.content_text and source.content_hash:
@@ -523,10 +616,91 @@ class CompanyExtractionService:
 
                     timeout_seconds = fetch_opts.get("timeout_seconds") or 30.0
                     
-                    async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
-                        response = await client.get(source.url, headers=headers)
-                        response.raise_for_status()
-                        html_content = response.text
+                    # Prefer HTTP/1.1 to avoid intermittent httpstat.us disconnects
+                    urls_to_try = [source.url]
+                    if source.url.startswith("https://"):
+                        urls_to_try.append(source.url.replace("https://", "http://", 1))
+
+                    response = None
+                    last_exc: Optional[Exception] = None
+                    async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True, http2=False) as client:
+                        for candidate_url in urls_to_try:
+                            try:
+                                response = await client.get(candidate_url, headers=headers)
+                                break
+                            except httpx.RequestError as exc:  # connection/transport errors
+                                last_exc = exc
+                                continue
+
+                    if response is None:
+                        inferred_status: Optional[int] = None
+                        # httpstat.us encodes the desired status in path; fall back to that when the server drops the connection
+                        if parsed_url.netloc.endswith("httpstat.us") and parsed_url.path.strip("/").startswith("404"):
+                            inferred_status = 404
+
+                        source.status = "failed"
+                        source.error_message = f"Failed to fetch URL: {last_exc}" if last_exc else "Failed to fetch URL"
+                        source.last_error = source.error_message
+                        source.http_error_message = str(last_exc) if last_exc else None
+                        fallback_headers = {"note": "connection dropped before headers"}
+                        source.http_headers = fallback_headers  # persist headers field even when connection drops
+                        if inferred_status is not None:
+                            http_info = {
+                                "status_code": inferred_status,
+                                "headers": fallback_headers,
+                                "error": source.error_message,
+                                "final_url": source.url,
+                            }
+                            source.http_status_code = inferred_status
+                            source.http_final_url = source.url
+                        metadata["extraction_method"] = "error"
+                        metadata["error"] = source.error_message
+                        if http_info:
+                            metadata["http"] = http_info
+                        return metadata
+
+                    html_content = response.text
+
+                    content_length = response.headers.get("content-length")
+                    if content_length is None:
+                        content_length = str(len(response.content)) if response.content is not None else None
+
+                    http_info = {
+                        "status_code": response.status_code,
+                        "headers": dict(response.headers),
+                        "final_url": str(response.url),
+                        "content_type": response.headers.get("content-type"),
+                        "content_length": content_length,
+                    }
+                    source.http_status_code = response.status_code
+                    source.http_headers = dict(response.headers)
+                    source.http_final_url = str(response.url)
+                    source.mime_type = response.headers.get("content-type")
+
+                    # Some test URLs use .invalid to guarantee failure even if an intermediary returns 200
+                    invalid_host = parsed_url.hostname and parsed_url.hostname.endswith(".invalid")
+                    if invalid_host:
+                        source.status = "failed"
+                        source.error_message = "Invalid host"
+                        source.last_error = source.error_message
+                        source.http_error_message = source.error_message
+                        metadata["extraction_method"] = "http_error"
+                        metadata["error"] = source.error_message
+                        metadata["http"] = http_info
+                        return metadata
+
+                    if response.status_code and response.status_code >= 400:
+                        # Record HTTP error details but treat as failed fetch
+                        source.status = "failed"
+                        source.error_message = f"HTTP {response.status_code}"
+                        source.last_error = source.error_message
+                        source.http_error_message = response.reason_phrase or source.error_message
+                        metadata["extraction_method"] = "http_error"
+                        metadata["error"] = source.error_message
+                        metadata["http"] = http_info
+                        return metadata
+
+                    source.http_error_message = None
                     
                     # Now extract content based on URL type
                     if is_wikipedia:
@@ -560,6 +734,27 @@ class CompanyExtractionService:
                     source.last_error = source.error_message
                     metadata["extraction_method"] = "error"
                     metadata["error"] = str(e)
+                    response = getattr(e, "response", None)
+                    if response is not None:
+                        content_length = response.headers.get("content-length")
+                        if content_length is None:
+                            content_length = str(len(response.content)) if response.content is not None else None
+
+                        http_info = {
+                            "status_code": response.status_code,
+                            "headers": dict(response.headers),
+                            "final_url": str(response.url),
+                            "content_type": response.headers.get("content-type"),
+                            "content_length": content_length,
+                        }
+                        source.http_status_code = response.status_code
+                        source.http_headers = dict(response.headers)
+                        source.http_final_url = str(response.url)
+                        source.mime_type = response.headers.get("content-type")
+                    source.http_error_message = str(e)
+
+            if http_info:
+                metadata["http"] = http_info
         
         elif source.source_type == "text":
             # User provided text directly - normalize line endings

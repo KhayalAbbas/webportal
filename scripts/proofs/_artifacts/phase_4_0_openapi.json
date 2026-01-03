@@ -20475,6 +20475,10 @@
             "type": "integer",
             "title": "Attempt Count"
           },
+          "max_attempts": {
+            "type": "integer",
+            "title": "Max Attempts"
+          },
           "next_retry_at": {
             "anyOf": [
               {
@@ -20502,6 +20506,50 @@
           "meta": {
             "type": "object",
             "title": "Meta"
+          },
+          "http_status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Status Code"
+          },
+          "http_headers": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Headers"
+          },
+          "http_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Error Message"
+          },
+          "http_final_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Final Url"
           }
         },
         "type": "object",
@@ -20513,7 +20561,8 @@
           "company_research_run_id",
           "source_type",
           "status",
-          "attempt_count"
+          "attempt_count",
+          "max_attempts"
         ],
         "title": "SourceDocumentRead",
         "description": "Schema for reading source document data."

@@ -519,9 +519,10 @@ class CompanyResearchRepository:
             tenant_id=tenant_id,
             status="queued" if data.source_type == "url" else "new",
             attempt_count=0,
+            max_attempts=data.max_attempts or 3,
             next_retry_at=None,
             last_error=None,
-            **data.model_dump(),
+            **data.model_dump(exclude={"max_attempts"}),
         )
         self.db.add(source)
         await self.db.flush()  # Flush to get DB defaults
@@ -619,6 +620,7 @@ class CompanyResearchRepository:
                 ResearchSourceDocument.company_research_run_id == run_id,
                 ResearchSourceDocument.source_type == 'url',
                 ResearchSourceDocument.status.in_(['queued', 'fetch_failed', 'failed']),
+                ResearchSourceDocument.attempt_count < ResearchSourceDocument.max_attempts,
                 or_(
                     ResearchSourceDocument.next_retry_at.is_(None),
                     ResearchSourceDocument.next_retry_at <= func.now(),
@@ -675,6 +677,7 @@ class CompanyResearchRepository:
         tenant_id: str,
         run_id: UUID,
         job_type: str = "company_research_run",
+        max_attempts: int = 10,
     ) -> CompanyResearchJob:
         stmt = (
             insert(CompanyResearchJob)
@@ -684,6 +687,7 @@ class CompanyResearchRepository:
                 run_id=run_id,
                 job_type=job_type,
                 status="queued",
+                max_attempts=max_attempts,
             )
             .on_conflict_do_nothing(
                 index_elements=[

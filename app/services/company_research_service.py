@@ -166,6 +166,7 @@ class CompanyResearchService:
                 "step_order": 5,
                 "rationale": "Fetch URL sources before extraction",
                 "enabled": has_url_sources,
+                "max_attempts": 5,
             },
             {
                 "step_key": "process_sources",
@@ -215,12 +216,13 @@ class CompanyResearchService:
         enabled_steps = []
         for step in plan_json.get("steps", []):
             if step.get("enabled", True):
+                max_attempts = step.get("max_attempts", 2)
                 enabled_steps.append(
                     {
                         "step_key": step["step_key"],
                         "step_order": step["step_order"],
                         "status": "pending",
-                        "max_attempts": 2,
+                        "max_attempts": max_attempts,
                         "input_json": {"rationale": step.get("rationale")},
                     }
                 )

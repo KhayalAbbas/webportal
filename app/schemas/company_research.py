@@ -377,6 +377,7 @@ class SourceDocumentCreate(BaseModel):
     content_text: Optional[str] = None
     content_hash: Optional[str] = Field(None, max_length=64)
     meta: dict[str, Any] = Field(default_factory=dict)
+    max_attempts: Optional[int] = Field(default=3, ge=1, le=10)
 
 
 class SourceDocumentUpdate(BaseModel):
@@ -388,11 +389,16 @@ class SourceDocumentUpdate(BaseModel):
     error_message: Optional[str] = None
     last_error: Optional[str] = None
     attempt_count: Optional[int] = None
+    max_attempts: Optional[int] = Field(None, ge=1, le=10)
     next_retry_at: Optional[datetime] = None
     fetched_at: Optional[datetime] = None
     meta: Optional[dict[str, Any]] = None
     title: Optional[str] = Field(None, max_length=500)
     url_normalized: Optional[str] = None
+    http_status_code: Optional[int] = None
+    http_headers: Optional[Dict[str, Any]] = None
+    http_error_message: Optional[str] = None
+    http_final_url: Optional[str] = None
 
 
 class SourceDocumentRead(TenantScopedRead):
@@ -409,9 +415,14 @@ class SourceDocumentRead(TenantScopedRead):
     error_message: Optional[str] = None
     last_error: Optional[str] = None
     attempt_count: int
+    max_attempts: int
     next_retry_at: Optional[datetime] = None
     fetched_at: Optional[datetime] = None
     meta: dict[str, Any] = Field(default_factory=dict)
+    http_status_code: Optional[int] = None
+    http_headers: Optional[Dict[str, Any]] = None
+    http_error_message: Optional[str] = None
+    http_final_url: Optional[str] = None
 
 
 # ============================================================================
