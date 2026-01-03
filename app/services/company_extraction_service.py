@@ -1102,7 +1102,9 @@ class CompanyExtractionService:
                             source.http_final_url = str(resp.url)
                             source.http_error_message = None
 
-                            validators["pending_recheck"] = True
+                            # Mark the conditional check as completed; downstream processing
+                            # will keep the cached content but should not remain in a recheck loop.
+                            validators["pending_recheck"] = False
                             validators["last_checked_at"] = utc_now_iso()
                             meta["validators"] = validators
                             source.meta = meta
