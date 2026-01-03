@@ -955,7 +955,7 @@ class CompanyExtractionService:
 
         pending_recheck_next_retry_at: Optional[datetime] = None
         if pending_recheck and not retry_scheduled:
-            pending_recheck_next_retry_at = utc_now() + timedelta(seconds=1)
+            pending_recheck_next_retry_at = utc_now() + timedelta(seconds=3)
 
         return {
             "processed": len(sources),

@@ -156,7 +156,7 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                 elif isinstance(pending_next, datetime):
                     next_retry_at = pending_next
 
-                step.next_retry_at = next_retry_at or (utc_now() + timedelta(seconds=1))
+                step.next_retry_at = next_retry_at or (utc_now() + timedelta(seconds=3))
                 job.locked_at = None
                 job.locked_by = None
                 await service.append_event(
