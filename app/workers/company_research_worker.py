@@ -119,22 +119,10 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
     try:
         if step.step_key == "fetch_url_sources":
             extractor = CompanyExtractionService(service.db)
-            rechecks = 0
-            max_rechecks = 2
             result = await extractor.fetch_url_sources(
                 tenant_id=tenant_id,
                 run_id=run_id,
             )
-            while (
-                result.get("pending_recheck")
-                and not result.get("retry_scheduled")
-                and rechecks < max_rechecks
-            ):
-                rechecks += 1
-                result = await extractor.fetch_url_sources(
-                    tenant_id=tenant_id,
-                    run_id=run_id,
-                )
 
             if result.get("retry_scheduled"):
                 backoff_seconds = result.get("retry_backoff_seconds") or min(300, 30 * max(1, step.attempt_count))
@@ -152,6 +140,23 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                     meta_json={"step_key": step.step_key, "result": result},
                     status="failed",
                 )
+                await service.db.commit()
+                return
+
+            if result.get("pending_recheck"):
+                step.status = "pending"
+                step.next_retry_at = utc_now()
+                job.locked_at = None
+                job.locked_by = None
+                await service.append_event(
+                    tenant_id,
+                    run_id,
+                    "step_pending",
+                    f"Revalidating step {step.step_key} with conditional fetch",
+                    meta_json={"step_key": step.step_key, "result": result},
+                    status="ok",
+                )
+                await service.db.flush()
                 await service.db.commit()
                 return
 
