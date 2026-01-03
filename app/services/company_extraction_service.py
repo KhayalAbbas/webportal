@@ -1071,6 +1071,139 @@ class CompanyExtractionService:
                                 ),
                             )
                             return metadata
+
+                    if pending_recheck:
+                        timeout = httpx.Timeout(timeout_seconds)
+                        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, http2=False) as client:
+                            resp = await client.get(fetch_url, headers=headers)
+
+                        status_code = resp.status_code or 0
+                        response_headers = dict(resp.headers)
+
+                        if status_code == 304:
+                            source.status = "fetched"
+                            source.error_message = None
+                            source.last_error = None
+                            source.http_status_code = status_code
+                            source.http_headers = response_headers
+                            source.http_final_url = str(resp.url)
+                            source.http_error_message = None
+
+                            validators["pending_recheck"] = False
+                            validators["last_checked_at"] = utc_now_iso()
+                            meta["validators"] = validators
+                            source.meta = meta
+
+                            http_info = {
+                                "status_code": status_code,
+                                "headers": response_headers,
+                                "final_url": str(resp.url),
+                            }
+                            metadata["extraction_method"] = "not_modified"
+                            metadata["http"] = http_info
+                            metadata["not_modified"] = True
+
+                            await self.repo.create_research_event(
+                                tenant_id=tenant_id,
+                                data=ResearchEventCreate(
+                                    company_research_run_id=source.company_research_run_id,
+                                    event_type="not_modified",
+                                    status="ok",
+                                    input_json={
+                                        "source_id": str(source.id),
+                                        "requested_url": fetch_url,
+                                        "url_normalized": source.url_normalized,
+                                    },
+                                    output_json={
+                                        "status_code": status_code,
+                                        "headers": response_headers,
+                                        "validators": {
+                                            "etag": validators.get("etag"),
+                                            "last_modified": validators.get("last_modified"),
+                                        },
+                                    },
+                                ),
+                            )
+
+                            return metadata
+
+                        if status_code >= 400:
+                            source.status = "failed"
+                            source.error_message = f"HTTP {status_code}"
+                            source.last_error = source.error_message
+                            source.http_error_message = source.error_message
+                            source.http_status_code = status_code
+                            source.http_headers = response_headers
+                            source.http_final_url = str(resp.url)
+                            metadata["extraction_method"] = "http_error"
+                            metadata["error"] = source.error_message
+                            metadata["http"] = {
+                                "status_code": status_code,
+                                "headers": response_headers,
+                                "final_url": str(resp.url),
+                            }
+                            return metadata
+
+                        content_bytes = resp.content or b""
+                        content_type_header = response_headers.get("content-type") or response_headers.get("Content-Type")
+                        encoding = "utf-8"
+                        if content_type_header:
+                            match = re.search(r"charset=([\w-]+)", content_type_header, re.IGNORECASE)
+                            if match:
+                                encoding = match.group(1)
+                        html_content = content_bytes.decode(encoding, errors="replace") if content_bytes else ""
+
+                        canonical_final_url = None
+                        try:
+                            canonical_final_url = canonicalize_url(str(resp.url))
+                        except Exception:
+                            canonical_final_url = None
+
+                        http_info = {
+                            "status_code": status_code,
+                            "headers": response_headers,
+                            "final_url": str(resp.url),
+                            "canonical_final_url": canonical_final_url,
+                            "content_type": content_type_header,
+                            "content_length": str(len(content_bytes)),
+                            "bytes_read": len(content_bytes),
+                        }
+                        source.http_status_code = status_code
+                        source.http_headers = response_headers
+                        source.http_final_url = str(resp.url)
+                        source.canonical_final_url = canonical_final_url
+                        source.mime_type = content_type_header
+
+                        etag_header = response_headers.get("etag") or response_headers.get("ETag")
+                        last_modified_header = response_headers.get("last-modified") or response_headers.get("Last-Modified")
+                        if etag_header or last_modified_header:
+                            if etag_header:
+                                validators["etag"] = etag_header
+                            if last_modified_header:
+                                validators["last_modified"] = last_modified_header
+                            validators["last_seen_at"] = utc_now_iso()
+                            validators["pending_recheck"] = False
+                            meta["validators"] = validators
+                            source.meta = meta
+                            metadata["validators"] = {
+                                "etag": validators.get("etag"),
+                                "last_modified": validators.get("last_modified"),
+                                "pending_recheck": False,
+                            }
+                        elif validators:
+                            validators["pending_recheck"] = False
+                            meta["validators"] = validators
+                            source.meta = meta
+
+                        source.content_text = self.normalize_text(self._extract_text_from_html(html_content))
+                        source.content_hash = hashlib.sha256(source.content_text.encode()).hexdigest()
+                        source.status = "fetched"
+                        source.fetched_at = utc_now()
+                        metadata["extraction_method"] = "conditional_html"
+                        metadata["items_found"] = metadata.get("items_found", 0)
+                        metadata["http"] = http_info
+                        metadata.update(await self._apply_content_dedupe(tenant_id, source.company_research_run_id, source))
+                        return metadata
                     
                     # Prefer HTTP/1.1 to avoid intermittent httpstat.us disconnects
                     urls_to_try = [fetch_url]
