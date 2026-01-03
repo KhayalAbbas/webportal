@@ -58,7 +58,7 @@ class CompanyExtractionService:
         desired_min_delay = max(0, int(os.getenv("PER_DOMAIN_MIN_DELAY_MS", "0"))) / 1000.0
         desired_global = int(os.getenv("GLOBAL_CONCURRENCY", "8"))
         self._max_redirects = max(1, int(os.getenv("MAX_REDIRECTS", "5")))
-        self._fetch_timeout_seconds = max(1.0, float(os.getenv("FETCH_TIMEOUT_SECONDS", "30")))
+        self._fetch_timeout_seconds = max(0.1, float(os.getenv("FETCH_TIMEOUT_SECONDS", "30")))
         self._max_fetch_bytes = max(1024, int(os.getenv("MAX_FETCH_BYTES", str(2_000_000))))
         allowed_raw = os.getenv("ALLOWED_CONTENT_TYPES")
         if allowed_raw:
