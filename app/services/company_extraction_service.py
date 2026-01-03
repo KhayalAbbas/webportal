@@ -810,6 +810,12 @@ class CompanyExtractionService:
                 source.error_message = None
                 source.next_retry_at = None
 
+                pending_validators = {}
+                if isinstance(source.meta, dict):
+                    pending_validators = (source.meta.get("validators") or {}) if isinstance(source.meta.get("validators"), dict) else {}
+                if pending_validators.get("pending_recheck"):
+                    source.next_retry_at = utc_now() + timedelta(seconds=1)
+
                 await self.repo.create_research_event(
                     tenant_id=tenant_id,
                     data=ResearchEventCreate(
@@ -959,7 +965,7 @@ class CompanyExtractionService:
 
         pending_recheck_next_retry_at: Optional[datetime] = None
         if pending_recheck and not retry_scheduled:
-            pending_recheck_next_retry_at = utc_now() + timedelta(seconds=3)
+            pending_recheck_next_retry_at = utc_now() + timedelta(seconds=1)
 
         return {
             "processed": len(sources),
@@ -1085,18 +1091,14 @@ class CompanyExtractionService:
                     if pending_recheck:
                         recheck_attempts = int(validators.get("pending_recheck_attempts") or 0)
 
-                        if recheck_attempts >= 1:
-                            # Already validated once for this content; keep cached result and clear pending flag.
-                            validators["pending_recheck"] = False
-                            validators["pending_recheck_attempts"] = recheck_attempts
+                        if recheck_attempts == 0:
+                            # Defer the first conditional recheck to a subsequent worker pass.
+                            validators["pending_recheck_attempts"] = 1
                             validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
                             meta["validators"] = validators
                             source.meta = meta
                             source.status = "fetched"
-                            source.error_message = None
-                            source.last_error = None
-                            source.http_error_message = None
-                            metadata["extraction_method"] = metadata.get("extraction_method") or "conditional_cached"
+                            metadata["extraction_method"] = metadata.get("extraction_method") or "conditional_pending"
                             metadata["not_modified"] = metadata.get("not_modified", True)
                             return metadata
 
