@@ -651,7 +651,6 @@ class CompanyResearchRepository:
                 ResearchSourceDocument.company_research_run_id == run_id,
                 ResearchSourceDocument.source_type == 'url',
                 ResearchSourceDocument.status.in_(['queued', 'fetch_failed', 'failed', 'fetched']),
-                ResearchSourceDocument.attempt_count < ResearchSourceDocument.max_attempts,
                 or_(
                     ResearchSourceDocument.next_retry_at.is_(None),
                     ResearchSourceDocument.next_retry_at <= func.now(),
@@ -664,6 +663,8 @@ class CompanyResearchRepository:
         filtered: list[ResearchSourceDocument] = []
         for source in sources:
             if source.status != 'fetched':
+                if (source.attempt_count or 0) >= (source.max_attempts or 0):
+                    continue
                 filtered.append(source)
                 continue
 
