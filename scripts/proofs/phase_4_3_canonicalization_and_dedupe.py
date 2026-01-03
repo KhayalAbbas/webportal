@@ -336,6 +336,7 @@ def main() -> int:
     email = os.getenv("API_EMAIL", EMAIL_DEFAULT)
     password = os.getenv("API_PASSWORD", PASSWORD_DEFAULT)
     py_exe = os.getenv("PY_EXE", sys.executable)
+    allow_openapi_fallback = os.getenv("ALLOW_OPENAPI_FALLBACK", "false").lower() in {"1", "true", "yes"}
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -369,6 +370,10 @@ def main() -> int:
         preflight_lines.append(f"GET {api_base}/openapi.json status={openapi_resp.status_code} length={len(openapi_resp.text)}")
 
         if "canonical_source_id" not in json.dumps(openapi_body):
+            if not allow_openapi_fallback:
+                raise RuntimeError(
+                    "Existing API schema missing canonical fields; restart API on current code or set ALLOW_OPENAPI_FALLBACK=true to allow local uvicorn fallback"
+                )
             log("OpenAPI missing canonical fields; starting local uvicorn for fresh schema")
             stop_server(server_proc)
             api_port += 1
