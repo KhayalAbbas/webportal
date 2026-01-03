@@ -515,8 +515,14 @@ class CompanyExtractionService:
             try:
                 meta = dict(source.meta or {})
                 validators = meta.get("validators") or {}
-                if source.source_type == "url" and validators.get("pending_recheck"):
+                if (
+                    source.source_type == "url"
+                    and validators.get("pending_recheck")
+                    and (validators.get("pending_recheck_completed") or validators.get("last_checked_at"))
+                ):
                     validators["pending_recheck"] = False
+                    validators.pop("pending_recheck_completed", None)
+                    validators["pending_recheck_attempts"] = 0
                     validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
                     meta["validators"] = validators
                     source.meta = meta
@@ -955,7 +961,10 @@ class CompanyExtractionService:
             retry_backoff_seconds = max(1, int((next_retry_at - now).total_seconds()))
 
         pending_recheck = any(
-            ((src.meta or {}).get("validators") or {}).get("pending_recheck")
+            (
+                (validators := ((src.meta or {}).get("validators") or {})).get("pending_recheck")
+                and not validators.get("pending_recheck_completed")
+            )
             for src in sources
             if src.source_type == "url"
         )
@@ -1086,6 +1095,21 @@ class CompanyExtractionService:
                             return metadata
 
                     if pending_recheck:
+                        recheck_attempts = int(validators.get("pending_recheck_attempts") or 0)
+
+                        if recheck_attempts >= 1:
+                            # Already performed a conditional recheck; keep validators pending until
+                            # processing clears them, but stop re-fetching.
+                            validators["pending_recheck"] = True
+                            validators["pending_recheck_completed"] = True
+                            validators["pending_recheck_attempts"] = recheck_attempts
+                            validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
+                            meta["validators"] = validators
+                            source.meta = meta
+                            metadata["extraction_method"] = metadata.get("extraction_method") or "conditional_cached"
+                            metadata["not_modified"] = metadata.get("not_modified", True)
+                            return metadata
+
                         timeout = httpx.Timeout(timeout_seconds)
                         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, http2=False) as client:
                             resp = await client.get(fetch_url, headers=headers)
@@ -1198,6 +1222,8 @@ class CompanyExtractionService:
                                 validators["last_modified"] = last_modified_header
                             validators["last_seen_at"] = utc_now_iso()
                             validators["pending_recheck"] = True
+                            validators["pending_recheck_attempts"] = 0
+                            validators.pop("pending_recheck_completed", None)
                             meta["validators"] = validators
                             source.meta = meta
                             metadata["validators"] = {
@@ -1207,6 +1233,8 @@ class CompanyExtractionService:
                             }
                         elif validators:
                             validators["pending_recheck"] = True
+                            validators["pending_recheck_attempts"] = 0
+                            validators.pop("pending_recheck_completed", None)
                             meta["validators"] = validators
                             source.meta = meta
 
@@ -1278,6 +1306,8 @@ class CompanyExtractionService:
                                                 source.http_error_message = None
 
                                                 validators["pending_recheck"] = True
+                                                validators["pending_recheck_attempts"] = recheck_attempts + 1
+                                                validators.pop("pending_recheck_completed", None)
                                                 validators["last_checked_at"] = utc_now_iso()
                                                 meta["validators"] = validators
                                                 source.meta = meta
