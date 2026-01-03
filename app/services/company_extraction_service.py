@@ -960,7 +960,7 @@ class CompanyExtractionService:
         pending_recheck = any(
             (
                 (validators := ((src.meta or {}).get("validators") or {})).get("pending_recheck")
-                and int(validators.get("pending_recheck_attempts") or 0) < 2
+                and (src.attempt_count or 0) < 3
             )
             for src in sources
             if src.source_type == "url"
@@ -1094,8 +1094,8 @@ class CompanyExtractionService:
                     if pending_recheck:
                         recheck_attempts = int(validators.get("pending_recheck_attempts") or 0)
 
-                        if recheck_attempts >= 2:
-                            # Already rechecked twice; let the worker progress without re-fetching.
+                        if recheck_attempts >= 1:
+                            # Already rechecked once; avoid another network hop and let processing clear it.
                             validators["pending_recheck"] = True
                             validators["pending_recheck_attempts"] = recheck_attempts
                             validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
