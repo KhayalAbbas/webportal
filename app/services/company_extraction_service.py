@@ -822,6 +822,7 @@ class CompanyExtractionService:
             else:
                 failed += 1
                 status = "failed"
+                source.status = "failed"
                 source.last_error = source.error_message or (fetch_meta or {}).get("error")
                 error_blob = " ".join(
                     filter(None, [source.error_message, source.last_error, source.http_error_message])
@@ -985,7 +986,7 @@ class CompanyExtractionService:
                 return metadata
 
             fetch_url = source.url_normalized or source.url
-            if not source.content_text and fetch_url:
+            if fetch_url:
                 try:
                     # Detect Wikipedia early to use appropriate fetch method
                     parsed_url = urlparse(fetch_url)
@@ -1116,6 +1117,12 @@ class CompanyExtractionService:
                                     },
                                     output_json={
                                         "status_code": status_code,
+                                                        if source.content_text:
+                                                            metadata["extraction_method"] = metadata.get("extraction_method", "cached")
+                                                            source.status = "fetched"
+                                                            source.fetched_at = source.fetched_at or utc_now()
+                                                            return metadata
+
                                         "headers": response_headers,
                                         "validators": {
                                             "etag": validators.get("etag"),
