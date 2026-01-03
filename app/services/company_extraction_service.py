@@ -1117,12 +1117,6 @@ class CompanyExtractionService:
                                     },
                                     output_json={
                                         "status_code": status_code,
-                                                        if source.content_text:
-                                                            metadata["extraction_method"] = metadata.get("extraction_method", "cached")
-                                                            source.status = "fetched"
-                                                            source.fetched_at = source.fetched_at or utc_now()
-                                                            return metadata
-
                                         "headers": response_headers,
                                         "validators": {
                                             "etag": validators.get("etag"),
