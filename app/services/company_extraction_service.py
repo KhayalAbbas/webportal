@@ -18,7 +18,6 @@ from typing import List, Tuple, Optional, Set, Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from bs4 import BeautifulSoup
 from pypdf import PdfReader
@@ -645,15 +644,6 @@ class CompanyExtractionService:
                     "existing": existing_count,
                 })
 
-                if source.source_type == "url":
-                    validators = meta.get("validators") or {}
-                    if validators.get("pending_recheck"):
-                        validators["pending_recheck"] = False
-                        validators["pending_recheck_attempts"] = 0
-                        validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
-                        meta["validators"] = validators
-                        source.meta = meta
-                
                 meta["processed_at"] = utc_now_iso()
                 meta["processed_summary"] = {
                     "extracted": companies_count,
@@ -685,18 +675,6 @@ class CompanyExtractionService:
                     ),
                 )
         
-        for source in sources:
-            if source.source_type == "url":
-                meta = dict(source.meta or {})
-                validators = meta.get("validators") or {}
-                validators["pending_recheck"] = False
-                validators["pending_recheck_attempts"] = 0
-                validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
-                meta["validators"] = validators
-                source.meta = meta
-
-        await self.db.flush()
-
         return {
             "processed": len(sources),
             "companies_found": total_companies,
@@ -704,25 +682,6 @@ class CompanyExtractionService:
             "companies_existing": total_existing,
             "sources_detail": sources_detail,
         }
-
-    async def clear_pending_recheck_flags(self, tenant_id: str, run_id: UUID) -> None:
-        """Clear any lingering pending_recheck flags for URL sources after processing."""
-        await self.db.execute(
-            text(
-                """
-                UPDATE source_documents
-                SET meta = jsonb_set(
-                    jsonb_set(meta, '{validators,pending_recheck}', 'false'::jsonb, true),
-                    '{validators,pending_recheck_attempts}', '0'::jsonb, true
-                )
-                WHERE tenant_id = :tenant_id
-                  AND company_research_run_id = :run_id
-                  AND source_type = 'url'
-                """
-            ),
-            {"tenant_id": tenant_id, "run_id": str(run_id)},
-        )
-        await self.db.flush()
 
     async def fetch_url_sources(
         self,
@@ -1136,8 +1095,8 @@ class CompanyExtractionService:
                         recheck_attempts = int(validators.get("pending_recheck_attempts") or 0)
 
                         if recheck_attempts >= 1:
-                            # Already rechecked once; avoid another network hop and let processing clear it.
-                            validators["pending_recheck"] = True
+                            # Already validated once for this content; keep cached result and clear pending flag.
+                            validators["pending_recheck"] = False
                             validators["pending_recheck_attempts"] = recheck_attempts
                             validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
                             meta["validators"] = validators
@@ -1166,7 +1125,7 @@ class CompanyExtractionService:
                             source.http_final_url = str(resp.url)
                             source.http_error_message = None
 
-                            validators["pending_recheck"] = True
+                            validators["pending_recheck"] = False
                             validators["pending_recheck_attempts"] = recheck_attempts + 1
                             validators["last_checked_at"] = utc_now_iso()
                             meta["validators"] = validators

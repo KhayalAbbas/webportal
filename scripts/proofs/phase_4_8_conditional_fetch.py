@@ -468,17 +468,34 @@ def main() -> int:
         postcheck_lines.append(f"events_by_type={json.dumps(events_by_type_p3, sort_keys=True)}")
         postcheck_lines.append(f"validators_etag={json.dumps(etag_val_p2, sort_keys=True)}")
         postcheck_lines.append(f"validators_lm={json.dumps(lm_val_p2, sort_keys=True)}")
+        postcheck_lines.append(f"events_not_modified_p2={events_by_type_p2.get('not_modified', 0)}")
+
+        git_exe = shutil.which("git") or r"C:\\Program Files\\Git\\cmd\\git.exe"
+        rc_status, status_out, _ = run_cmd([git_exe, "status", "-sb"])
+        rc_log, log_out, _ = run_cmd([git_exe, "log", "-1", "--decorate"])
+        rc_current, alembic_current, _ = run_cmd([py_exe, "-m", "alembic", "current"])
+        rc_heads, alembic_heads, _ = run_cmd([py_exe, "-m", "alembic", "heads"])
+        if rc_status != 0 or rc_log != 0 or rc_current != 0 or rc_heads != 0:
+            raise AssertionError("postcheck git/alembic collection failed")
+        postcheck_lines.append(f"git_status={status_out}")
+        postcheck_lines.append(f"git_log={log_out}")
+        postcheck_lines.append(f"alembic_current={alembic_current.strip()}")
+        postcheck_lines.append(f"alembic_heads={alembic_heads.strip()}")
+
+        postcheck_lines.append("RESULT=PASS")
 
         log(f"Validators P2: etag={etag_val_p2} lm={lm_val_p2}")
         log(f"Events by type P2: {events_by_type_p2}")
 
         proof_passed = True
-        log("=== PROOF COMPLETE ===")
 
     except Exception as exc:  # noqa: BLE001
         log(f"ERROR: {exc}")
         postcheck_lines.append(f"FAIL: {exc}")
+        postcheck_lines.append("RESULT=FAIL")
     finally:
+        if not any(line.endswith("=== PROOF COMPLETE ===") for line in LOG_LINES):
+            log("=== PROOF COMPLETE ===")
         stop_fixture_server(fixture_server)
         log("Fixture HTTP server stopped")
         try:

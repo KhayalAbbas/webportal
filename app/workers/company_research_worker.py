@@ -200,7 +200,6 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                 tenant_id=tenant_id,
                 run_id=run_id,
             )
-            await extractor.clear_pending_recheck_flags(tenant_id, run_id)
             await service.repo.mark_step_succeeded(step.id, output_json=result)
             await service.append_event(
                 tenant_id,
