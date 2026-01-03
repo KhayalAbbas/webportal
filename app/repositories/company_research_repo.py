@@ -522,7 +522,8 @@ class CompanyResearchRepository:
             max_attempts=data.max_attempts or 3,
             next_retry_at=None,
             last_error=None,
-            **data.model_dump(exclude={"max_attempts"}),
+            original_url=data.original_url or data.url,
+            **data.model_dump(exclude={"max_attempts", "original_url"}),
         )
         self.db.add(source)
         await self.db.flush()  # Flush to get DB defaults
@@ -559,6 +560,30 @@ class CompanyResearchRepository:
             .order_by(ResearchSourceDocument.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def find_source_by_hash(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        content_hash: str,
+        exclude_id: Optional[UUID] = None,
+    ) -> Optional[ResearchSourceDocument]:
+        """Find earliest source in a run with the same content hash."""
+        query = (
+            select(ResearchSourceDocument)
+            .where(
+                ResearchSourceDocument.tenant_id == tenant_id,
+                ResearchSourceDocument.company_research_run_id == run_id,
+                ResearchSourceDocument.content_hash == content_hash,
+            )
+            .order_by(ResearchSourceDocument.created_at.asc())
+            .limit(1)
+        )
+        if exclude_id:
+            query = query.where(ResearchSourceDocument.id != exclude_id)
+
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
     
     async def update_source_document(
         self,

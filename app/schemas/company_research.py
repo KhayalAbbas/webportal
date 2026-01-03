@@ -373,8 +373,11 @@ class SourceDocumentCreate(BaseModel):
     source_type: str = Field(..., max_length=50)  # url|pdf|text
     title: Optional[str] = Field(None, max_length=500)
     file_name: Optional[str] = Field(None, max_length=255)
+    original_url: Optional[str] = None
     url: Optional[str] = None
     url_normalized: Optional[str] = None
+    canonical_final_url: Optional[str] = None
+    canonical_source_id: Optional[UUID] = None
     content_text: Optional[str] = None
     content_bytes: Optional[bytes] = None
     content_hash: Optional[str] = Field(None, max_length=64)
@@ -389,6 +392,9 @@ class SourceDocumentUpdate(BaseModel):
     
     content_text: Optional[str] = None
     content_hash: Optional[str] = Field(None, max_length=64)
+    original_url: Optional[str] = None
+    canonical_final_url: Optional[str] = None
+    canonical_source_id: Optional[UUID] = None
     status: Optional[str] = Field(None, max_length=50)
     error_message: Optional[str] = None
     last_error: Optional[str] = None
@@ -415,8 +421,11 @@ class SourceDocumentRead(TenantScopedRead):
     company_research_run_id: UUID
     source_type: str
     title: Optional[str] = None
+    original_url: Optional[str] = None
     url: Optional[str] = None
     url_normalized: Optional[str] = None
+    canonical_final_url: Optional[str] = None
+    canonical_source_id: Optional[UUID] = None
     file_name: Optional[str] = None
     content_text: Optional[str] = None
     content_hash: Optional[str] = None

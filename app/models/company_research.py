@@ -592,6 +592,11 @@ class ResearchSourceDocument(TenantScopedModel):
         nullable=True,
     )
     
+    original_url: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     url: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
@@ -619,6 +624,14 @@ class ResearchSourceDocument(TenantScopedModel):
     http_headers: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     http_error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     http_final_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    canonical_final_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    canonical_source_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_documents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     
     # Content
     content_text: Mapped[Optional[str]] = mapped_column(
@@ -700,6 +713,7 @@ class ResearchSourceDocument(TenantScopedModel):
         Index("ix_source_documents_run_id", "company_research_run_id"),
         Index("ix_source_documents_status", "status"),
         Index("ix_source_documents_hash", "content_hash"),
+        Index("ix_source_documents_canonical_source_id", "canonical_source_id"),
         # Note: Unique constraint on (tenant_id, content_hash) would be beneficial but skipped due to existing duplicates
     )
 

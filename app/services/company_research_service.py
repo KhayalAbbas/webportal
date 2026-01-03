@@ -11,7 +11,6 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from uuid import UUID
-from urllib.parse import urlparse, urlunparse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -42,6 +41,7 @@ from app.schemas.company_research import (
     SourceDocumentUpdate,
     ResearchEventCreate,
 )
+from app.utils.url_canonicalizer import canonicalize_url
 
 
 class CompanyResearchService:
@@ -592,19 +592,7 @@ class CompanyResearchService:
     def _normalize_url_value(url: Optional[str]) -> Optional[str]:
         if not url:
             return None
-        parsed = urlparse(url)
-        scheme = (parsed.scheme or "http").lower()
-        netloc = parsed.netloc.lower()
-        path = parsed.path or "/"
-        normalized = parsed._replace(
-            scheme=scheme,
-            netloc=netloc,
-            path=path.rstrip("/") or "/",
-            params="",
-            query="",
-            fragment="",
-        )
-        return urlunparse(normalized)
+        return canonicalize_url(url)
     
     async def add_source(
         self,
@@ -612,6 +600,7 @@ class CompanyResearchService:
         data: SourceDocumentCreate,
     ) -> ResearchSourceDocument:
         """Add a new source document to a research run."""
+        data.meta = data.meta or {}
         if not data.content_hash:
             if data.content_bytes:
                 data.content_hash = hashlib.sha256(data.content_bytes).hexdigest()
@@ -619,6 +608,8 @@ class CompanyResearchService:
                 data.content_hash = self._hash_text(data.content_text)
         if not data.url_normalized and data.url:
             data.url_normalized = self._normalize_url_value(data.url)
+        if data.url and not data.original_url:
+            data.original_url = data.url
         if data.content_bytes is not None and data.content_size is None:
             data.content_size = len(data.content_bytes)
         return await self.repo.create_source_document(tenant_id, data)

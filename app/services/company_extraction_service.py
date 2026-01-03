@@ -26,6 +26,7 @@ from app.schemas.company_research import (
     SourceDocumentUpdate,
 )
 from app.utils.time import utc_now, utc_now_iso
+from app.utils.url_canonicalizer import canonicalize_url
 
 
 class CompanyExtractionService:
@@ -299,6 +300,16 @@ class CompanyExtractionService:
                         "extraction_method": fetch_metadata.get("extraction_method", "error"),
                     })
                     continue
+
+                if fetch_metadata.get("deduped"):
+                    sources_detail.append({
+                        "source_id": str(source.id),
+                        "title": source.title or source.url or "Unknown",
+                        "status": "deduped",
+                        "deduped_to": fetch_metadata.get("canonical_source_id"),
+                        "extraction_method": fetch_metadata.get("extraction_method", "deduped"),
+                    })
+                    continue
                 
                 # Get text for extraction with debug info
                 text_content = source.content_text or ""
@@ -426,6 +437,82 @@ class CompanyExtractionService:
             source.last_error = None
             await self.db.flush()
 
+            fetch_meta: Dict[str, Any] = {}
+            try:
+                canonical_url = canonicalize_url(source.url or "")
+                source.url_normalized = canonical_url
+                source.original_url = source.original_url or source.url
+                fetch_meta["canonical_url"] = canonical_url
+
+                await self.repo.create_research_event(
+                    tenant_id=tenant_id,
+                    data=ResearchEventCreate(
+                        company_research_run_id=run_id,
+                        event_type="canonicalize",
+                        status="ok",
+                        input_json={
+                            "source_id": str(source.id),
+                            "original_url": source.url,
+                        },
+                        output_json={"url_normalized": canonical_url},
+                    ),
+                )
+            except Exception as exc:  # noqa: BLE001
+                source.status = "failed"
+                source.error_message = f"canonicalize_failed: {exc}"
+                source.last_error = source.error_message
+                source.next_retry_at = None
+                fetch_meta.update(
+                    {
+                        "error": source.error_message,
+                        "canonicalization_error": str(exc),
+                        "attempt": source.attempt_count,
+                        "max_attempts": source.max_attempts,
+                    }
+                )
+
+                await self.repo.create_research_event(
+                    tenant_id=tenant_id,
+                    data=ResearchEventCreate(
+                        company_research_run_id=run_id,
+                        event_type="canonicalize",
+                        status="failed",
+                        input_json={"source_id": str(source.id), "url": source.url},
+                        output_json=fetch_meta,
+                        error_message=source.error_message,
+                    ),
+                )
+
+                await self.repo.create_research_event(
+                    tenant_id=tenant_id,
+                    data=ResearchEventCreate(
+                        company_research_run_id=run_id,
+                        event_type="fetch_failed",
+                        status="failed",
+                        input_json={"source_id": str(source.id), "url": source.url},
+                        output_json=fetch_meta,
+                        error_message=source.error_message,
+                    ),
+                )
+
+                await self.db.flush()
+
+                failed += 1
+                status = "failed"
+                details.append(
+                    {
+                        "source_id": str(source.id),
+                        "url": source.url,
+                        "status": source.status,
+                        "error": source.last_error,
+                        "attempt": source.attempt_count,
+                        "next_retry_at": None,
+                        "meta": fetch_meta,
+                    }
+                )
+                source.meta = {**meta_before, "fetch_info": fetch_meta, "fetch_attempt": source.attempt_count}
+                continue
+
             await self.repo.create_research_event(
                 tenant_id=tenant_id,
                 data=ResearchEventCreate(
@@ -435,14 +522,14 @@ class CompanyExtractionService:
                     input_json={
                         "source_id": str(source.id),
                         "url": source.url,
+                        "url_normalized": source.url_normalized,
                         "attempt": source.attempt_count,
                         "max_attempts": source.max_attempts,
                     },
                 ),
             )
 
-            fetch_meta = await self._fetch_content(tenant_id, source)
-            fetch_meta = fetch_meta or {}
+            fetch_meta.update(await self._fetch_content(tenant_id, source) or {})
             fetch_meta.update(
                 {
                     "attempt": source.attempt_count,
@@ -450,7 +537,7 @@ class CompanyExtractionService:
                 }
             )
 
-            if source.status == "fetched":
+            if source.status in {"fetched", "processed"}:
                 fetched += 1
                 status = "ok"
                 source.last_error = None
@@ -604,10 +691,11 @@ class CompanyExtractionService:
                 source.fetched_at = source.fetched_at or utc_now()
                 return metadata
 
-            if not source.content_text and source.url:
+            fetch_url = source.url_normalized or source.url
+            if not source.content_text and fetch_url:
                 try:
                     # Detect Wikipedia early to use appropriate fetch method
-                    parsed_url = urlparse(source.url)
+                    parsed_url = urlparse(fetch_url)
                     is_wikipedia = 'wikipedia.org' in parsed_url.netloc
                     fetch_opts = (source.meta or {}).get("fetch_options", {}) or {}
                     
@@ -619,9 +707,9 @@ class CompanyExtractionService:
                     timeout_seconds = fetch_opts.get("timeout_seconds") or 30.0
                     
                     # Prefer HTTP/1.1 to avoid intermittent httpstat.us disconnects
-                    urls_to_try = [source.url]
-                    if source.url.startswith("https://"):
-                        urls_to_try.append(source.url.replace("https://", "http://", 1))
+                    urls_to_try = [fetch_url]
+                    if fetch_url.startswith("https://"):
+                        urls_to_try.append(fetch_url.replace("https://", "http://", 1))
 
                     response = None
                     last_exc: Optional[Exception] = None
@@ -651,10 +739,10 @@ class CompanyExtractionService:
                                 "status_code": inferred_status,
                                 "headers": fallback_headers,
                                 "error": source.error_message,
-                                "final_url": source.url,
+                                "final_url": fetch_url,
                             }
                             source.http_status_code = inferred_status
-                            source.http_final_url = source.url
+                            source.http_final_url = fetch_url
                         metadata["extraction_method"] = "error"
                         metadata["error"] = source.error_message
                         if http_info:
@@ -667,17 +755,54 @@ class CompanyExtractionService:
                     if content_length is None:
                         content_length = str(len(response.content)) if response.content is not None else None
 
+                    canonical_final_url = None
+                    try:
+                        canonical_final_url = canonicalize_url(str(response.url))
+                    except Exception as exc:  # noqa: BLE001
+                        await self.repo.create_research_event(
+                            tenant_id=tenant_id,
+                            data=ResearchEventCreate(
+                                company_research_run_id=source.company_research_run_id,
+                                event_type="redirect_resolved",
+                                status="failed",
+                                input_json={"source_id": str(source.id), "requested_url": fetch_url},
+                                output_json={"error": str(exc), "final_url": str(response.url)},
+                                error_message=str(exc),
+                            ),
+                        )
+
                     http_info = {
                         "status_code": response.status_code,
                         "headers": dict(response.headers),
                         "final_url": str(response.url),
+                        "canonical_final_url": canonical_final_url,
                         "content_type": response.headers.get("content-type"),
                         "content_length": content_length,
                     }
                     source.http_status_code = response.status_code
                     source.http_headers = dict(response.headers)
                     source.http_final_url = str(response.url)
+                    source.canonical_final_url = canonical_final_url
                     source.mime_type = response.headers.get("content-type")
+
+                    if canonical_final_url:
+                        await self.repo.create_research_event(
+                            tenant_id=tenant_id,
+                            data=ResearchEventCreate(
+                                company_research_run_id=source.company_research_run_id,
+                                event_type="redirect_resolved",
+                                status="ok",
+                                input_json={
+                                    "source_id": str(source.id),
+                                    "requested_url": fetch_url,
+                                },
+                                output_json={
+                                    "final_url": str(response.url),
+                                    "canonical_final_url": canonical_final_url,
+                                    "status_code": response.status_code,
+                                },
+                            ),
+                        )
 
                     # Some test URLs use .invalid to guarantee failure even if an intermediary returns 200
                     invalid_host = parsed_url.hostname and parsed_url.hostname.endswith(".invalid")
@@ -729,6 +854,7 @@ class CompanyExtractionService:
                     source.content_hash = hashlib.sha256(source.content_text.encode()).hexdigest()
                     source.status = "fetched"
                     source.fetched_at = utc_now()
+                    metadata.update(await self._apply_content_dedupe(tenant_id, source.company_research_run_id, source))
                     
                 except Exception as e:
                     source.status = "failed"
@@ -809,6 +935,7 @@ class CompanyExtractionService:
                         "content_length": len(raw_bytes),
                     }
                 )
+                metadata.update(await self._apply_content_dedupe(tenant_id, source.company_research_run_id, source))
             except Exception as exc:  # noqa: BLE001
                 source.status = "failed"
                 source.error_message = f"Failed to parse PDF: {exc}"
@@ -817,6 +944,76 @@ class CompanyExtractionService:
                 metadata["error"] = source.error_message
         
         return metadata
+
+    async def _apply_content_dedupe(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        source: ResearchSourceDocument,
+    ) -> Dict[str, Any]:
+        """Deduplicate sources by content hash within a run."""
+        if not source.content_hash:
+            return {}
+
+        if not run_id:
+            source.canonical_source_id = source.canonical_source_id or source.id
+            return {"deduped": False, "canonical_source_id": str(source.canonical_source_id)}
+
+        # Avoid autoflush before we check for an existing canonical source; otherwise the pending
+        # duplicate hash update would violate the unique constraint before we can mark it deduped.
+        with self.db.no_autoflush:
+            canonical = await self.repo.find_source_by_hash(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                content_hash=source.content_hash,
+                exclude_id=source.id,
+            )
+
+        if not canonical:
+            source.canonical_source_id = source.canonical_source_id or source.id
+            return {"deduped": False, "canonical_source_id": str(source.canonical_source_id)}
+
+        if canonical.id == source.id:
+            source.canonical_source_id = source.id
+            return {"deduped": False, "canonical_source_id": str(source.id)}
+
+        deduped_content_hash = source.content_hash
+        already_deduped = source.canonical_source_id == canonical.id and source.status == "processed"
+        source.canonical_source_id = canonical.id
+        source.status = "processed"
+        # Avoid violating the run-scoped unique constraint on content_hash
+        # once we've linked this source to the canonical one.
+        source.content_hash = None
+        if canonical.canonical_final_url and not source.canonical_final_url:
+            source.canonical_final_url = canonical.canonical_final_url
+        meta = dict(source.meta or {})
+        dedupe_meta = meta.get("dedupe", {})
+        dedupe_meta["deduped_to"] = str(canonical.id)
+        if deduped_content_hash:
+            dedupe_meta["content_hash"] = deduped_content_hash
+        meta["dedupe"] = dedupe_meta
+        source.meta = meta
+
+        if not already_deduped:
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=ResearchEventCreate(
+                    company_research_run_id=run_id,
+                    event_type="canonical_dedupe",
+                    status="ok",
+                    input_json={
+                        "source_id": str(source.id),
+                        "content_hash": deduped_content_hash,
+                    },
+                    output_json={
+                        "canonical_source_id": str(canonical.id),
+                        "deduped": True,
+                        "content_hash": deduped_content_hash,
+                    },
+                ),
+            )
+
+        return {"deduped": True, "canonical_source_id": str(canonical.id)}
     
     def _extract_text_from_html(self, html: str) -> str:
         """

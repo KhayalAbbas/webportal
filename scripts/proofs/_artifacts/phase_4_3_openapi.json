@@ -20517,6 +20517,17 @@
             ],
             "title": "Title"
           },
+          "original_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Url"
+          },
           "url": {
             "anyOf": [
               {
@@ -20538,6 +20549,29 @@
               }
             ],
             "title": "Url Normalized"
+          },
+          "canonical_final_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Final Url"
+          },
+          "canonical_source_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Source Id"
           },
           "file_name": {
             "anyOf": [
