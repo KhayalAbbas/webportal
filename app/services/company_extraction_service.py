@@ -515,17 +515,14 @@ class CompanyExtractionService:
             try:
                 meta = dict(source.meta or {})
                 validators = meta.get("validators") or {}
-                if (
-                    source.source_type == "url"
-                    and validators.get("pending_recheck")
-                    and (validators.get("pending_recheck_completed") or validators.get("last_checked_at"))
-                ):
-                    validators["pending_recheck"] = False
-                    validators.pop("pending_recheck_completed", None)
-                    validators["pending_recheck_attempts"] = 0
-                    validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
-                    meta["validators"] = validators
-                    source.meta = meta
+                if source.source_type == "url" and validators.get("pending_recheck"):
+                    attempts = int(validators.get("pending_recheck_attempts") or 0)
+                    if attempts >= 1 or validators.get("last_checked_at"):
+                        validators["pending_recheck"] = False
+                        validators["pending_recheck_attempts"] = 0
+                        validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
+                        meta["validators"] = validators
+                        source.meta = meta
 
                 if meta.get("processed_at"):
                     sources_detail.append(
@@ -963,7 +960,7 @@ class CompanyExtractionService:
         pending_recheck = any(
             (
                 (validators := ((src.meta or {}).get("validators") or {})).get("pending_recheck")
-                and not validators.get("pending_recheck_completed")
+                and int(validators.get("pending_recheck_attempts") or 0) < 2
             )
             for src in sources
             if src.source_type == "url"
@@ -1097,11 +1094,9 @@ class CompanyExtractionService:
                     if pending_recheck:
                         recheck_attempts = int(validators.get("pending_recheck_attempts") or 0)
 
-                        if recheck_attempts >= 1:
-                            # Already performed a conditional recheck; keep validators pending until
-                            # processing clears them, but stop re-fetching.
+                        if recheck_attempts >= 2:
+                            # Already rechecked twice; let the worker progress without re-fetching.
                             validators["pending_recheck"] = True
-                            validators["pending_recheck_completed"] = True
                             validators["pending_recheck_attempts"] = recheck_attempts
                             validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
                             meta["validators"] = validators
@@ -1223,7 +1218,6 @@ class CompanyExtractionService:
                             validators["last_seen_at"] = utc_now_iso()
                             validators["pending_recheck"] = True
                             validators["pending_recheck_attempts"] = 0
-                            validators.pop("pending_recheck_completed", None)
                             meta["validators"] = validators
                             source.meta = meta
                             metadata["validators"] = {
@@ -1234,7 +1228,6 @@ class CompanyExtractionService:
                         elif validators:
                             validators["pending_recheck"] = True
                             validators["pending_recheck_attempts"] = 0
-                            validators.pop("pending_recheck_completed", None)
                             meta["validators"] = validators
                             source.meta = meta
 
@@ -1307,7 +1300,6 @@ class CompanyExtractionService:
 
                                                 validators["pending_recheck"] = True
                                                 validators["pending_recheck_attempts"] = recheck_attempts + 1
-                                                validators.pop("pending_recheck_completed", None)
                                                 validators["last_checked_at"] = utc_now_iso()
                                                 meta["validators"] = validators
                                                 source.meta = meta
