@@ -1095,7 +1095,7 @@ class CompanyExtractionService:
                             source.http_final_url = str(resp.url)
                             source.http_error_message = None
 
-                            validators["pending_recheck"] = False
+                            validators["pending_recheck"] = True
                             validators["last_checked_at"] = utc_now_iso()
                             meta["validators"] = validators
                             source.meta = meta
@@ -1188,16 +1188,16 @@ class CompanyExtractionService:
                             if last_modified_header:
                                 validators["last_modified"] = last_modified_header
                             validators["last_seen_at"] = utc_now_iso()
-                            validators["pending_recheck"] = False
+                            validators["pending_recheck"] = True
                             meta["validators"] = validators
                             source.meta = meta
                             metadata["validators"] = {
                                 "etag": validators.get("etag"),
                                 "last_modified": validators.get("last_modified"),
-                                "pending_recheck": False,
+                                "pending_recheck": True,
                             }
                         elif validators:
-                            validators["pending_recheck"] = False
+                            validators["pending_recheck"] = True
                             meta["validators"] = validators
                             source.meta = meta
 
@@ -1268,7 +1268,7 @@ class CompanyExtractionService:
                                                 source.http_final_url = str(response.url)
                                                 source.http_error_message = None
 
-                                                validators["pending_recheck"] = False
+                                                validators["pending_recheck"] = True
                                                 validators["last_checked_at"] = utc_now_iso()
                                                 meta["validators"] = validators
                                                 source.meta = meta
