@@ -1,6 +1,0 @@
-﻿== git status -sb ==
-## master...origin/master [ahead 1]
-== git log -1 --decorate ==
-commit 8f1347f9a8cd4505692d7b69997905760c1b5704 (HEAD -> master) Author: ATS Local <local@ats> Date:   Sat Jan 3 17:29:57 2026 +0400      Phase 4.4: politeness controls (rate limit + Retry-After) + deterministic proof
-== alembic current ==
-72d5c1b8d3e3 (head)

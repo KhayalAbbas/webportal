@@ -1,9 +1,0 @@
-Run: 53eb730d-97c6-4d69-9d89-0cee19a0c9e7
-Canonical source: id=1146e1b9-cfc5-4594-9bb3-9eafd2e26ba9 status=fetched content_hash=9b9e836f5e82d2cb50d8ba01e1bde59c0687af88214d52abb2f9498617efbff0 canonical_final_url=http://127.0.0.1:8765/canonical
-Duplicate source: id=d11a6d23-8442-4fb9-80ee-79f80dde4a15 status=processed canonical_source_id=1146e1b9-cfc5-4594-9bb3-9eafd2e26ba9 content_hash=None deduped=True
-DB baseline: sources=2 events=9
-DB after: sources=2 events=9
-Fetch events baseline: {'fetch_started': 2, 'fetch_succeeded': 2}
-Fetch events after: {'fetch_started': 2, 'fetch_succeeded': 2}
-Event summary baseline: {'canonicalize': 2, 'fetch_started': 2, 'redirect_resolved': 2, 'fetch_succeeded': 2, 'canonical_dedupe': 1}
-Event summary after: {'canonicalize': 2, 'fetch_started': 2, 'redirect_resolved': 2, 'fetch_succeeded': 2, 'canonical_dedupe': 1}
