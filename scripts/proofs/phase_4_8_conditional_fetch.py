@@ -57,7 +57,7 @@ class ConditionalHandler(BaseHTTPRequestHandler):
                         return
                 except Exception:
                     pass
-            self._write(200, {"Last-Modified": FIXED_LM}, body=b"V1")
+            self._write(200, {"Last-Modified": FIXED_LM}, body=b"LMV1")
             return
 
         self._write(404, {}, body=b"not found")
