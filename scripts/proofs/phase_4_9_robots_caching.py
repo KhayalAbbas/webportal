@@ -463,8 +463,8 @@ def main() -> int:
     else:
         return_code = 0 if proof_passed else 1
     finally:
-        write_artifacts(openapi_body, postcheck_lines, preflight_lines)
         log("=== PROOF COMPLETE ===")
+        write_artifacts(openapi_body, postcheck_lines, preflight_lines)
 
     return return_code
 
