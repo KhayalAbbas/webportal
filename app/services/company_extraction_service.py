@@ -771,7 +771,10 @@ class CompanyExtractionService:
                         "meta": fetch_meta,
                     }
                 )
-                source.meta = {**meta_before, "fetch_info": fetch_meta, "fetch_attempt": source.attempt_count}
+                merged_meta = {**meta_before, **(source.meta or {})}
+                merged_meta["fetch_info"] = fetch_meta
+                merged_meta["fetch_attempt"] = source.attempt_count
+                source.meta = merged_meta
                 continue
 
             await self.repo.create_research_event(
@@ -930,7 +933,10 @@ class CompanyExtractionService:
                 }
             )
 
-            source.meta = {**meta_before, "fetch_info": fetch_meta, "fetch_attempt": source.attempt_count}
+            merged_meta = {**meta_before, **(source.meta or {})}
+            merged_meta["fetch_info"] = fetch_meta
+            merged_meta["fetch_attempt"] = source.attempt_count
+            source.meta = merged_meta
 
         # Let the worker-level commit persist changes
         retry_scheduled = next_retry_at is not None
@@ -960,7 +966,11 @@ class CompanyExtractionService:
         http_info: Dict[str, Any] = {}
         
         if source.source_type == "url":
-            if source.content_text and source.content_hash:
+            meta = dict(source.meta or {})
+            validators = meta.get("validators") or {}
+            pending_recheck = bool(validators.get("pending_recheck"))
+
+            if source.content_text and source.content_hash and not pending_recheck:
                 metadata["extraction_method"] = "cached"
                 source.status = "fetched"
                 source.fetched_at = source.fetched_at or utc_now()
@@ -978,6 +988,16 @@ class CompanyExtractionService:
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         **(fetch_opts.get("headers") or {}),
                     }
+
+                    conditional_headers: dict[str, str] = {}
+                    if validators.get("etag"):
+                        conditional_headers["If-None-Match"] = str(validators.get("etag"))
+                    if validators.get("last_modified"):
+                        conditional_headers["If-Modified-Since"] = str(validators.get("last_modified"))
+
+                    if conditional_headers:
+                        headers.update(conditional_headers)
+                        metadata["conditional_request"] = conditional_headers
 
                     timeout_override = fetch_opts.get("timeout_seconds")
                     try:
@@ -1091,6 +1111,53 @@ class CompanyExtractionService:
 
                                             status_code = response.status_code or 0
                                             location = response.headers.get("location")
+
+                                            if status_code == 304:
+                                                source.status = "fetched"
+                                                source.error_message = None
+                                                source.last_error = None
+                                                source.http_status_code = status_code
+                                                source.http_headers = dict(response.headers)
+                                                source.http_final_url = str(response.url)
+                                                source.http_error_message = None
+
+                                                validators["pending_recheck"] = False
+                                                validators["last_checked_at"] = utc_now_iso()
+                                                meta["validators"] = validators
+                                                source.meta = meta
+
+                                                http_info = {
+                                                    "status_code": status_code,
+                                                    "headers": dict(response.headers),
+                                                    "final_url": str(response.url),
+                                                }
+                                                metadata["extraction_method"] = "not_modified"
+                                                metadata["http"] = http_info
+                                                metadata["not_modified"] = True
+
+                                                await self.repo.create_research_event(
+                                                    tenant_id=tenant_id,
+                                                    data=ResearchEventCreate(
+                                                        company_research_run_id=source.company_research_run_id,
+                                                        event_type="not_modified",
+                                                        status="ok",
+                                                        input_json={
+                                                            "source_id": str(source.id),
+                                                            "requested_url": current_url,
+                                                            "url_normalized": source.url_normalized,
+                                                        },
+                                                        output_json={
+                                                            "status_code": status_code,
+                                                            "headers": dict(response.headers),
+                                                            "validators": {
+                                                                "etag": validators.get("etag"),
+                                                                "last_modified": validators.get("last_modified"),
+                                                            },
+                                                        },
+                                                    ),
+                                                )
+
+                                                return metadata
 
                                             if status_code in {301, 302, 303, 307, 308}:
                                                 if not location:
@@ -1465,6 +1532,27 @@ class CompanyExtractionService:
                                 },
                             ),
                         )
+
+                    etag_header = response_headers.get("etag") or response_headers.get("ETag")
+                    last_modified_header = response_headers.get("last-modified") or response_headers.get("Last-Modified")
+                    if etag_header or last_modified_header:
+                        if etag_header:
+                            validators["etag"] = etag_header
+                        if last_modified_header:
+                            validators["last_modified"] = last_modified_header
+                        validators["last_seen_at"] = utc_now_iso()
+                        validators["pending_recheck"] = True
+                        meta["validators"] = validators
+                        source.meta = meta
+                        metadata["validators"] = {
+                            "etag": validators.get("etag"),
+                            "last_modified": validators.get("last_modified"),
+                            "pending_recheck": True,
+                        }
+                    elif validators:
+                        validators["pending_recheck"] = False
+                        meta["validators"] = validators
+                        source.meta = meta
 
                     # Some test URLs use .invalid to guarantee failure even if an intermediary returns 200
                     invalid_host = parsed_url.hostname and parsed_url.hostname.endswith(".invalid")

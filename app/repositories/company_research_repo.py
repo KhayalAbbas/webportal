@@ -637,14 +637,20 @@ class CompanyResearchRepository:
         tenant_id: str,
         run_id: UUID,
     ) -> List[ResearchSourceDocument]:
-        """Return URL sources needing fetch attempts."""
+        """Return URL sources needing fetch attempts.
+
+        Includes fetched sources that explicitly request a conditional recheck via
+        meta.validators.pending_recheck, while preserving the original queue
+        semantics for queued/failed sources.
+        """
+
         result = await self.db.execute(
             select(ResearchSourceDocument)
             .where(
                 ResearchSourceDocument.tenant_id == tenant_id,
                 ResearchSourceDocument.company_research_run_id == run_id,
                 ResearchSourceDocument.source_type == 'url',
-                ResearchSourceDocument.status.in_(['queued', 'fetch_failed', 'failed']),
+                ResearchSourceDocument.status.in_(['queued', 'fetch_failed', 'failed', 'fetched']),
                 ResearchSourceDocument.attempt_count < ResearchSourceDocument.max_attempts,
                 or_(
                     ResearchSourceDocument.next_retry_at.is_(None),
@@ -653,7 +659,20 @@ class CompanyResearchRepository:
             )
             .order_by(ResearchSourceDocument.created_at)
         )
-        return list(result.scalars().all())
+
+        sources = list(result.scalars().all())
+        filtered: list[ResearchSourceDocument] = []
+        for source in sources:
+            if source.status != 'fetched':
+                filtered.append(source)
+                continue
+
+            meta = source.meta or {}
+            validators = (meta.get("validators") or {}) if isinstance(meta, dict) else {}
+            if validators.get("pending_recheck"):
+                filtered.append(source)
+
+        return filtered
     
     # ========================================================================
     # Research Event Operations
