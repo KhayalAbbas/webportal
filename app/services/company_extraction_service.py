@@ -18,6 +18,7 @@ from typing import List, Tuple, Optional, Set, Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from bs4 import BeautifulSoup
 from pypdf import PdfReader
@@ -706,20 +707,21 @@ class CompanyExtractionService:
 
     async def clear_pending_recheck_flags(self, tenant_id: str, run_id: UUID) -> None:
         """Clear any lingering pending_recheck flags for URL sources after processing."""
-        sources = await self.repo.get_extractable_sources(tenant_id, run_id)
-        for source in sources:
-            if source.source_type != "url":
-                continue
-
-            meta = dict(source.meta or {})
-            validators = meta.get("validators") or {}
-            if validators.get("pending_recheck"):
-                validators["pending_recheck"] = False
-                validators["pending_recheck_attempts"] = 0
-                validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
-                meta["validators"] = validators
-                source.meta = meta
-
+        await self.db.execute(
+            text(
+                """
+                UPDATE source_documents
+                SET meta = jsonb_set(
+                    jsonb_set(meta, '{validators,pending_recheck}', 'false'::jsonb, true),
+                    '{validators,pending_recheck_attempts}', '0'::jsonb, true
+                )
+                WHERE tenant_id = :tenant_id
+                  AND company_research_run_id = :run_id
+                  AND source_type = 'url'
+                """
+            ),
+            {"tenant_id": tenant_id, "run_id": str(run_id)},
+        )
         await self.db.flush()
 
     async def fetch_url_sources(
