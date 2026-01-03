@@ -5,6 +5,8 @@ Provides REST API for company discovery and agentic sourcing.
 Phase 1: Backend structures, no external AI orchestration yet.
 """
 
+import base64
+import binascii
 from typing import List, Optional
 from uuid import UUID
 
@@ -55,6 +57,13 @@ class UrlSourcePayload(BaseModel):
     url: str
     headers: Optional[dict[str, str]] = None
     timeout_seconds: Optional[int] = Field(default=30, ge=1, le=120)
+
+
+class PdfSourcePayload(BaseModel):
+    title: Optional[str] = None
+    file_name: Optional[str] = None
+    content_base64: str
+    mime_type: Optional[str] = Field(default="application/pdf", max_length=100)
 
 
 # ============================================================================
@@ -271,6 +280,51 @@ async def add_url_source(
             title=payload.title or payload.url,
             url=payload.url,
             meta=meta,
+        ),
+    )
+    await db.commit()
+    return SourceDocumentRead.model_validate(doc)
+
+
+@router.post("/runs/{run_id}/sources/pdf", response_model=SourceDocumentRead)
+async def add_pdf_source(
+    run_id: UUID,
+    payload: PdfSourcePayload,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Attach a PDF source document to a run for extraction."""
+    service = CompanyResearchService(db)
+    try:
+        await service.ensure_sources_unlocked(current_user.tenant_id, run_id)
+    except ValueError as e:
+        if str(e) == "run_not_found":
+            raise HTTPException(status_code=404, detail="Research run not found")
+        raise HTTPException(status_code=409, detail="Sources are locked after run start")
+
+    try:
+        pdf_bytes = base64.b64decode(payload.content_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid base64 PDF content")
+
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="Empty PDF content")
+
+    file_name = payload.file_name or payload.title or "uploaded.pdf"
+    url_label = f"uploaded://{file_name}"
+
+    doc = await service.add_source(
+        current_user.tenant_id,
+        SourceDocumentCreate(
+            company_research_run_id=run_id,
+            source_type="pdf",
+            title=payload.title or file_name,
+            file_name=file_name,
+            url=url_label,
+            mime_type=payload.mime_type,
+            content_bytes=pdf_bytes,
+            content_size=len(pdf_bytes),
+            meta={"kind": "pdf", "submitted_via": "api", "file_name": file_name},
         ),
     )
     await db.commit()

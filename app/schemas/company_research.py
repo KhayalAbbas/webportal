@@ -372,10 +372,14 @@ class SourceDocumentCreate(BaseModel):
     company_research_run_id: UUID
     source_type: str = Field(..., max_length=50)  # url|pdf|text
     title: Optional[str] = Field(None, max_length=500)
+    file_name: Optional[str] = Field(None, max_length=255)
     url: Optional[str] = None
     url_normalized: Optional[str] = None
     content_text: Optional[str] = None
+    content_bytes: Optional[bytes] = None
     content_hash: Optional[str] = Field(None, max_length=64)
+    content_size: Optional[int] = Field(None, ge=0)
+    mime_type: Optional[str] = Field(None, max_length=100)
     meta: dict[str, Any] = Field(default_factory=dict)
     max_attempts: Optional[int] = Field(default=3, ge=1, le=10)
 
@@ -394,7 +398,11 @@ class SourceDocumentUpdate(BaseModel):
     fetched_at: Optional[datetime] = None
     meta: Optional[dict[str, Any]] = None
     title: Optional[str] = Field(None, max_length=500)
+    file_name: Optional[str] = Field(None, max_length=255)
     url_normalized: Optional[str] = None
+    content_bytes: Optional[bytes] = None
+    content_size: Optional[int] = Field(None, ge=0)
+    mime_type: Optional[str] = Field(None, max_length=100)
     http_status_code: Optional[int] = None
     http_headers: Optional[Dict[str, Any]] = None
     http_error_message: Optional[str] = None
@@ -409,8 +417,11 @@ class SourceDocumentRead(TenantScopedRead):
     title: Optional[str] = None
     url: Optional[str] = None
     url_normalized: Optional[str] = None
+    file_name: Optional[str] = None
     content_text: Optional[str] = None
     content_hash: Optional[str] = None
+    content_size: Optional[int] = None
+    mime_type: Optional[str] = None
     status: str
     error_message: Optional[str] = None
     last_error: Optional[str] = None

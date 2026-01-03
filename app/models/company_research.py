@@ -10,7 +10,19 @@ import uuid
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
 
-from sqlalchemy import String, Text, Integer, Numeric, Boolean, DateTime, ForeignKey, Index, Enum as SQLEnum, text
+from sqlalchemy import (
+    String,
+    Text,
+    Integer,
+    Numeric,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Enum as SQLEnum,
+    text,
+    LargeBinary,
+)
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import UniqueConstraint
@@ -574,6 +586,11 @@ class ResearchSourceDocument(TenantScopedModel):
         String(500),
         nullable=True,
     )
+
+    file_name: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+    )
     
     url: Mapped[Optional[str]] = mapped_column(
         Text,
@@ -588,6 +605,13 @@ class ResearchSourceDocument(TenantScopedModel):
 
     mime_type: Mapped[Optional[str]] = mapped_column(
         String(100),
+        nullable=True,
+    )
+
+    content_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    content_bytes: Mapped[Optional[bytes]] = mapped_column(
+        LargeBinary,
         nullable=True,
     )
 

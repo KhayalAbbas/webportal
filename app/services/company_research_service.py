@@ -612,10 +612,15 @@ class CompanyResearchService:
         data: SourceDocumentCreate,
     ) -> ResearchSourceDocument:
         """Add a new source document to a research run."""
-        if not data.content_hash and data.content_text:
-            data.content_hash = self._hash_text(data.content_text)
+        if not data.content_hash:
+            if data.content_bytes:
+                data.content_hash = hashlib.sha256(data.content_bytes).hexdigest()
+            elif data.content_text:
+                data.content_hash = self._hash_text(data.content_text)
         if not data.url_normalized and data.url:
             data.url_normalized = self._normalize_url_value(data.url)
+        if data.content_bytes is not None and data.content_size is None:
+            data.content_size = len(data.content_bytes)
         return await self.repo.create_source_document(tenant_id, data)
     
     async def get_source(

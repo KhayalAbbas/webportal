@@ -6,6 +6,7 @@ and prospect creation from raw sources.
 """
 
 import hashlib
+import io
 import re
 import httpx
 from typing import List, Tuple, Optional, Set, Dict, Any
@@ -14,6 +15,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 from bs4 import BeautifulSoup
+from pypdf import PdfReader
 
 from app.repositories.company_research_repo import CompanyResearchRepository
 from app.models.company_research import ResearchSourceDocument, CompanyProspect
@@ -769,13 +771,50 @@ class CompanyExtractionService:
                 metadata["extraction_method"] = "manual_text"
         
         elif source.source_type == "pdf":
-            # For Phase 2A, placeholder - would extract PDF text
-            if not source.content_text:
-                source.content_text = "PDF content placeholder"
-                source.content_hash = hashlib.sha256(source.content_text.encode()).hexdigest()
+            raw_bytes = source.content_bytes or b""
+            if source.content_text and source.content_hash:
+                metadata["extraction_method"] = "cached"
+                source.status = "fetched"
+                source.fetched_at = source.fetched_at or utc_now()
+                return metadata
+
+            if not raw_bytes:
+                source.status = "failed"
+                source.error_message = "missing_pdf_bytes"
+                source.last_error = source.error_message
+                metadata["extraction_method"] = "error"
+                metadata["error"] = source.error_message
+                return metadata
+
+            try:
+                reader = PdfReader(io.BytesIO(raw_bytes))
+                page_text: list[str] = []
+                for page in reader.pages:
+                    text = page.extract_text() or ""
+                    if text:
+                        page_text.append(text)
+
+                combined_text = "\n".join(page_text)
+                source.content_text = self.normalize_text(combined_text)
+                source.content_hash = hashlib.sha256(raw_bytes).hexdigest()
+                source.mime_type = source.mime_type or "application/pdf"
+                source.content_size = source.content_size or len(raw_bytes)
                 source.status = "fetched"
                 source.fetched_at = utc_now()
-                metadata["extraction_method"] = "pdf_placeholder"
+                metadata.update(
+                    {
+                        "extraction_method": "pdf_text",
+                        "pages": len(reader.pages),
+                        "items_found": len(page_text),
+                        "content_length": len(raw_bytes),
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001
+                source.status = "failed"
+                source.error_message = f"Failed to parse PDF: {exc}"
+                source.last_error = source.error_message
+                metadata["extraction_method"] = "error"
+                metadata["error"] = source.error_message
         
         return metadata
     
