@@ -694,6 +694,8 @@ class CompanyExtractionService:
                 meta["validators"] = validators
                 source.meta = meta
 
+        await self.db.flush()
+
         return {
             "processed": len(sources),
             "companies_found": total_companies,
