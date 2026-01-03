@@ -1229,7 +1229,7 @@ class CompanyExtractionService:
                                                 source.http_final_url = str(response.url)
                                                 source.http_error_message = None
 
-                                                validators["pending_recheck"] = False
+                                                validators["pending_recheck"] = True
                                                 validators["last_checked_at"] = utc_now_iso()
                                                 meta["validators"] = validators
                                                 source.meta = meta
@@ -1649,7 +1649,7 @@ class CompanyExtractionService:
                         validators["no_store"] = True
                         validators["last_seen_at"] = utc_now_iso()
                         validators["last_checked_at"] = utc_now_iso()
-                        validators["pending_recheck"] = False
+                        validators["pending_recheck"] = True
                         meta["validators"] = validators
                         source.meta = meta
                         metadata["validators"] = {"no_store": True}
@@ -1664,7 +1664,7 @@ class CompanyExtractionService:
                             validators.pop("last_modified", None)
                         validators["last_seen_at"] = utc_now_iso()
                         validators["last_checked_at"] = utc_now_iso()
-                        validators["pending_recheck"] = False
+                        validators["pending_recheck"] = True
                         meta["validators"] = validators
                         source.meta = meta
                         metadata["validators"] = {
@@ -1674,7 +1674,7 @@ class CompanyExtractionService:
                     elif validators:
                         validators.pop("etag", None)
                         validators.pop("last_modified", None)
-                        validators["pending_recheck"] = False
+                        validators["pending_recheck"] = True
                         meta["validators"] = validators
                         source.meta = meta
 
