@@ -957,7 +957,6 @@ class CompanyExtractionService:
         pending_recheck = any(
             (
                 (validators := ((src.meta or {}).get("validators") or {})).get("pending_recheck")
-                and (src.attempt_count or 0) < 3
             )
             for src in sources
             if src.source_type == "url"
