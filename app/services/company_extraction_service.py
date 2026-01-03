@@ -1101,6 +1101,10 @@ class CompanyExtractionService:
                             validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
                             meta["validators"] = validators
                             source.meta = meta
+                            source.status = "fetched"
+                            source.error_message = None
+                            source.last_error = None
+                            source.http_error_message = None
                             metadata["extraction_method"] = metadata.get("extraction_method") or "conditional_cached"
                             metadata["not_modified"] = metadata.get("not_modified", True)
                             return metadata
