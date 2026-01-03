@@ -515,15 +515,6 @@ class CompanyExtractionService:
             try:
                 meta = dict(source.meta or {})
                 validators = meta.get("validators") or {}
-                if source.source_type == "url" and validators.get("pending_recheck"):
-                    attempts = int(validators.get("pending_recheck_attempts") or 0)
-                    if attempts >= 1 or validators.get("last_checked_at"):
-                        validators["pending_recheck"] = False
-                        validators["pending_recheck_attempts"] = 0
-                        validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
-                        meta["validators"] = validators
-                        source.meta = meta
-
                 if meta.get("processed_at"):
                     sources_detail.append(
                         {
