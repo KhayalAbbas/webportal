@@ -1549,13 +1549,13 @@ class CompanyExtractionService:
                         if last_modified_header:
                             validators["last_modified"] = last_modified_header
                         validators["last_seen_at"] = utc_now_iso()
-                        validators["pending_recheck"] = True
+                        validators["pending_recheck"] = False if pending_recheck else True
                         meta["validators"] = validators
                         source.meta = meta
                         metadata["validators"] = {
                             "etag": validators.get("etag"),
                             "last_modified": validators.get("last_modified"),
-                            "pending_recheck": True,
+                            "pending_recheck": validators.get("pending_recheck"),
                         }
                     elif validators:
                         validators["pending_recheck"] = False
