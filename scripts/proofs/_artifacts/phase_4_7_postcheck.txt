@@ -1,0 +1,22 @@
+run_id=1e1e6df8-be88-468c-8d07-d91848732f5a
+job_id=af7e0a73-f55b-4932-905f-50e8c3ff56d1
+sources_count=2
+events_count=13
+PASS: both sources present
+PASS: robots_fetched emitted
+PASS: robots_disallowed emitted
+PASS: public fetched
+PASS: public has content_hash
+PASS: public has fetched_at
+PASS: private blocked
+PASS: private last_error mentions robots
+PASS: private has no content_hash
+PASS: private has no fetched_at
+PASS: source count stable after reruns
+PASS: event count stable after reruns
+sources_total=2
+sources_succeeded=1
+sources_failed=1
+source_documents_total=2
+events_total=13
+events_by_type={"canonicalize": 2, "fetch_failed": 1, "fetch_started": 2, "fetch_succeeded": 1, "redirect_resolved": 1, "retry_scheduled": 1, "robots_disallowed": 1, "robots_fetched": 1, "step_failed": 1, "step_started": 1, "worker_claimed": 1}

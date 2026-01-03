@@ -1,0 +1,22 @@
+=== PHASE 4.7 ROBOTS POLICY PROOF ===
+API Base: http://localhost:8005
+Tenant: b3909011-8bd3-439d-a421-3b70fae124e9
+Preflight completed
+Purged 1 existing company_research_jobs for tenant b3909011-8bd3-439d-a421-3b70fae124e9
+Fixture HTTP server started on 127.0.0.1:8780
+Run created: 1e1e6df8-be88-468c-8d07-d91848732f5a
+URL source attached: b56b6aa7-143d-4e5d-bee4-4dd148804ce4 http://127.0.0.1:8780/public
+URL source attached: 70e031ab-07be-4dcb-8590-5e26021bd0c9 http://127.0.0.1:8780/private
+Run started (job af7e0a73-f55b-4932-905f-50e8c3ff56d1)
+Worker pass 1 complete
+Worker pass 2 complete
+Worker pass 3 complete
+worker passes took 6.547s
+Fetched DB state: 2 sources, 13 events
+Idempotent worker pass 1 complete
+Idempotent worker pass 2 complete
+idempotent passes took 3.860s
+Robots decisions: public=fetched, private=failed
+Events by type: {'worker_claimed': 1, 'step_started': 1, 'canonicalize': 2, 'fetch_started': 2, 'robots_fetched': 1, 'redirect_resolved': 1, 'fetch_succeeded': 1, 'robots_disallowed': 1, 'retry_scheduled': 1, 'fetch_failed': 1, 'step_failed': 1}
+=== PROOF COMPLETE ===
+Fixture HTTP server stopped

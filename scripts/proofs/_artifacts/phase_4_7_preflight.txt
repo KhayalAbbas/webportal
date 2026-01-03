@@ -1,0 +1,20 @@
+== openapi.json ==
+status=200 bytes=242371
+openapi matches openapi.json
+== db ==
+DB_OK
+== git status -sb ==
+## master...origin/master
+ M app/services/company_extraction_service.py
+?? scripts/proofs/phase_4_7_robots_policy.py
+working_tree_note=CLEAN
+== git log -1 --decorate ==
+commit 87af92b304d6ac0398d63a5421092fca83372dcc (HEAD -> master, tag: phase_4_6_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Sat Jan 3 20:43:09 2026 +0400
+
+    Phase 4.6: safety limits proof
+== alembic current ==
+72d5c1b8d3e3 (head)
+== alembic heads ==
+72d5c1b8d3e3 (head)

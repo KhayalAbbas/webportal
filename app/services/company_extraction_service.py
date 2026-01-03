@@ -50,10 +50,12 @@ class CompanyExtractionService:
         "application/pdf",
         "text/plain",
     }
+    _robots_cache: Dict[tuple[UUID, str], Dict[str, Any]] = {}
     
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = CompanyResearchRepository(db)
+        self._robots_cache = {}
         desired_per_domain = max(1, int(os.getenv("PER_DOMAIN_CONCURRENCY", "1")))
         desired_min_delay = max(0, int(os.getenv("PER_DOMAIN_MIN_DELAY_MS", "0"))) / 1000.0
         desired_global = int(os.getenv("GLOBAL_CONCURRENCY", "8"))
@@ -104,6 +106,75 @@ class CompanyExtractionService:
         """Deterministic retry backoff with an upper bound."""
         return min(300, 30 * max(1, attempt))
 
+    @staticmethod
+    def _parse_robots(body: str, user_agent: str) -> Dict[str, Any]:
+        """
+        Minimal robots.txt parser supporting User-agent and Disallow.
+
+        Returns a mapping with the disallow list for the best matching agent.
+        """
+        ua = (user_agent or "").lower()
+        lines = body.splitlines()
+        groups: list[Dict[str, Any]] = []
+        current_agents: list[str] = []
+        for raw_line in lines:
+            line = raw_line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            if ":" not in line:
+                continue
+            directive, value = [part.strip() for part in line.split(":", 1)]
+            directive_lower = directive.lower()
+            value_lower = value.lower()
+
+            if directive_lower == "user-agent":
+                if current_agents:
+                    groups.append({"agents": current_agents, "disallow": []})
+                    current_agents = []
+                if value_lower:
+                    current_agents.append(value_lower)
+                continue
+
+            if directive_lower == "disallow":
+                if not current_agents:
+                    current_agents = ["*"]
+                # Attach to last group if already started
+                if groups and groups[-1].get("agents") == current_agents:
+                    groups[-1].setdefault("disallow", []).append(value)
+                else:
+                    groups.append({"agents": list(current_agents), "disallow": [value]})
+
+        if current_agents:
+            groups.append({"agents": current_agents, "disallow": []})
+
+        def _matches(agent_token: str) -> bool:
+            token = agent_token.lower()
+            if token == "*":
+                return True
+            return ua.startswith(token) or token in ua
+
+        disallows: list[str] = []
+        for group in groups:
+            agents = group.get("agents") or []
+            if any(_matches(agent) for agent in agents):
+                disallows.extend(group.get("disallow", []))
+
+        # Remove empty rules which mean allow-all
+        disallows = [rule for rule in disallows if rule]
+        return {"disallow": disallows}
+
+    @staticmethod
+    def _is_path_disallowed(path: str, disallow_rules: list[str]) -> bool:
+        if not disallow_rules:
+            return False
+        normalized_path = path or "/"
+        for rule in disallow_rules:
+            if rule == "/":
+                return True
+            if normalized_path.startswith(rule):
+                return True
+        return False
+
     def _get_domain_limiter(self, domain: str) -> Dict[str, Any]:
         key = (domain or "unknown").lower()
         limiter = CompanyExtractionService._domain_limiters.get(key)
@@ -116,6 +187,95 @@ class CompanyExtractionService:
             }
             CompanyExtractionService._domain_limiters[key] = limiter
         return limiter
+
+    async def _get_robots_policy(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        robots_url: str,
+        domain: str,
+        user_agent: str,
+    ) -> Dict[str, Any]:
+        cache_key = (run_id, domain.lower())
+        cached = self._robots_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        policy: Dict[str, Any] = {"disallow": [], "origin": "missing"}
+        timeout = httpx.Timeout(self._fetch_timeout_seconds)
+        try:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, http2=False) as client:
+                response = await client.get(robots_url, headers={"User-Agent": user_agent})
+                status_code = response.status_code
+
+                if status_code == 404:
+                    policy["origin"] = "missing"
+                    await self.repo.create_research_event(
+                        tenant_id=tenant_id,
+                        data=ResearchEventCreate(
+                            company_research_run_id=run_id,
+                            event_type="robots_missing_or_unreachable",
+                            status="ok",
+                            input_json={"domain": domain, "robots_url": robots_url},
+                            output_json={"status_code": status_code},
+                        ),
+                    )
+                elif status_code >= 400:
+                    policy["origin"] = "unreachable"
+                    await self.repo.create_research_event(
+                        tenant_id=tenant_id,
+                        data=ResearchEventCreate(
+                            company_research_run_id=run_id,
+                            event_type="robots_missing_or_unreachable",
+                            status="ok",
+                            input_json={"domain": domain, "robots_url": robots_url},
+                            output_json={"status_code": status_code},
+                        ),
+                    )
+                else:
+                    body = (await response.aread()).decode(response.encoding or "utf-8", errors="replace")
+                    try:
+                        parsed = self._parse_robots(body, user_agent)
+                        policy["disallow"] = parsed.get("disallow", [])
+                        policy["origin"] = "fetched"
+                        await self.repo.create_research_event(
+                            tenant_id=tenant_id,
+                            data=ResearchEventCreate(
+                                company_research_run_id=run_id,
+                                event_type="robots_fetched",
+                                status="ok",
+                                input_json={"domain": domain, "robots_url": robots_url},
+                                output_json={"status_code": status_code, "disallow_count": len(policy["disallow"])}
+                            ),
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        policy["origin"] = "parse_error"
+                        await self.repo.create_research_event(
+                            tenant_id=tenant_id,
+                            data=ResearchEventCreate(
+                                company_research_run_id=run_id,
+                                event_type="robots_parse_error",
+                                status="failed",
+                                input_json={"domain": domain, "robots_url": robots_url},
+                                output_json={"error": str(exc)},
+                                error_message=str(exc),
+                            ),
+                        )
+        except Exception as exc:  # noqa: BLE001
+            policy["origin"] = "unreachable"
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=ResearchEventCreate(
+                    company_research_run_id=run_id,
+                    event_type="robots_missing_or_unreachable",
+                    status="ok",
+                    input_json={"domain": domain, "robots_url": robots_url},
+                    output_json={"error": str(exc)},
+                ),
+            )
+
+        self._robots_cache[cache_key] = policy
+        return policy
 
     @asynccontextmanager
     async def _acquire_request_slot(self, url: str):
@@ -836,6 +996,53 @@ class CompanyExtractionService:
                             max_fetch_bytes = max(1, min(int(max_bytes_override), int(self._max_fetch_bytes)))
                     except (TypeError, ValueError):
                         max_fetch_bytes = int(self._max_fetch_bytes)
+
+                    # robots.txt enforcement per domain per run
+                    robots_scheme = parsed_url.scheme or "http"
+                    robots_netloc = parsed_url.netloc
+                    robots_url = f"{robots_scheme}://{robots_netloc}/robots.txt" if robots_netloc else None
+                    if robots_url and robots_netloc:
+                        policy = await self._get_robots_policy(
+                            tenant_id=tenant_id,
+                            run_id=source.company_research_run_id,
+                            robots_url=robots_url,
+                            domain=robots_netloc,
+                            user_agent=headers.get("User-Agent", ""),
+                        )
+                        disallow_rules = policy.get("disallow", [])
+                        if self._is_path_disallowed(parsed_url.path or "/", disallow_rules):
+                            source.status = "failed"
+                            source.error_message = "robots_disallowed"
+                            source.last_error = source.error_message
+                            source.http_error_message = source.error_message
+                            metadata["extraction_method"] = "robots_disallowed"
+                            metadata["error"] = source.error_message
+                            metadata["robots"] = {
+                                "path": parsed_url.path or "/",
+                                "robots_url": robots_url,
+                                "disallow_rules": disallow_rules,
+                                "origin": policy.get("origin"),
+                            }
+                            await self.repo.create_research_event(
+                                tenant_id=tenant_id,
+                                data=ResearchEventCreate(
+                                    company_research_run_id=source.company_research_run_id,
+                                    event_type="robots_disallowed",
+                                    status="failed",
+                                    input_json={
+                                        "source_id": str(source.id),
+                                        "requested_url": fetch_url,
+                                    },
+                                    output_json={
+                                        "robots_url": robots_url,
+                                        "path": parsed_url.path or "/",
+                                        "disallow_rules": disallow_rules,
+                                        "origin": policy.get("origin"),
+                                    },
+                                    error_message=source.error_message,
+                                ),
+                            )
+                            return metadata
                     
                     # Prefer HTTP/1.1 to avoid intermittent httpstat.us disconnects
                     urls_to_try = [fetch_url]
