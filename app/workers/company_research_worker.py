@@ -142,6 +142,25 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                 await service.db.commit()
                 return
 
+            if result.get("pending_recheck"):
+                backoff_seconds = 0
+                await service.repo.mark_step_failed(
+                    step.id,
+                    "pending_recheck",
+                    backoff_seconds=backoff_seconds,
+                )
+                await service.mark_job_failed(job.id, "pending_recheck", backoff_seconds=backoff_seconds)
+                await service.append_event(
+                    tenant_id,
+                    run_id,
+                    "step_failed",
+                    f"Retrying step {step.step_key} for conditional recheck",
+                    meta_json={"step_key": step.step_key, "result": result, "reason": "pending_recheck"},
+                    status="failed",
+                )
+                await service.db.commit()
+                return
+
             await service.repo.mark_step_succeeded(step.id, output_json=result)
             await service.append_event(
                 tenant_id,

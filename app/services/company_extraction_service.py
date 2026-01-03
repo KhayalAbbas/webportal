@@ -689,6 +689,7 @@ class CompanyExtractionService:
         terminal_failures = 0
         details = []
         next_retry_at: Optional[datetime] = None
+        pending_recheck = False
 
         for source in sources:
             meta_before = dict(source.meta or {})
@@ -945,6 +946,12 @@ class CompanyExtractionService:
             now = utc_now()
             retry_backoff_seconds = max(1, int((next_retry_at - now).total_seconds()))
 
+        pending_recheck = any(
+            ((src.meta or {}).get("validators") or {}).get("pending_recheck")
+            for src in sources
+            if src.source_type == "url"
+        )
+
         return {
             "processed": len(sources),
             "fetched": fetched,
@@ -953,6 +960,7 @@ class CompanyExtractionService:
             "retry_scheduled": retry_scheduled,
             "next_retry_at": next_retry_at.isoformat() if next_retry_at else None,
             "retry_backoff_seconds": retry_backoff_seconds,
+            "pending_recheck": pending_recheck,
             "details": details,
         }
     
