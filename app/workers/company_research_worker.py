@@ -156,15 +156,24 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                 elif isinstance(pending_next, datetime):
                     next_retry_at = pending_next
 
-                step.next_retry_at = next_retry_at or (utc_now() + timedelta(seconds=3))
-                job.locked_at = None
-                job.locked_by = None
+                backoff_seconds = 2
+                if next_retry_at:
+                    delta_seconds = int((next_retry_at - utc_now()).total_seconds())
+                    backoff_seconds = max(1, delta_seconds)
+                step.next_retry_at = next_retry_at or (utc_now() + timedelta(seconds=backoff_seconds))
+
+                await service.mark_job_failed(job.id, "pending_url_recheck", backoff_seconds=backoff_seconds)
                 await service.append_event(
                     tenant_id,
                     run_id,
                     "step_pending",
                     f"Revalidating step {step.step_key} with conditional fetch",
-                    meta_json={"step_key": step.step_key, "result": result},
+                    meta_json={
+                        "step_key": step.step_key,
+                        "result": result,
+                        "next_retry_at": step.next_retry_at.isoformat() if step.next_retry_at else None,
+                        "pending_recheck_backoff": backoff_seconds,
+                    },
                     status="ok",
                 )
                 await service.db.flush()
