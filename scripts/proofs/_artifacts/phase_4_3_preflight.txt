@@ -1,0 +1,16 @@
+Python: 3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]
+python -V: Python 3.11.9
+git status -sb (C:\\Program Files\\Git\\cmd\\git.exe): ## master...origin/master [ahead 4]
+ M app/models/company_research.py
+ M app/repositories/company_research_repo.py
+ M app/schemas/company_research.py
+ M app/services/company_extraction_service.py
+ M app/services/company_research_service.py
+?? alembic/versions/72d5c1b8d3e3_add_canonical_url_and_dedupe_fields.py
+?? app/utils/url_canonicalizer.py
+?? scripts/proofs/phase_4_3_canonicalization_and_dedupe.py
+alembic current: 72d5c1b8d3e3 (head)
+alembic heads: 72d5c1b8d3e3 (head)
+DB ping (postgresql://postgres:postgres@localhost:5432/ats_db): DB_OK (1,)
+GET http://localhost:8005/openapi.json status=200 length=242075
+GET http://localhost:8006/openapi.json status=200 length=242371 (local)

@@ -1,0 +1,37 @@
+=== PHASE 4.3 CANONICALIZATION + DEDUPE PROOF ===
+API Base: http://localhost:8005
+Tenant: b3909011-8bd3-439d-a421-3b70fae124e9
+--- PRE-FLIGHT ---
+Python: 3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]
+python -V: Python 3.11.9
+git status -sb (C:\\Program Files\\Git\\cmd\\git.exe): ## master...origin/master [ahead 4]
+ M app/models/company_research.py
+ M app/repositories/company_research_repo.py
+ M app/schemas/company_research.py
+ M app/services/company_extraction_service.py
+ M app/services/company_research_service.py
+?? alembic/versions/72d5c1b8d3e3_add_canonical_url_and_dedupe_fields.py
+?? app/utils/url_canonicalizer.py
+?? scripts/proofs/phase_4_3_canonicalization_and_dedupe.py
+alembic current: 72d5c1b8d3e3 (head)
+alembic heads: 72d5c1b8d3e3 (head)
+DB ping (postgresql://postgres:postgres@localhost:5432/ats_db): DB_OK (1,)
+--- PRE-FLIGHT DONE ---
+Existing API detected; skipping local uvicorn start
+OpenAPI missing canonical fields; starting local uvicorn for fresh schema
+API ready; openapi.json loaded
+Fixture HTTP server started on 127.0.0.1:8765
+Run created: c25b1b02-b955-47d8-a306-6029772f8fd9
+URL source attached: 995e90fa-70e3-43aa-be64-19196ad20fcf http://127.0.0.1:8765/canonical
+URL source attached: 483d0331-d0f8-4d8e-8ba9-2a2e6ff2a3da http://127.0.0.1:8765/redirect?utm=1
+Run started (job 861e92c8-4584-48ef-a96a-21884dfcc20e)
+Worker pass 1: fetch=succeeded process=pending finalize=pending
+Worker pass 2: fetch=succeeded process=succeeded finalize=pending
+Worker pass 3: fetch=succeeded process=succeeded finalize=succeeded
+Canonical source: {'id': UUID('995e90fa-70e3-43aa-be64-19196ad20fcf'), 'url': 'http://127.0.0.1:8765/canonical', 'url_normalized': 'http://127.0.0.1:8765/canonical', 'original_url': 'http://127.0.0.1:8765/canonical', 'canonical_final_url': 'http://127.0.0.1:8765/canonical', 'canonical_source_id': UUID('995e90fa-70e3-43aa-be64-19196ad20fcf'), 'status': 'fetched', 'content_hash': '9b9e836f5e82d2cb50d8ba01e1bde59c0687af88214d52abb2f9498617efbff0', 'http_final_url': 'http://127.0.0.1:8765/canonical', 'meta': {'kind': 'url', 'fetch_info': {'http': {'headers': {'date': 'Sat, 03 Jan 2026 12:31:33 GMT', 'server': 'BaseHTTP/0.6 Python/3.11.9', 'content-type': 'text/html', 'content-length': '116'}, 'final_url': 'http://127.0.0.1:8765/canonical', 'status_code': 200, 'content_type': 'text/html', 'content_length': '116', 'canonical_final_url': 'http://127.0.0.1:8765/canonical'}, 'attempt': 1, 'deduped': False, 'items_found': 0, 'max_attempts': 3, 'canonical_url': 'http://127.0.0.1:8765/canonical', 'extraction_method': 'generic_html', 'canonical_source_id': '995e90fa-70e3-43aa-be64-19196ad20fcf'}, 'processed_at': '2026-01-03T12:31:40.150895+00:00', 'fetch_attempt': 1, 'fetch_options': {'headers': None, 'timeout_seconds': 30}, 'submitted_via': 'api', 'processed_summary': {'new': 2, 'existing': 0, 'extracted': 2}}}
+Duplicate source: {'id': UUID('483d0331-d0f8-4d8e-8ba9-2a2e6ff2a3da'), 'url': 'http://127.0.0.1:8765/redirect?utm=1', 'url_normalized': 'http://127.0.0.1:8765/redirect', 'original_url': 'http://127.0.0.1:8765/redirect?utm=1', 'canonical_final_url': 'http://127.0.0.1:8765/canonical', 'canonical_source_id': UUID('995e90fa-70e3-43aa-be64-19196ad20fcf'), 'status': 'processed', 'content_hash': None, 'http_final_url': 'http://127.0.0.1:8765/canonical/', 'meta': {'kind': 'url', 'fetch_info': {'http': {'headers': {'date': 'Sat, 03 Jan 2026 12:31:34 GMT', 'server': 'BaseHTTP/0.6 Python/3.11.9', 'content-type': 'text/html', 'content-length': '116'}, 'final_url': 'http://127.0.0.1:8765/canonical/', 'status_code': 200, 'content_type': 'text/html', 'content_length': '116', 'canonical_final_url': 'http://127.0.0.1:8765/canonical'}, 'attempt': 1, 'deduped': True, 'items_found': 0, 'max_attempts': 3, 'canonical_url': 'http://127.0.0.1:8765/redirect', 'extraction_method': 'generic_html', 'canonical_source_id': '995e90fa-70e3-43aa-be64-19196ad20fcf'}, 'fetch_attempt': 1, 'fetch_options': {'headers': None, 'timeout_seconds': 30}, 'submitted_via': 'api'}}
+--- IDEMPOTENCY CHECK (no new inputs) ---
+DB baseline: sources=2 events=9 / DB after: sources=2 events=9
+Fetch events baseline: {'fetch_started': 2, 'fetch_succeeded': 2} / after: {'fetch_started': 2, 'fetch_succeeded': 2}
+Event summary baseline: {'canonicalize': 2, 'fetch_started': 2, 'redirect_resolved': 2, 'fetch_succeeded': 2, 'canonical_dedupe': 1} / after: {'canonicalize': 2, 'fetch_started': 2, 'redirect_resolved': 2, 'fetch_succeeded': 2, 'canonical_dedupe': 1}
+=== PROOF COMPLETE ===
