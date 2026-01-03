@@ -684,6 +684,17 @@ class CompanyExtractionService:
                     ),
                 )
         
+        for source in sources:
+            if source.source_type == "url":
+                meta = dict(source.meta or {})
+                validators = meta.get("validators") or {}
+                if validators.get("pending_recheck"):
+                    validators["pending_recheck"] = False
+                    validators["pending_recheck_attempts"] = 0
+                    validators["last_checked_at"] = validators.get("last_checked_at") or utc_now_iso()
+                    meta["validators"] = validators
+                    source.meta = meta
+
         return {
             "processed": len(sources),
             "companies_found": total_companies,
