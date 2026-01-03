@@ -196,6 +196,15 @@ def purge_jobs(tenant_id: str) -> int:
     return deleted
 
 
+def purge_robots_cache(tenant_id: str) -> int:
+    dsn = _get_dsn()
+    with psycopg2.connect(dsn) as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM robots_policy_cache WHERE tenant_id = %s", (tenant_id,))
+            deleted = cur.rowcount
+    return deleted
+
+
 def write_artifacts(openapi_body: dict | None, postcheck_lines: list[str], preflight_lines: list[str]) -> None:
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     LOG_ARTIFACT.write_text("\n".join(LOG_LINES), encoding="utf-8")
@@ -314,6 +323,9 @@ def main() -> int:
 
         purged = purge_jobs(tenant_id)
         log(f"Purged {purged} existing company_research_jobs for tenant {tenant_id}")
+
+        purged_cache = purge_robots_cache(tenant_id)
+        log(f"Purged {purged_cache} existing robots_policy_cache rows for tenant {tenant_id}")
 
         domain1_bodies = {
             "/page1": b"<html><body>Domain1 Page1</body></html>",
