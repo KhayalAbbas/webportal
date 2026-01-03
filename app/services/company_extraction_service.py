@@ -50,7 +50,9 @@ class CompanyExtractionService:
         "application/pdf",
         "text/plain",
     }
-    _robots_cache: Dict[tuple[UUID, str], Dict[str, Any]] = {}
+    _robots_cache: Dict[tuple[str, str, str], Dict[str, Any]] = {}
+    _robots_cache_ttl_seconds: int = 3600
+    _robots_cache_negative_ttl_seconds: int = 300
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -65,6 +67,9 @@ class CompanyExtractionService:
         allowed_raw = os.getenv("ALLOWED_CONTENT_TYPES")
         if allowed_raw:
             CompanyExtractionService._allowed_content_types = {c.strip().lower() for c in allowed_raw.split(",") if c.strip()}
+
+        self._robots_cache_ttl_seconds = max(60, int(os.getenv("ROBOTS_CACHE_TTL_SECONDS", "3600")))
+        self._robots_cache_negative_ttl_seconds = max(30, int(os.getenv("ROBOTS_CACHE_NEGATIVE_TTL_SECONDS", "300")))
 
         if (
             not CompanyExtractionService._limiter_initialized
@@ -196,12 +201,58 @@ class CompanyExtractionService:
         domain: str,
         user_agent: str,
     ) -> Dict[str, Any]:
-        cache_key = (run_id, domain.lower())
-        cached = self._robots_cache.get(cache_key)
-        if cached is not None:
-            return cached
+        domain_norm = (domain or "").lower()
+        user_agent_norm = (user_agent or "").lower()
+        cache_key = (tenant_id, domain_norm, user_agent_norm)
+        now = utc_now()
+
+        cached_entry = self._robots_cache.get(cache_key)
+        if cached_entry:
+            expires_at = cached_entry.get("expires_at")
+            if expires_at and expires_at > now:
+                await self.repo.create_research_event(
+                    tenant_id=tenant_id,
+                    data=ResearchEventCreate(
+                        company_research_run_id=run_id,
+                        event_type="robots_cache_hit",
+                        status="ok",
+                        input_json={"domain": domain_norm, "robots_url": robots_url, "source": "memory"},
+                        output_json={"expires_at": expires_at.isoformat()},
+                    ),
+                )
+                return cached_entry["policy"]
+            self._robots_cache.pop(cache_key, None)
+
+        db_cached = await self.repo.get_cached_robots_policy(tenant_id, domain_norm, user_agent_norm)
+        if db_cached and db_cached.expires_at and db_cached.expires_at > now:
+            policy_from_db: Dict[str, Any] = dict(db_cached.policy or {})
+            if "origin" not in policy_from_db:
+                policy_from_db["origin"] = db_cached.origin or "cached"
+            self._robots_cache[cache_key] = {"policy": policy_from_db, "expires_at": db_cached.expires_at}
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=ResearchEventCreate(
+                    company_research_run_id=run_id,
+                    event_type="robots_cache_hit",
+                    status="ok",
+                    input_json={"domain": domain_norm, "robots_url": robots_url, "source": "db"},
+                    output_json={"expires_at": db_cached.expires_at.isoformat()},
+                ),
+            )
+            return policy_from_db
+
+        await self.repo.create_research_event(
+            tenant_id=tenant_id,
+            data=ResearchEventCreate(
+                company_research_run_id=run_id,
+                event_type="robots_cache_miss",
+                status="ok",
+                input_json={"domain": domain_norm, "robots_url": robots_url},
+            ),
+        )
 
         policy: Dict[str, Any] = {"disallow": [], "origin": "missing"}
+        status_code: Optional[int] = None
         timeout = httpx.Timeout(self._fetch_timeout_seconds)
         try:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, http2=False) as client:
@@ -273,8 +324,27 @@ class CompanyExtractionService:
                     output_json={"error": str(exc)},
                 ),
             )
+            status_code = status_code or None
 
-        self._robots_cache[cache_key] = policy
+        ttl_seconds = self._robots_cache_ttl_seconds
+        if policy.get("origin") in {"missing", "unreachable", "parse_error"}:
+            ttl_seconds = self._robots_cache_negative_ttl_seconds
+
+        expires_at = now + timedelta(seconds=ttl_seconds)
+        policy["fetched_at"] = now.isoformat()
+
+        await self.repo.upsert_robots_policy_cache(
+            tenant_id=tenant_id,
+            domain=domain_norm,
+            user_agent=user_agent_norm,
+            policy=policy,
+            origin=policy.get("origin"),
+            status_code=status_code,
+            fetched_at=now,
+            expires_at=expires_at,
+        )
+
+        self._robots_cache[cache_key] = {"policy": policy, "expires_at": expires_at}
         return policy
 
     @asynccontextmanager

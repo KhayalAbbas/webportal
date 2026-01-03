@@ -22,6 +22,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
     text,
     LargeBinary,
+    func,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -715,6 +716,30 @@ class ResearchSourceDocument(TenantScopedModel):
         Index("ix_source_documents_hash", "content_hash"),
         Index("ix_source_documents_canonical_source_id", "canonical_source_id"),
         # Note: Unique constraint on (tenant_id, content_hash) would be beneficial but skipped due to existing duplicates
+    )
+
+
+class RobotsPolicyCache(TenantScopedModel):
+    """Cached robots.txt policy per tenant/domain/user-agent."""
+
+    __tablename__ = "robots_policy_cache"
+
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    user_agent: Mapped[str] = mapped_column(String(255), nullable=False)
+    policy: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default='{}')
+    origin: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    status_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "domain", "user_agent", name="uq_robots_policy_cache"),
+        Index("ix_robots_policy_cache_domain_user_agent", "domain", "user_agent"),
+        Index("ix_robots_policy_cache_expires_at", "expires_at"),
     )
 
 

@@ -24,6 +24,7 @@ from app.models.company_research import (
     CompanyResearchJob,
     CompanyResearchRunPlan,
     CompanyResearchRunStep,
+    RobotsPolicyCache,
 )
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -674,6 +675,69 @@ class CompanyResearchRepository:
                 filtered.append(source)
 
         return filtered
+
+    # ========================================================================
+    # Robots Policy Cache Operations
+    # ========================================================================
+
+    async def get_cached_robots_policy(
+        self,
+        tenant_id: str,
+        domain: str,
+        user_agent: str,
+    ) -> Optional[RobotsPolicyCache]:
+        domain_norm = (domain or "").lower()
+        user_agent_norm = (user_agent or "").lower()
+        result = await self.db.execute(
+            select(RobotsPolicyCache).where(
+                RobotsPolicyCache.tenant_id == tenant_id,
+                RobotsPolicyCache.domain == domain_norm,
+                RobotsPolicyCache.user_agent == user_agent_norm,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def upsert_robots_policy_cache(
+        self,
+        tenant_id: str,
+        domain: str,
+        user_agent: str,
+        policy: dict,
+        origin: Optional[str],
+        status_code: Optional[int],
+        fetched_at: datetime,
+        expires_at: datetime,
+    ) -> RobotsPolicyCache:
+        domain_norm = (domain or "").lower()
+        user_agent_norm = (user_agent or "").lower()
+
+        insert_stmt = insert(RobotsPolicyCache).values(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            domain=domain_norm,
+            user_agent=user_agent_norm,
+            policy=policy,
+            origin=origin,
+            status_code=status_code,
+            fetched_at=fetched_at,
+            expires_at=expires_at,
+        )
+
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            constraint="uq_robots_policy_cache",
+            set_={
+                "policy": insert_stmt.excluded.policy,
+                "origin": insert_stmt.excluded.origin,
+                "status_code": insert_stmt.excluded.status_code,
+                "fetched_at": insert_stmt.excluded.fetched_at,
+                "expires_at": insert_stmt.excluded.expires_at,
+                "updated_at": func.now(),
+            },
+        ).returning(RobotsPolicyCache)
+
+        result = await self.db.execute(upsert_stmt)
+        await self.db.flush()
+        return result.scalar_one()
     
     # ========================================================================
     # Research Event Operations
