@@ -7,7 +7,7 @@ Stores AI-generated enrichments for candidates, companies, roles, and documents.
 import uuid
 from typing import Optional
 
-from sqlalchemy import String
+from sqlalchemy import String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -94,4 +94,16 @@ class AIEnrichmentRecord(TenantScopedModel):
     error_message: Mapped[Optional[str]] = mapped_column(
         String,
         nullable=True,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "purpose",
+            "provider",
+            "content_hash",
+            "target_id",
+            "target_type",
+            name="uq_ai_enrichment_content_hash",
+        ),
     )

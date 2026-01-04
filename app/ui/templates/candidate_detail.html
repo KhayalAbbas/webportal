@@ -31,6 +31,13 @@
 <h2 class="section-title">Profile</h2>
 <div class="detail-section">
     <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 10px;">Contact</h3>
+    <form method="post" action="/ui/candidates/{{ candidate.id }}/enrich-contacts" style="margin-bottom: 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <label style="margin: 0; display: flex; align-items: center; gap: 4px;"><input type="checkbox" name="providers" value="lusha" checked> Lusha</label>
+            <label style="margin: 0; display: flex; align-items: center; gap: 4px;"><input type="checkbox" name="providers" value="signalhire" checked> SignalHire</label>
+        </div>
+        <button type="submit" class="btn btn-primary">Enrich contacts</button>
+    </form>
     <div class="detail-grid">
         <div class="detail-label">Email</div>
         <div class="detail-value">{{ candidate.email or '-' }}</div>
@@ -50,6 +57,38 @@
         <div class="detail-label">Mobile 2</div>
         <div class="detail-value">{{ candidate.mobile_2 or '-' }}</div>
     </div>
+
+    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Contact Points (enriched)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Kind</th>
+                <th>Value</th>
+                <th>Label</th>
+                <th>Provider</th>
+                <th>Confidence</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if contact_points %}
+                {% for point in contact_points %}
+                <tr>
+                    <td>{{ point.kind }}</td>
+                    <td>{{ point.value_raw }}</td>
+                    <td>{{ point.label or '-' }}</td>
+                    <td>{{ point.provider or '-' }}</td>
+                    <td>{{ ('%.2f' % point.confidence) if point.confidence is not none else '-' }}</td>
+                    <td>{{ point.created_at.strftime('%Y-%m-%d %H:%M') if point.created_at else '-' }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">No enriched contact points yet</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
     
     <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Personal</h3>
     <div class="detail-grid">

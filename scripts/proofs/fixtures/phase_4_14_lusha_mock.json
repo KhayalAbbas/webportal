@@ -1,0 +1,13 @@
+{
+  "provider": "lusha",
+  "schema_version": "1.0",
+  "source_url": "https://lusha.example/profiles/jane-doe",
+  "fetched_at": "2026-01-04T00:00:00Z",
+  "emails": [
+    {"value": "jane.doe@acme.com", "label": "work", "primary": true, "confidence": 0.94},
+    {"value": "jane.prospect@personalmail.com", "label": "personal", "primary": false, "confidence": 0.76}
+  ],
+  "phones": [
+    {"value": "+1 415 555 1111", "label": "mobile", "primary": true, "confidence": 0.82}
+  ]
+}

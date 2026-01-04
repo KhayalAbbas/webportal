@@ -16,6 +16,7 @@ from app.models.activity_log import ActivityLog
 from app.models.research_event import ResearchEvent
 from app.models.source_document import SourceDocument
 from app.models.ai_enrichment_record import AIEnrichmentRecord
+from app.models.candidate_contact_point import CandidateContactPoint
 from app.models.candidate_assignment import CandidateAssignment
 from app.models.assessment_result import AssessmentResult
 from app.models.task import Task
@@ -44,6 +45,7 @@ __all__ = [
     "ResearchEvent",
     "SourceDocument",
     "AIEnrichmentRecord",
+    "CandidateContactPoint",
     "CandidateAssignment",
     "AssessmentResult",
     "Task",

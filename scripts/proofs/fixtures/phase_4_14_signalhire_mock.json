@@ -1,0 +1,14 @@
+{
+  "provider": "signalhire",
+  "schema_version": "1.0",
+  "source_url": "https://signalhire.example/lookup/jane-doe",
+  "fetched_at": "2026-01-04T00:05:00Z",
+  "emails": [
+    {"value": "jane.doe@acme.com", "label": "work", "primary": true, "confidence": 0.9},
+    {"value": "jane.doe@altmail.net", "label": "alt", "primary": false, "confidence": 0.7}
+  ],
+  "phones": [
+    {"value": "+1 628 555 2222", "label": "work", "primary": true, "confidence": 0.74},
+    {"value": "+1-628-555-3333", "label": "desk", "primary": false, "confidence": 0.6}
+  ]
+}

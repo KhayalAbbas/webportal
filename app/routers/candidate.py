@@ -12,8 +12,10 @@ from app.core.dependencies import get_db, get_tenant_id, verify_user_tenant_acce
 from app.models.user import User
 from app.schemas.candidate import CandidateCreate, CandidateRead, CandidateUpdate
 from app.schemas.entity_research import EntityResearchData
+from app.schemas.contact_enrichment import ContactEnrichmentRequest, ContactEnrichmentResponse
 from app.services.candidate_service import CandidateService
 from app.services.entity_research_service import EntityResearchService
+from app.services.contact_enrichment_service import ContactEnrichmentService
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
 
@@ -128,3 +130,28 @@ async def get_candidate_research(
         entity_type="CANDIDATE",
         entity_id=candidate_id
     )
+
+
+@router.post("/{candidate_id}/contact-enrichment", response_model=ContactEnrichmentResponse)
+async def enrich_candidate_contacts(
+    candidate_id: UUID,
+    payload: ContactEnrichmentRequest,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger manual contact enrichment for a candidate."""
+    service = ContactEnrichmentService(db)
+    results = await service.enrich_candidate_contacts(
+        tenant_id=str(current_user.tenant_id),
+        candidate_id=candidate_id,
+        request=payload,
+        performed_by=current_user.email or current_user.username,
+    )
+
+    if results is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate not found",
+        )
+
+    return ContactEnrichmentResponse(candidate_id=candidate_id, results=results)

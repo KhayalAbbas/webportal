@@ -35,6 +35,7 @@ from app.models import (
     ResearchEvent,
     SourceDocument,
     AIEnrichmentRecord,
+    CandidateContactPoint,
     CandidateAssignment,
     AssessmentResult,
     Task,

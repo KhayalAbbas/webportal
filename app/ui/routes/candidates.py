@@ -4,7 +4,7 @@ Candidates routes for UI.
 
 from typing import Optional
 from uuid import UUID
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 from datetime import date
 
 from fastapi import APIRouter, Depends, Request, Query, Form
@@ -19,11 +19,14 @@ from app.ui.dependencies import get_current_ui_user_and_tenant, UIUser
 from app.services.search_service import SearchService
 from app.services.entity_research_service import EntityResearchService
 from app.repositories.candidate_repository import CandidateRepository
+from app.repositories.candidate_contact_point_repository import CandidateContactPointRepository
 from app.schemas.candidate import CandidateCreate, CandidateUpdate
+from app.schemas.contact_enrichment import ContactEnrichmentRequest
 from app.models.role import Role
 from app.models.company import Company
 from app.models.candidate_assignment import CandidateAssignment
 from app.models.pipeline_stage import PipelineStage
+from app.services.contact_enrichment_service import ContactEnrichmentService
 
 
 router = APIRouter()
@@ -474,6 +477,9 @@ async def candidate_detail(
         entity_type="CANDIDATE",
         entity_id=candidate_id
     )
+
+    contact_repo = CandidateContactPointRepository(session)
+    contact_points = await contact_repo.get_by_candidate(current_user.tenant_id, candidate_id)
     
     # Check for success message
     msg = request.query_params.get("msg", "")
@@ -487,6 +493,47 @@ async def candidate_detail(
             "candidate": candidate,
             "assignments": assignments,
             "research": research,
+            "contact_points": contact_points,
             "success_message": msg,
         }
+    )
+
+
+@router.post("/ui/candidates/{candidate_id}/enrich-contacts")
+async def enrich_candidate_contacts_ui(
+    request: Request,
+    candidate_id: UUID,
+    providers: list[str] | None = Form(None),
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    db: AsyncSession = Depends(get_db),
+):
+    """UI handler to trigger manual contact enrichment for a candidate."""
+
+    raise_if_not_roles(
+        current_user.role,
+        [Roles.ADMIN, Roles.CONSULTANT],
+        "enrich candidate contacts",
+    )
+
+    provider_list = providers or ["lusha", "signalhire"]
+    service = ContactEnrichmentService(db)
+    payload = ContactEnrichmentRequest(providers=provider_list, mode="mock")
+
+    results = await service.enrich_candidate_contacts(
+        tenant_id=str(current_user.tenant_id),
+        candidate_id=candidate_id,
+        request=payload,
+        performed_by=current_user.email or current_user.username,
+    )
+
+    if results is None:
+        return RedirectResponse(url="/ui/candidates", status_code=303)
+
+    summary = "; ".join([
+        f"{r.provider}:{r.status} (+{r.added_points}/~{r.skipped_points})" for r in results
+    ])
+
+    return RedirectResponse(
+        url=f"/ui/candidates/{candidate_id}?msg={quote(summary)}",
+        status_code=303,
     )

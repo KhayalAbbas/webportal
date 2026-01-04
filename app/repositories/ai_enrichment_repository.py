@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai_enrichment_record import AIEnrichmentRecord
@@ -121,3 +121,52 @@ class AIEnrichmentRepository:
         """Delete an AI enrichment record."""
         await self.db.delete(enrichment)
         await self.db.flush()
+
+    async def get_by_hash(
+        self,
+        tenant_id: UUID,
+        provider: str,
+        purpose: str,
+        content_hash: str,
+        target_id: UUID,
+        target_type: str,
+    ) -> Optional[AIEnrichmentRecord]:
+        """Return an enrichment by its idempotency key."""
+        result = await self.db.execute(
+            select(AIEnrichmentRecord).where(
+                and_(
+                    AIEnrichmentRecord.tenant_id == tenant_id,
+                    AIEnrichmentRecord.provider == provider,
+                    AIEnrichmentRecord.purpose == purpose,
+                    AIEnrichmentRecord.content_hash == content_hash,
+                    AIEnrichmentRecord.target_id == target_id,
+                    AIEnrichmentRecord.target_type == target_type,
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def get_latest_for_provider(
+        self,
+        tenant_id: UUID,
+        provider: str,
+        purpose: str,
+        target_id: UUID,
+        target_type: str,
+    ) -> Optional[AIEnrichmentRecord]:
+        """Return the most recent enrichment for a provider and target."""
+        result = await self.db.execute(
+            select(AIEnrichmentRecord)
+            .where(
+                and_(
+                    AIEnrichmentRecord.tenant_id == tenant_id,
+                    AIEnrichmentRecord.provider == provider,
+                    AIEnrichmentRecord.purpose == purpose,
+                    AIEnrichmentRecord.target_id == target_id,
+                    AIEnrichmentRecord.target_type == target_type,
+                )
+            )
+            .order_by(desc(AIEnrichmentRecord.created_at))
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
