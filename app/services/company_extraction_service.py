@@ -1623,6 +1623,18 @@ class CompanyExtractionService:
                     source.canonical_final_url = canonical_final_url
                     source.mime_type = content_type_header
 
+                    is_pdf = content_type_header and "pdf" in content_type_header.lower()
+                    if is_pdf:
+                        source.content_bytes = content_bytes
+                        source.content_text = ""
+                        source.content_hash = hashlib.sha256(content_bytes or b"").hexdigest() if content_bytes else None
+                        source.status = "fetched"
+                        source.fetched_at = utc_now()
+                        metadata["extraction_method"] = "pdf_raw"
+                        metadata["http"] = http_info
+                        metadata["bytes_read"] = bytes_read
+                        return metadata
+
                     if canonical_final_url:
                         await self.repo.create_research_event(
                             tenant_id=tenant_id,

@@ -2,9 +2,18 @@ import argparse
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 
 RATE_LIMIT_STATE = {"count": 0}
+FIXTURE_DIR = Path("scripts/proofs/_fixtures")
+PDF_FIXTURE = FIXTURE_DIR / "sample.pdf"
+LONG_HTML_SENTENCE = (
+    "Deterministic fixture text for extraction quality checks. Orion Analytics builds secure telemetry platforms "
+    "for spacecraft, while Harbor Navigation automates port logistics with resilient APIs. Each release ships "
+    "with observability, rate limits, and typed contracts for safety-critical integrations."
+)
+LONG_HTML_BODY = " ".join([LONG_HTML_SENTENCE for _ in range(40)])
 
 
 class FixtureHandler(BaseHTTPRequestHandler):
@@ -66,6 +75,37 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._write(429, {"Retry-After": "1", "Content-Type": "text/plain"}, b"retry later")
                 return
             self._write(200, {"Content-Type": "text/html"}, b"<html><body>rate ok</body></html>")
+            return
+
+        if path == "/content_html":
+            body = f"<html><head><title>Fixture Content</title></head><body><h1>Fixture Content</h1><p>{LONG_HTML_BODY}</p></body></html>".encode("utf-8")
+            self._write(200, {"Content-Type": "text/html"}, body)
+            return
+
+        if path == "/content_html_variant":
+            variant_tail = " Variant marker B to force a different hash while keeping the template signature stable."
+            body = (
+                f"<html><head><title>Fixture Content</title></head><body>"
+                f"<h1>Fixture Content</h1><p>{LONG_HTML_BODY}{variant_tail}</p></body></html>"
+            ).encode("utf-8")
+            self._write(200, {"Content-Type": "text/html"}, body)
+            return
+
+        if path == "/thin_html":
+            body = b"<html><body><p>Hi</p></body></html>"
+            self._write(200, {"Content-Type": "text/html"}, body)
+            return
+
+        if path == "/login_html":
+            body = b"<html><head><title>Sign in Required</title></head><body>Please sign in or subscribe to continue.</body></html>"
+            self._write(200, {"Content-Type": "text/html"}, body)
+            return
+
+        if path == "/pdf":
+            if PDF_FIXTURE.exists():
+                self._write(200, {"Content-Type": "application/pdf"}, PDF_FIXTURE.read_bytes())
+            else:
+                self._write(500, {"Content-Type": "text/plain"}, b"pdf fixture missing")
             return
 
         self._write(404, {"Content-Type": "application/json"}, json.dumps({"error": "not found"}).encode("utf-8"))

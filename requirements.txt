@@ -26,5 +26,11 @@ itsdangerous==2.1.2
 pytest==7.4.3
 pytest-asyncio==0.21.1
 
+# HTTP client (pinned for Starlette TestClient compatibility)
+httpx<0.28
+
 # PDF parsing
 pypdf==4.1.0
+
+# HTML parsing
+beautifulsoup4==4.12.3

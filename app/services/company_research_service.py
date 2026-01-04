@@ -189,6 +189,13 @@ class CompanyResearchService:
                 "max_attempts": 5,
             },
             {
+                "step_key": "extract_url_sources",
+                "step_order": 15,
+                "rationale": "Deterministically extract text + quality flags from fetched sources",
+                "enabled": has_url_sources,
+                "max_attempts": 3,
+            },
+            {
                 "step_key": "process_sources",
                 "step_order": 20,
                 "rationale": "Process queued research sources",

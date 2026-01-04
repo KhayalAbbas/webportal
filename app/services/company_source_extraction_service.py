@@ -1,0 +1,289 @@
+"""
+Deterministic extraction for ResearchSourceDocument rows (HTML/PDF).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import io
+import re
+from typing import Any, Dict, List, Optional
+
+from bs4 import BeautifulSoup
+from pypdf import PdfReader
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.repositories.company_research_repo import CompanyResearchRepository
+from app.schemas.company_research import ResearchEventCreate
+from app.utils.time import utc_now
+
+
+class CompanySourceExtractionService:
+    """Extracts text and quality signals from research source documents."""
+
+    EXTRACTION_VERSION = "5.1.0"
+    MIN_WORDS_HTML = 150
+    MIN_WORDS_PDF = 50
+    PAYWALL_KEYWORDS = ["subscribe", "sign in", "log in", "access denied", "registration", "paywall"]
+    ERROR_KEYWORDS = ["page not found", "404", "service unavailable", "temporarily unavailable"]
+    TEMPLATE_SIGNATURE_BYTES = 2000
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.repo = CompanyResearchRepository(db)
+
+    async def extract_sources(self, tenant_id: str, run_id) -> dict:
+        sources = await self.repo.get_extractable_sources(tenant_id, run_id)
+        summary = {
+            "count": len(sources),
+            "processed": 0,
+            "skipped": 0,
+            "accepted": 0,
+            "flagged": 0,
+            "rejected": 0,
+            "sources": [],
+        }
+
+        seen_signatures: set[str] = set()
+
+        for source in sources:
+            meta = dict(source.meta or {}) if isinstance(source.meta, dict) else {}
+            extraction_meta: Dict[str, Any] = meta.get("extraction") or {}
+
+            raw_bytes = source.content_bytes or b""
+            mime = (source.mime_type or "").lower()
+            material_bytes = raw_bytes if raw_bytes else (source.content_text or "").encode("utf-8")
+            material_hash = hashlib.sha256(material_bytes).hexdigest()
+
+            prev_version = extraction_meta.get("version")
+            prev_material_hash = extraction_meta.get("source_material_hash")
+            prev_text_hash = extraction_meta.get("text_hash")
+            if prev_version == self.EXTRACTION_VERSION and prev_material_hash == material_hash and prev_text_hash:
+                summary["skipped"] += 1
+                summary["sources"].append({"id": str(source.id), "status": "skipped", "reason": "already_extracted"})
+                await self.repo.create_research_event(
+                    tenant_id=tenant_id,
+                    data=ResearchEventCreate(
+                        company_research_run_id=run_id,
+                        event_type="extract_source_content",
+                        status="ok",
+                        input_json={"source_id": str(source.id), "skipped": True},
+                        output_json={"reason": "already_extracted"},
+                    ),
+                )
+                continue
+
+            text: str = ""
+            title: Optional[str] = None
+            page_count: Optional[int] = None
+            pdf_unextractable = False
+            pdf_bytes_missing = False
+            is_pdf_type = "pdf" in mime or (source.source_type and source.source_type.lower() == "pdf")
+            is_html_like = not is_pdf_type and ("html" in mime or "text" in mime or not mime)
+            unsupported_type = not is_pdf_type and not is_html_like
+
+            if is_pdf_type:
+                if raw_bytes:
+                    text, page_count, pdf_unextractable = self._extract_pdf(raw_bytes)
+                else:
+                    text = source.content_text or ""
+                    page_count = None
+                    pdf_unextractable = not bool(text)
+                    pdf_bytes_missing = True
+                min_words = self.MIN_WORDS_PDF
+            elif unsupported_type:
+                text = source.content_text or ""
+                min_words = self.MIN_WORDS_HTML
+            else:
+                if raw_bytes:
+                    text, title = self._extract_html(raw_bytes)
+                else:
+                    text = source.content_text or ""
+                min_words = self.MIN_WORDS_HTML
+
+            normalized_text = self._normalize_text(text)
+            word_count = self._count_words(normalized_text)
+            char_count = len(normalized_text)
+            line_count = len([ln for ln in normalized_text.split("\n") if ln.strip()])
+
+            reason_codes: List[str] = []
+            quality_flags = {
+                "is_thin": False,
+                "is_paywall_or_login": False,
+                "is_error_page": False,
+                "is_duplicate_template": False,
+                "is_unextractable_pdf": False,
+                "is_pdf_bytes_missing": False,
+                "is_unsupported_type": False,
+            }
+
+            if unsupported_type:
+                quality_flags["is_unsupported_type"] = True
+                reason_codes.append("FLAG_UNSUPPORTED_TYPE")
+
+            if pdf_bytes_missing:
+                quality_flags["is_pdf_bytes_missing"] = True
+                reason_codes.append("FLAG_PDF_BYTES_MISSING")
+
+            if word_count == 0:
+                reason_codes.append("REJECT_EMPTY_TEXT")
+            else:
+                if word_count < min_words:
+                    quality_flags["is_thin"] = True
+                    reason_codes.append("REJECT_THIN_CONTENT")
+
+                probe_text = ((title or "") + " " + normalized_text[:2000]).lower()
+                if any(keyword in probe_text for keyword in self.PAYWALL_KEYWORDS):
+                    quality_flags["is_paywall_or_login"] = True
+                    reason_codes.append("FLAG_PAYWALL_OR_LOGIN")
+                if any(keyword in probe_text for keyword in self.ERROR_KEYWORDS):
+                    quality_flags["is_error_page"] = True
+                    reason_codes.append("FLAG_ERROR_PAGE")
+                if pdf_unextractable:
+                    quality_flags["is_unextractable_pdf"] = True
+                    reason_codes.append("FLAG_UNEXTRACTABLE_PDF")
+
+            template_signature = None
+            if normalized_text:
+                normalized_for_sig = normalized_text[: self.TEMPLATE_SIGNATURE_BYTES]
+                template_signature = hashlib.sha256(normalized_for_sig.encode("utf-8")).hexdigest()
+                if template_signature in seen_signatures:
+                    quality_flags["is_duplicate_template"] = True
+                    reason_codes.append("FLAG_DUPLICATE_TEMPLATE")
+                seen_signatures.add(template_signature)
+
+            decision = "accept"
+            if any(code.startswith("REJECT_") for code in reason_codes):
+                decision = "reject"
+            elif any(code.startswith("FLAG_") for code in reason_codes):
+                decision = "flag"
+
+            extraction_timestamp = utc_now()
+            text_hash = hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
+
+            extraction_meta = {
+                "version": self.EXTRACTION_VERSION,
+                "source_material_hash": material_hash,
+                "text_hash": text_hash,
+                "word_count": word_count,
+                "char_count": char_count,
+                "line_count": line_count,
+                "decision": decision,
+                "reason_codes": sorted(reason_codes),
+                "mime_type_used": mime or (source.mime_type or "unknown"),
+                "template_signature": template_signature,
+                "thresholds": {
+                    "min_words": min_words,
+                    "min_words_html": self.MIN_WORDS_HTML,
+                    "min_words_pdf": self.MIN_WORDS_PDF,
+                },
+                "extracted_at": extraction_timestamp.isoformat(),
+            }
+            if title:
+                extraction_meta["title"] = title
+            if page_count is not None:
+                extraction_meta["page_count"] = page_count
+            extraction_meta["pdf_bytes_present"] = bool(raw_bytes)
+
+            meta["extraction"] = extraction_meta
+            meta["quality_flags"] = quality_flags
+
+            source.content_text = normalized_text
+            source.content_hash = text_hash if normalized_text else None
+            source.meta = meta
+            await self.db.flush()
+
+            event_status = "ok" if decision == "accept" else "warn" if decision == "flag" else "failed"
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=ResearchEventCreate(
+                    company_research_run_id=run_id,
+                    event_type="extract_source_content",
+                    status=event_status,
+                    input_json={
+                        "source_id": str(source.id),
+                        "mime_type": source.mime_type,
+                        "word_count": word_count,
+                        "decision": decision,
+                    },
+                    output_json={"reason_codes": extraction_meta["reason_codes"], "quality_flags": quality_flags},
+                ),
+            )
+
+            summary["processed"] += 1
+            summary["accepted"] += 1 if decision == "accept" else 0
+            summary["flagged"] += 1 if decision == "flag" else 0
+            summary["rejected"] += 1 if decision == "reject" else 0
+            summary["sources"].append({
+                "id": str(source.id),
+                "decision": decision,
+                "reason_codes": extraction_meta["reason_codes"],
+                "word_count": word_count,
+            })
+
+        await self.db.commit()
+        return summary
+
+    def _normalize_text(self, text: str) -> str:
+        text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+        text = re.sub(r"[\t ]+", " ", text)
+        text = re.sub(r"\n{2,}", "\n", text)
+        return text.strip()
+
+    def _count_words(self, text: str) -> int:
+        return len(re.findall(r"\b\w+\b", text or ""))
+
+    def _extract_html(self, raw_bytes: bytes) -> tuple[str, Optional[str]]:
+        if not raw_bytes:
+            return "", None
+        try:
+            html = raw_bytes.decode("utf-8", errors="replace")
+        except Exception:
+            html = raw_bytes.decode("latin-1", errors="replace")
+
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup.find_all(["script", "style", "noscript"]):
+            tag.decompose()
+
+        title: Optional[str] = None
+        og_title = soup.find("meta", attrs={"property": "og:title"}) or soup.find("meta", attrs={"name": "og:title"})
+        if og_title and og_title.get("content"):
+            title = og_title.get("content")
+        elif soup.title and soup.title.string:
+            title = soup.title.string
+        else:
+            h1 = soup.find("h1")
+            if h1 and h1.get_text(strip=True):
+                title = h1.get_text(strip=True)
+
+        text = soup.get_text(" ", strip=True)
+        return text, title
+
+    def _extract_pdf(self, raw_bytes: bytes) -> tuple[str, Optional[int], bool]:
+        if not raw_bytes:
+            return "", None, True
+        try:
+            reader = PdfReader(io.BytesIO(raw_bytes))
+        except Exception:
+            return "", None, True
+
+        page_texts: List[str] = []
+        for idx, page in enumerate(reader.pages, start=1):
+            try:
+                extracted = page.extract_text() or ""
+            except Exception:
+                extracted = ""
+            page_texts.append(extracted.strip())
+
+        page_count = len(page_texts)
+        if not page_texts:
+            return "", page_count, True
+
+        # Insert page separators deterministically
+        joined_parts: List[str] = []
+        for i, txt in enumerate(page_texts, start=1):
+            if i > 1:
+                joined_parts.append(f"--- page {i} ---")
+            joined_parts.append(txt)
+        text = "\n\n".join(joined_parts)
+        return text, page_count, False
