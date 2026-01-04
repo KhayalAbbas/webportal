@@ -1,0 +1,13 @@
+wrote scripts\proofs\_artifacts\phase_4_12_openapi_exec_endpoints.txt
+fixture companies=['Aurora Metals']
+created run 875b5ee5-5be8-4733-a5d3-ee2c938cc862
+counts_before={'llm_sources': 0, 'enrichments': 0, 'executives': 0, 'exec_evidence': 0, 'url_sources': 0}
+wrote scripts\proofs\_artifacts\phase_4_12_gate_response.json
+gate_status=400 gate_body_path=scripts\proofs\_artifacts\phase_4_12_gate_response.json
+created prospect dd32584f-79ef-44cb-b585-bb1657c7e85b
+wrote scripts\proofs\_artifacts\phase_4_12_first_ingest.json
+first_ingest_path=scripts\proofs\_artifacts\phase_4_12_first_ingest.json
+counts_after_first={'llm_sources': 1, 'enrichments': 1, 'executives': 2, 'exec_evidence': 3, 'url_sources': 3}
+wrote scripts\proofs\_artifacts\phase_4_12_second_ingest.json
+second_ingest_path=scripts\proofs\_artifacts\phase_4_12_second_ingest.json
+counts_after_second={'llm_sources': 1, 'enrichments': 1, 'executives': 2, 'exec_evidence': 3, 'url_sources': 3}

@@ -1,0 +1,14 @@
+{
+  "external_result": {
+    "companies_targeted": 1,
+    "content_hash": "e73af9beb288ac24f6b9e8382b9d191963ff45231949dd7e9abfd69b8012c6f0",
+    "enrichment_id": "f80cfca4-d7bb-451a-ab52-3e088aef63f8",
+    "evidence_created": 3,
+    "executives_existing": 0,
+    "executives_new": 2,
+    "source_id": "943ea2ea-0078-4327-8b2d-b7daf31a7275",
+    "urls_created": 3,
+    "urls_existing": 0
+  },
+  "mode": "external"
+}

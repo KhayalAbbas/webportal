@@ -1,0 +1,9 @@
+alembic current:
+0a4d7b8f6bca (head)
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+
+---
+
+alembic heads:
+0a4d7b8f6bca (head)

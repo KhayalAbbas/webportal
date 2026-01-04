@@ -1,0 +1,16 @@
+{
+  "external_result": {
+    "ingest_stats": {
+      "companies_targeted": 0,
+      "evidence_created": 0,
+      "executives_existing": 0,
+      "executives_new": 0,
+      "urls_created": 0,
+      "urls_existing": 0
+    },
+    "reason": "duplicate_hash",
+    "skipped": true,
+    "source_id": "943ea2ea-0078-4327-8b2d-b7daf31a7275"
+  },
+  "mode": "external"
+}

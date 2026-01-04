@@ -1,0 +1,2 @@
+git log -1 --decorate --oneline:
+HEAD (tag: phase_4_12_signed_off, origin/master) Phase 4.12: gated executive discovery + proofs

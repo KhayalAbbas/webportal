@@ -1,0 +1,2 @@
+git status -sb (clean snapshot):
+## master...origin/master
