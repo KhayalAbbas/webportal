@@ -30,9 +30,10 @@ PASSWORD_DEFAULT = "admin123"
 
 ARTIFACT_DIR = Path("scripts/proofs/_artifacts")
 LOG_ARTIFACT = ARTIFACT_DIR / "phase_4_12_proof.log"
-OPENAPI_ARTIFACT = ARTIFACT_DIR / "phase_4_12_openapi_after.txt"
+OPENAPI_ARTIFACT = ARTIFACT_DIR / "phase_4_12_openapi_exec_endpoints.txt"
 ALEMBIC_ARTIFACT = ARTIFACT_DIR / "phase_4_12_alembic_after.txt"
-GIT_ARTIFACT = ARTIFACT_DIR / "phase_4_12_git_after.txt"
+GIT_STATUS_ARTIFACT = ARTIFACT_DIR / "phase_4_12_git_after.txt"
+GIT_LOG_ARTIFACT = ARTIFACT_DIR / "phase_4_12_git_log_after.txt"
 
 FIXTURE_PATH = Path("scripts/proofs/fixtures/phase_4_12_exec_discovery_mock.json")
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -108,6 +109,14 @@ def write_artifact(path: Path, content: str) -> None:
     log(f"wrote {path}")
 
 
+def write_json_artifact(name: str, payload: Any) -> Path:
+    path = ARTIFACT_DIR / name
+    text = json.dumps(payload, indent=2, sort_keys=True)
+    path.write_text(text, encoding="utf-8")
+    log(f"wrote {path}")
+    return path
+
+
 def run_cmd(cmd: list[str]) -> str:
     import subprocess
 
@@ -149,15 +158,34 @@ def db_counts(run_id: str, tenant_id: str) -> dict[str, int]:
             }
 
 
-def fetch_openapi(env: Env) -> str:
+def fetch_openapi_exec_endpoints(env: Env) -> str:
     resp = requests.get(urljoin(env.api_base, "/openapi.json"), timeout=30)
+    resp.raise_for_status()
+
     try:
         body = json.dumps(resp.json(), indent=2)
     except Exception:  # noqa: BLE001
         body = resp.text
-    body_lines = body.splitlines()
-    head = "\n".join(body_lines[:160])
-    return f"Status: {resp.status_code}\n{head}"
+
+    lines = body.splitlines()
+    targets = [
+        "/company-research/runs/{run_id}/executive-discovery/eligible",
+        "/company-research/runs/{run_id}/executive-discovery/run",
+        "executive-discovery",
+        "llm-json",
+        "llm_json",
+    ]
+
+    sections: list[str] = [f"OpenAPI status: {resp.status_code}", f"Total lines: {len(lines)}"]
+    for t in targets:
+        for idx, line in enumerate(lines):
+            if t in line:
+                start = max(0, idx - 40)
+                end = min(len(lines), idx + 41)
+                context = "\n".join(f"{i+1:04d}: {lines[i]}" for i in range(start, end))
+                sections.append(f"Context around '{t}' (lines {start+1}-{end}):\n{context}")
+                break
+    return "\n\n".join(sections)
 
 
 def fetch_alembic_head() -> str:
@@ -170,18 +198,38 @@ def git_status() -> str:
     import shutil
 
     git_exe = shutil.which("git") or "C:/Program Files/Git/bin/git.exe"
-    status = run_cmd([git_exe, "status", "-sb"])
-    log_head = run_cmd([git_exe, "log", "-1", "--decorate"])
-    return f"git status -sb:\n{status}\n\n---\n\n git log -1 --decorate:\n{log_head}"
+    branch = run_cmd([git_exe, "rev-parse", "--abbrev-ref", "HEAD"])
+    try:
+        upstream = run_cmd([git_exe, "rev-parse", "--abbrev-ref", f"{branch}@{{upstream}}"])
+        ahead_raw, behind_raw = run_cmd([git_exe, "rev-list", "--left-right", "--count", f"{branch}...{upstream}"]).split()
+        ahead = int(ahead_raw)
+        behind = int(behind_raw)
+        suffix = ""
+        if ahead or behind:
+            suffix = f" [ahead {ahead} behind {behind}]"
+        line = f"## {branch}...{upstream}{suffix}"
+    except RuntimeError:
+        line = f"## {branch}"
+    return f"git status -sb (clean snapshot):\n{line}"
+
+
+def git_log_head() -> str:
+    import shutil
+
+    git_exe = shutil.which("git") or "C:/Program Files/Git/bin/git.exe"
+    log_head = run_cmd([git_exe, "log", "-1", "--decorate", "--oneline"])
+    return f"git log -1 --decorate --oneline:\n{log_head}"
 
 
 def main() -> int:
     ensure_artifact_dir()
+    git_status_snapshot = git_status()
+    git_log_snapshot = git_log_head()
     env = load_env()
     headers = auth_headers(env)
 
-    openapi_head = fetch_openapi(env)
-    write_artifact(OPENAPI_ARTIFACT, openapi_head)
+    openapi_exec = fetch_openapi_exec_endpoints(env)
+    write_artifact(OPENAPI_ARTIFACT, openapi_exec)
 
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     log(f"fixture companies={[c.get('company_name') for c in fixture.get('companies', [])]}")
@@ -219,7 +267,12 @@ def main() -> int:
 
     # Gate should reject when no eligible companies exist
     resp = call_api_raw("POST", env.api_base, f"/company-research/runs/{run_id}/executive-discovery/run", headers, payload=body)
-    log(f"gate_status={resp.status_code} gate_body={resp.text[:160]}")
+    try:
+        gate_body = resp.json()
+    except Exception:  # noqa: BLE001
+        gate_body = resp.text
+    gate_path = write_json_artifact("phase_4_12_gate_response.json", gate_body)
+    log(f"gate_status={resp.status_code} gate_body_path={gate_path}")
     assert resp.status_code == 400, "expected gate to reject without eligible companies"
 
     # Create eligible prospect (accepted + exec_search_enabled)
@@ -247,7 +300,8 @@ def main() -> int:
         headers,
         payload=body,
     )
-    log(f"first_ingest={json.dumps(first, sort_keys=True)}")
+    first_path = write_json_artifact("phase_4_12_first_ingest.json", first)
+    log(f"first_ingest_path={first_path}")
 
     after_first = db_counts(run_id, env.tenant_id)
     log(f"counts_after_first={after_first}")
@@ -259,7 +313,8 @@ def main() -> int:
         headers,
         payload=body,
     )
-    log(f"second_ingest={json.dumps(second, sort_keys=True)}")
+    second_path = write_json_artifact("phase_4_12_second_ingest.json", second)
+    log(f"second_ingest_path={second_path}")
 
     after_second = db_counts(run_id, env.tenant_id)
     log(f"counts_after_second={after_second}")
@@ -273,7 +328,8 @@ def main() -> int:
 
     write_artifact(LOG_ARTIFACT, "\n".join(LOG_LINES))
     write_artifact(ALEMBIC_ARTIFACT, fetch_alembic_head())
-    write_artifact(GIT_ARTIFACT, git_status())
+    write_artifact(GIT_STATUS_ARTIFACT, git_status_snapshot)
+    write_artifact(GIT_LOG_ARTIFACT, git_log_snapshot)
     return 0
 
 
