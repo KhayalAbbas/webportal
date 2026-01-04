@@ -1,0 +1,19 @@
+Preflight evidence (Phase 4.12)
+
+[alembic current]
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+0a4d7b8f6bca (head)
+
+[alembic heads]
+0a4d7b8f6bca (head)
+
+[git status --short]
+(clean)
+
+[git log -5 --oneline]
+cc190dd (HEAD -> master, tag: phase_4_12_signed_off, origin/master, origin/HEAD) Phase 4.12 executive discovery
+a85ace7 (tag: phase_4_11_signed_off) Phase 4.11 llm_json proof and ingestion
+e47fc5b (tag: phase_4_10_signed_off) Phase 4.10: conditional GET proof
+9a88394 Phase 4.10: conditional GET fixes
+f06dd4b Phase 4.10: conditional GET implementation

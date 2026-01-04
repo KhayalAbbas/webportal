@@ -1,0 +1,458 @@
+
+    OpenAPI generated via app.openapi()
+    Total lines: 21627
+
+    FIRST 120 LINES:
+    001: {
+002:   "openapi": "3.1.0",
+003:   "info": {
+004:     "title": "ATS Research Engine",
+005:     "description": "Backend API for SaaS ATS + Agentic Research Engine",
+006:     "version": "0.1.0"
+007:   },
+008:   "paths": {
+009:     "/health": {
+010:       "get": {
+011:         "tags": [
+012:           "Health"
+013:         ],
+014:         "summary": "Health Check",
+015:         "description": "Basic health check.\n\nReturns OK if the API is running.",
+016:         "operationId": "health_check_health_get",
+017:         "responses": {
+018:           "200": {
+019:             "description": "Successful Response",
+020:             "content": {
+021:               "application/json": {
+022:                 "schema": {}
+023:               }
+024:             }
+025:           }
+026:         }
+027:       }
+028:     },
+029:     "/health/db": {
+030:       "get": {
+031:         "tags": [
+032:           "Health"
+033:         ],
+034:         "summary": "Database Health Check",
+035:         "description": "Database health check.\n\nReturns OK if the database connection is working.",
+036:         "operationId": "database_health_check_health_db_get",
+037:         "responses": {
+038:           "200": {
+039:             "description": "Successful Response",
+040:             "content": {
+041:               "application/json": {
+042:                 "schema": {}
+043:               }
+044:             }
+045:           }
+046:         }
+047:       }
+048:     },
+049:     "/internal/db-health": {
+050:       "get": {
+051:         "tags": [
+052:           "Internal"
+053:         ],
+054:         "summary": "Database Health Check",
+055:         "description": "Internal database health check endpoint.\n\nRuns test queries to verify database schema matches models.\nReturns HTML for browser viewing.",
+056:         "operationId": "database_health_check_internal_db_health_get",
+057:         "responses": {
+058:           "200": {
+059:             "description": "Successful Response",
+060:             "content": {
+061:               "text/html": {
+062:                 "schema": {
+063:                   "type": "string"
+064:                 }
+065:               }
+066:             }
+067:           }
+068:         }
+069:       }
+070:     },
+071:     "/internal/db-health/json": {
+072:       "get": {
+073:         "tags": [
+074:           "Internal"
+075:         ],
+076:         "summary": "Database Health Check Json",
+077:         "description": "Internal database health check endpoint (JSON format).\n\nReturns JSON for programmatic access.",
+078:         "operationId": "database_health_check_json_internal_db_health_json_get",
+079:         "responses": {
+080:           "200": {
+081:             "description": "Successful Response",
+082:             "content": {
+083:               "application/json": {
+084:                 "schema": {}
+085:               }
+086:             }
+087:           }
+088:         }
+089:       }
+090:     },
+091:     "/internal/seed-info": {
+092:       "get": {
+093:         "tags": [
+094:           "Internal"
+095:         ],
+096:         "summary": "Seed Info",
+097:         "description": "Display seed data information (admin only).\n\nShows tenant IDs and test user credentials (except passwords).",
+098:         "operationId": "seed_info_internal_seed_info_get",
+099:         "parameters": [
+100:           {
+101:             "name": "session",
+102:             "in": "cookie",
+103:             "required": false,
+104:             "schema": {
+105:               "anyOf": [
+106:                 {
+107:                   "type": "string"
+108:                 },
+109:                 {
+110:                   "type": "null"
+111:                 }
+112:               ],
+113:               "title": "Session"
+114:             }
+115:           }
+116:         ],
+117:         "responses": {
+118:           "200": {
+119:             "description": "Successful Response",
+120:             "content": {
+
+    EXECUTIVE DISCOVERY CONTEXTS:
+    Context 5649-5729 (center line 5689):
+5649:             "in": "header",
+5650:             "required": false,
+5651:             "schema": {
+5652:               "type": "string",
+5653:               "title": "X-Tenant-Id"
+5654:             }
+5655:           }
+5656:         ],
+5657:         "requestBody": {
+5658:           "required": true,
+5659:           "content": {
+5660:             "application/json": {
+5661:               "schema": {
+5662:                 "$ref": "#/components/schemas/LlmJsonSourcePayload"
+5663:               }
+5664:             }
+5665:           }
+5666:         },
+5667:         "responses": {
+5668:           "200": {
+5669:             "description": "Successful Response",
+5670:             "content": {
+5671:               "application/json": {
+5672:                 "schema": {}
+5673:               }
+5674:             }
+5675:           },
+5676:           "422": {
+5677:             "description": "Validation Error",
+5678:             "content": {
+5679:               "application/json": {
+5680:                 "schema": {
+5681:                   "$ref": "#/components/schemas/HTTPValidationError"
+5682:                 }
+5683:               }
+5684:             }
+5685:           }
+5686:         }
+5687:       }
+5688:     },
+5689:     "/company-research/runs/{run_id}/executive-discovery/eligible": {
+5690:       "get": {
+5691:         "tags": [
+5692:           "company-research"
+5693:         ],
+5694:         "summary": "List Executive Discovery Eligible",
+5695:         "description": "List companies approved for executive discovery (accepted + exec_search_enabled).",
+5696:         "operationId": "list_executive_discovery_eligible_company_research_runs__run_id__executive_discovery_eligible_get",
+5697:         "security": [
+5698:           {
+5699:             "HTTPBearer": []
+5700:           }
+5701:         ],
+5702:         "parameters": [
+5703:           {
+5704:             "name": "run_id",
+5705:             "in": "path",
+5706:             "required": true,
+5707:             "schema": {
+5708:               "type": "string",
+5709:               "format": "uuid",
+5710:               "title": "Run Id"
+5711:             }
+5712:           },
+5713:           {
+5714:             "name": "x-tenant-id",
+5715:             "in": "header",
+5716:             "required": false,
+5717:             "schema": {
+5718:               "type": "string",
+5719:               "title": "X-Tenant-Id"
+5720:             }
+5721:           }
+5722:         ],
+5723:         "responses": {
+5724:           "200": {
+5725:             "description": "Successful Response",
+5726:             "content": {
+5727:               "application/json": {
+5728:                 "schema": {
+5729:                   "type": "array",
+
+Context 5656-5736 (center line 5696):
+5656:         ],
+5657:         "requestBody": {
+5658:           "required": true,
+5659:           "content": {
+5660:             "application/json": {
+5661:               "schema": {
+5662:                 "$ref": "#/components/schemas/LlmJsonSourcePayload"
+5663:               }
+5664:             }
+5665:           }
+5666:         },
+5667:         "responses": {
+5668:           "200": {
+5669:             "description": "Successful Response",
+5670:             "content": {
+5671:               "application/json": {
+5672:                 "schema": {}
+5673:               }
+5674:             }
+5675:           },
+5676:           "422": {
+5677:             "description": "Validation Error",
+5678:             "content": {
+5679:               "application/json": {
+5680:                 "schema": {
+5681:                   "$ref": "#/components/schemas/HTTPValidationError"
+5682:                 }
+5683:               }
+5684:             }
+5685:           }
+5686:         }
+5687:       }
+5688:     },
+5689:     "/company-research/runs/{run_id}/executive-discovery/eligible": {
+5690:       "get": {
+5691:         "tags": [
+5692:           "company-research"
+5693:         ],
+5694:         "summary": "List Executive Discovery Eligible",
+5695:         "description": "List companies approved for executive discovery (accepted + exec_search_enabled).",
+5696:         "operationId": "list_executive_discovery_eligible_company_research_runs__run_id__executive_discovery_eligible_get",
+5697:         "security": [
+5698:           {
+5699:             "HTTPBearer": []
+5700:           }
+5701:         ],
+5702:         "parameters": [
+5703:           {
+5704:             "name": "run_id",
+5705:             "in": "path",
+5706:             "required": true,
+5707:             "schema": {
+5708:               "type": "string",
+5709:               "format": "uuid",
+5710:               "title": "Run Id"
+5711:             }
+5712:           },
+5713:           {
+5714:             "name": "x-tenant-id",
+5715:             "in": "header",
+5716:             "required": false,
+5717:             "schema": {
+5718:               "type": "string",
+5719:               "title": "X-Tenant-Id"
+5720:             }
+5721:           }
+5722:         ],
+5723:         "responses": {
+5724:           "200": {
+5725:             "description": "Successful Response",
+5726:             "content": {
+5727:               "application/json": {
+5728:                 "schema": {
+5729:                   "type": "array",
+5730:                   "items": {
+5731:                     "$ref": "#/components/schemas/ExecutiveEligibilityItem"
+5732:                   },
+5733:                   "title": "Response List Executive Discovery Eligible Company Research Runs  Run Id  Executive Discovery Eligible Get"
+5734:                 }
+5735:               }
+5736:             }
+
+Context 5711-5791 (center line 5751):
+5711:             }
+5712:           },
+5713:           {
+5714:             "name": "x-tenant-id",
+5715:             "in": "header",
+5716:             "required": false,
+5717:             "schema": {
+5718:               "type": "string",
+5719:               "title": "X-Tenant-Id"
+5720:             }
+5721:           }
+5722:         ],
+5723:         "responses": {
+5724:           "200": {
+5725:             "description": "Successful Response",
+5726:             "content": {
+5727:               "application/json": {
+5728:                 "schema": {
+5729:                   "type": "array",
+5730:                   "items": {
+5731:                     "$ref": "#/components/schemas/ExecutiveEligibilityItem"
+5732:                   },
+5733:                   "title": "Response List Executive Discovery Eligible Company Research Runs  Run Id  Executive Discovery Eligible Get"
+5734:                 }
+5735:               }
+5736:             }
+5737:           },
+5738:           "422": {
+5739:             "description": "Validation Error",
+5740:             "content": {
+5741:               "application/json": {
+5742:                 "schema": {
+5743:                   "$ref": "#/components/schemas/HTTPValidationError"
+5744:                 }
+5745:               }
+5746:             }
+5747:           }
+5748:         }
+5749:       }
+5750:     },
+5751:     "/company-research/runs/{run_id}/executive-discovery/run": {
+5752:       "post": {
+5753:         "tags": [
+5754:           "company-research"
+5755:         ],
+5756:         "summary": "Run Executive Discovery",
+5757:         "description": "Start executive discovery for a run using external payloads.",
+5758:         "operationId": "run_executive_discovery_company_research_runs__run_id__executive_discovery_run_post",
+5759:         "security": [
+5760:           {
+5761:             "HTTPBearer": []
+5762:           }
+5763:         ],
+5764:         "parameters": [
+5765:           {
+5766:             "name": "run_id",
+5767:             "in": "path",
+5768:             "required": true,
+5769:             "schema": {
+5770:               "type": "string",
+5771:               "format": "uuid",
+5772:               "title": "Run Id"
+5773:             }
+5774:           },
+5775:           {
+5776:             "name": "x-tenant-id",
+5777:             "in": "header",
+5778:             "required": false,
+5779:             "schema": {
+5780:               "type": "string",
+5781:               "title": "X-Tenant-Id"
+5782:             }
+5783:           }
+5784:         ],
+5785:         "requestBody": {
+5786:           "required": true,
+5787:           "content": {
+5788:             "application/json": {
+5789:               "schema": {
+5790:                 "$ref": "#/components/schemas/ExecutiveDiscoveryRunPayload"
+5791:               }
+
+Context 5718-5798 (center line 5758):
+5718:               "type": "string",
+5719:               "title": "X-Tenant-Id"
+5720:             }
+5721:           }
+5722:         ],
+5723:         "responses": {
+5724:           "200": {
+5725:             "description": "Successful Response",
+5726:             "content": {
+5727:               "application/json": {
+5728:                 "schema": {
+5729:                   "type": "array",
+5730:                   "items": {
+5731:                     "$ref": "#/components/schemas/ExecutiveEligibilityItem"
+5732:                   },
+5733:                   "title": "Response List Executive Discovery Eligible Company Research Runs  Run Id  Executive Discovery Eligible Get"
+5734:                 }
+5735:               }
+5736:             }
+5737:           },
+5738:           "422": {
+5739:             "description": "Validation Error",
+5740:             "content": {
+5741:               "application/json": {
+5742:                 "schema": {
+5743:                   "$ref": "#/components/schemas/HTTPValidationError"
+5744:                 }
+5745:               }
+5746:             }
+5747:           }
+5748:         }
+5749:       }
+5750:     },
+5751:     "/company-research/runs/{run_id}/executive-discovery/run": {
+5752:       "post": {
+5753:         "tags": [
+5754:           "company-research"
+5755:         ],
+5756:         "summary": "Run Executive Discovery",
+5757:         "description": "Start executive discovery for a run using external payloads.",
+5758:         "operationId": "run_executive_discovery_company_research_runs__run_id__executive_discovery_run_post",
+5759:         "security": [
+5760:           {
+5761:             "HTTPBearer": []
+5762:           }
+5763:         ],
+5764:         "parameters": [
+5765:           {
+5766:             "name": "run_id",
+5767:             "in": "path",
+5768:             "required": true,
+5769:             "schema": {
+5770:               "type": "string",
+5771:               "format": "uuid",
+5772:               "title": "Run Id"
+5773:             }
+5774:           },
+5775:           {
+5776:             "name": "x-tenant-id",
+5777:             "in": "header",
+5778:             "required": false,
+5779:             "schema": {
+5780:               "type": "string",
+5781:               "title": "X-Tenant-Id"
+5782:             }
+5783:           }
+5784:         ],
+5785:         "requestBody": {
+5786:           "required": true,
+5787:           "content": {
+5788:             "application/json": {
+5789:               "schema": {
+5790:                 "$ref": "#/components/schemas/ExecutiveDiscoveryRunPayload"
+5791:               }
+5792:             }
+5793:           }
+5794:         },
+5795:         "responses": {
+5796:           "200": {
+5797:             "description": "Successful Response",
+5798:             "content": {
