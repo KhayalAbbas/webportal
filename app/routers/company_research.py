@@ -74,6 +74,21 @@ class LlmJsonSourcePayload(BaseModel):
     payload: dict
 
 
+class ExecutiveDiscoveryRunPayload(BaseModel):
+    mode: str = Field(default="external", pattern=r"^(internal|external|both)$")
+    title: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    payload: Optional[dict] = None
+
+
+class ExecutiveEligibilityItem(BaseModel):
+    id: UUID
+    name_normalized: str
+    status: str
+    exec_search_enabled: bool
+
+
 # ============================================================================
 # Research Run Endpoints
 # ============================================================================
@@ -400,6 +415,81 @@ async def add_llm_json_source(
     )
     await db.commit()
     return summary
+
+
+@router.get(
+    "/runs/{run_id}/executive-discovery/eligible",
+    response_model=List[ExecutiveEligibilityItem],
+)
+async def list_executive_discovery_eligible(
+    run_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List companies approved for executive discovery (accepted + exec_search_enabled)."""
+
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    eligible = await service.list_executive_eligible_companies(current_user.tenant_id, run_id)
+    return [
+        ExecutiveEligibilityItem(
+            id=prospect.id,
+            name_normalized=prospect.name_normalized,
+            status=prospect.status,
+            exec_search_enabled=prospect.exec_search_enabled,
+        )
+        for prospect in eligible
+    ]
+
+
+@router.post("/runs/{run_id}/executive-discovery/run")
+async def run_executive_discovery(
+    run_id: UUID,
+    payload: ExecutiveDiscoveryRunPayload,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Start executive discovery for a run using external payloads."""
+
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    if payload.mode not in {"internal", "external", "both"}:
+        raise HTTPException(status_code=400, detail="Invalid mode")
+
+    external_result = None
+
+    if payload.mode in {"external", "both"}:
+        if not payload.payload:
+            raise HTTPException(status_code=400, detail="Missing payload for external mode")
+        if not payload.provider:
+            raise HTTPException(status_code=400, detail="provider is required for external mode")
+        try:
+            external_result = await service.ingest_executive_llm_json_payload(
+                tenant_id=current_user.tenant_id,
+                run_id=run_id,
+                payload=payload.payload,
+                provider=payload.provider,
+                model_name=payload.model,
+                title=payload.title,
+            )
+        except ValueError as exc:  # noqa: BLE001
+            message = str(exc)
+            status_code = 400
+            if message == "run_not_found":
+                status_code = 404
+            raise HTTPException(status_code=status_code, detail=message)
+
+    await db.commit()
+    return {
+        "mode": payload.mode,
+        "external_result": external_result,
+    }
 
 
 @router.post("/runs/{run_id}/retry", response_model=CompanyResearchJobRead)

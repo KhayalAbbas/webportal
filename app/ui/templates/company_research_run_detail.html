@@ -198,6 +198,78 @@
     </table>
 </div>
 
+<!-- Executive Discovery -->
+<div class="detail-section" style="margin-bottom: 24px;">
+    <h2 class="section-title">Executive Discovery</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 12px; background: #f9fafb;">
+            <h3 style="margin-top: 0; font-size: 14px;">Eligible Companies</h3>
+            {% if eligible_exec_companies %}
+                <ul style="padding-left: 16px; margin: 0;">
+                {% for c in eligible_exec_companies %}
+                    <li style="margin-bottom: 6px;">
+                        <strong>{{ c.name }}</strong>
+                        <span class="badge" style="margin-left: 6px; background: #e6f4ea; color: #1a7f37;">{{ c.status }}</span>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p style="margin: 0; color: #666;">No companies have been accepted with executive search enabled.</p>
+            {% endif %}
+        </div>
+        <div style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 12px; background: #f9fafb;">
+            <h3 style="margin-top: 0; font-size: 14px;">Run External Executive Payload</h3>
+            <p style="font-size: 12px; color: #555;">Paste the external <code>executive_discovery_v1</code> payload. This calls the API endpoint and respects gating + idempotency.</p>
+            <textarea id="exec-payload" rows="8" style="width: 100%; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">{
+  "schema_version": "executive_discovery_v1",
+  "provider": "mock",
+  "model": "mock",
+  "companies": [
+    {"company_name": "Sample Co", "executives": [{"name": "Alex Example", "title": "CEO", "profile_url": "https://example.com"}]}
+  ]
+}</textarea>
+            <button type="button" class="btn btn-primary" style="margin-top: 8px;" onclick="runExecDiscovery()">Submit to API</button>
+            <pre id="exec-result" style="margin-top: 8px; background: #fff; padding: 8px; border: 1px solid #eee; min-height: 40px; font-size: 12px; white-space: pre-wrap;"></pre>
+        </div>
+    </div>
+
+    <div style="margin-top: 16px;">
+        <h3 class="section-title" style="font-size: 15px;">Executive Prospects ({{ executives|length }})</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+                <tr style="background: #f8f9fa;">
+                    <th style="text-align: left; padding: 8px;">Company</th>
+                    <th style="text-align: left; padding: 8px;">Name</th>
+                    <th style="text-align: left; padding: 8px;">Title</th>
+                    <th style="text-align: left; padding: 8px;">Email</th>
+                    <th style="text-align: left; padding: 8px;">Location</th>
+                    <th style="text-align: left; padding: 8px;">Profile</th>
+                    <th style="text-align: left; padding: 8px;">Evidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if executives %}
+                {% for exec in executives %}
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px;">{{ exec.company }}</td>
+                    <td style="padding: 8px; font-weight: 600;">{{ exec.name }}</td>
+                    <td style="padding: 8px;">{{ exec.title or '-' }}</td>
+                    <td style="padding: 8px;">{{ exec.email or '-' }}</td>
+                    <td style="padding: 8px;">{{ exec.location or '-' }}</td>
+                    <td style="padding: 8px;">
+                        {% if exec.linkedin_url %}<a href="{{ exec.linkedin_url }}" target="_blank">LinkedIn</a>{% elif exec.profile_url %}<a href="{{ exec.profile_url }}" target="_blank">Profile</a>{% else %}-{% endif %}
+                    </td>
+                    <td style="padding: 8px;">{{ exec.evidence_count }}</td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr><td colspan="7" style="padding: 8px;">No executive prospects yet.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <!-- Source Management (Phase 2A) -->
 <div class="detail-section" style="margin-bottom: 20px;">
     <h2 class="section-title">Phase 1: Manual List Ingestion</h2>
@@ -581,6 +653,43 @@ function togglePin(prospectId, currentlyPinned) {
     
     document.body.appendChild(form);
     form.submit();
+}
+
+async function runExecDiscovery() {
+    const resultEl = document.getElementById('exec-result');
+    const textarea = document.getElementById('exec-payload');
+    let parsed;
+
+    try {
+        parsed = JSON.parse(textarea.value);
+    } catch (err) {
+        resultEl.textContent = 'Invalid JSON payload';
+        return;
+    }
+
+    resultEl.textContent = 'Submitting...';
+    try {
+        const response = await fetch('/company-research/runs/{{ run.id }}/executive-discovery/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                mode: 'external',
+                provider: parsed.provider || 'mock',
+                model: parsed.model || 'mock',
+                title: parsed.title || 'Exec Discovery Payload',
+                payload: parsed
+            })
+        });
+
+        const text = await response.text();
+        try {
+            resultEl.textContent = JSON.stringify(JSON.parse(text), null, 2);
+        } catch (err) {
+            resultEl.textContent = text;
+        }
+    } catch (err) {
+        resultEl.textContent = 'Request failed: ' + err;
+    }
 }
 
 // Phase 2: Validate AI Proposal

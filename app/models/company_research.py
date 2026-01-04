@@ -373,6 +373,12 @@ class CompanyProspect(TenantScopedModel):
         back_populates="prospect",
         cascade="all, delete-orphan",
     )
+
+    executive_prospects: Mapped[List["ExecutiveProspect"]] = relationship(
+        "ExecutiveProspect",
+        back_populates="company_prospect",
+        cascade="all, delete-orphan",
+    )
     
     metrics: Mapped[List["CompanyProspectMetric"]] = relationship(
         "CompanyProspectMetric",
@@ -400,6 +406,70 @@ class CompanyProspect(TenantScopedModel):
         Index("ix_company_prospects_relevance_score", "relevance_score"),
         Index("ix_company_prospects_manual_priority", "manual_priority"),
         Index("ix_company_prospects_is_pinned", "is_pinned"),
+    )
+
+
+class ExecutiveProspect(TenantScopedModel):
+    """Executive prospect discovered for a company prospect."""
+
+    __tablename__ = "executive_prospects"
+
+    company_research_run_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    company_prospect_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_prospects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    name_raw: Mapped[str] = mapped_column(String(500), nullable=False)
+    name_normalized: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    title: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    profile_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    linkedin_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    confidence: Mapped[float] = mapped_column(Numeric(3, 2), nullable=False, default=0.0)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="new", index=True)
+    source_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    source_document_id: Mapped[Optional[UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    company_prospect: Mapped["CompanyProspect"] = relationship(
+        "CompanyProspect",
+        back_populates="executive_prospects",
+    )
+
+    source_document: Mapped[Optional["ResearchSourceDocument"]] = relationship(
+        "ResearchSourceDocument",
+    )
+
+    evidence: Mapped[List["ExecutiveProspectEvidence"]] = relationship(
+        "ExecutiveProspectEvidence",
+        back_populates="executive_prospect",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_executive_prospects_run_id", "company_research_run_id"),
+        Index("ix_executive_prospects_company_id", "company_prospect_id"),
+        Index("ix_executive_prospects_status", "status"),
+        UniqueConstraint(
+            "tenant_id",
+            "company_research_run_id",
+            "company_prospect_id",
+            "name_normalized",
+            name="uq_executive_per_company",
+        ),
     )
 
 
@@ -496,6 +566,49 @@ class CompanyProspectEvidence(TenantScopedModel):
     __table_args__ = (
         Index("ix_company_prospect_evidence_prospect_id", "company_prospect_id"),
         Index("ix_company_prospect_evidence_source_type", "source_type"),
+    )
+
+
+class ExecutiveProspectEvidence(TenantScopedModel):
+    """Evidence records backing an executive prospect."""
+
+    __tablename__ = "executive_prospect_evidence"
+
+    executive_prospect_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("executive_prospects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    source_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    source_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    raw_snippet: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidence_weight: Mapped[float] = mapped_column(Numeric(3, 2), nullable=False, default=0.5)
+
+    source_document_id: Mapped[Optional[UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_documents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    source_content_hash: Mapped[Optional[str]] = mapped_column(String(), nullable=True, index=True)
+
+    executive_prospect: Mapped["ExecutiveProspect"] = relationship(
+        "ExecutiveProspect",
+        back_populates="evidence",
+    )
+
+    source_document: Mapped[Optional["ResearchSourceDocument"]] = relationship(
+        "ResearchSourceDocument",
+        foreign_keys=[source_document_id],
+    )
+
+    __table_args__ = (
+        Index("ix_executive_evidence_prospect", "executive_prospect_id"),
+        Index("ix_executive_evidence_source_type", "source_type"),
     )
 
 

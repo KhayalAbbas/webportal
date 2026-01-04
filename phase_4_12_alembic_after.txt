@@ -1,0 +1,7 @@
+Alembic after upgrade (Phase 4.12)
+===================================
+
+Command: alembic upgrade head
+Result:  upgrade f6a7db6d5c11 -> 0a4d7b8f6bca, Phase 4.12 executive discovery tables
+
+Current revision: 0a4d7b8f6bca (head)

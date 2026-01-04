@@ -300,6 +300,16 @@ async def company_research_run_detail(
         limit=200,
     )
 
+    eligible_exec_companies = await service.list_executive_eligible_companies(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+    )
+
+    executive_prospects = await service.list_executives_for_run(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+    )
+
     # Events timeline (recent first)
     events = await service.list_events_for_run(
         tenant_id=current_user.tenant_id,
@@ -322,9 +332,11 @@ async def company_research_run_detail(
     available_metrics = sorted([row[0] for row in metrics_keys_result])
     
     prospects = []
+    prospect_lookup = {}
     for prospect in prospects_list:
         # Evidence is already loaded via the relationship
         evidence_list = prospect.evidence
+        prospect_lookup[prospect.id] = prospect
         
         # Collect list sources and build evidence details
         list_sources = set()
@@ -415,6 +427,25 @@ async def company_research_run_detail(
             "ai_score": prospect.ai_score,
             "metrics": metrics_dict,  # All metrics for this prospect
         })
+
+    exec_rows = []
+    for exec_prospect in executive_prospects:
+        parent = prospect_lookup.get(exec_prospect.company_prospect_id)
+        exec_rows.append(
+            {
+                "id": str(exec_prospect.id),
+                "company": parent.name_normalized if parent else "-",
+                "name": exec_prospect.name_raw,
+                "title": exec_prospect.title,
+                "profile_url": exec_prospect.profile_url,
+                "linkedin_url": exec_prospect.linkedin_url,
+                "email": exec_prospect.email,
+                "location": exec_prospect.location,
+                "confidence": exec_prospect.confidence,
+                "status": exec_prospect.status,
+                "evidence_count": len(getattr(exec_prospect, "evidence", []) or []),
+            }
+        )
     
     # Get sources for this run (Phase 2A)
     sources_list = await service.list_sources_for_run(
@@ -497,6 +528,16 @@ async def company_research_run_detail(
                 }
                 for e in events
             ],
+            "eligible_exec_companies": [
+                {
+                    "id": str(prospect.id),
+                    "name": prospect.name_normalized,
+                    "status": prospect.status,
+                    "exec_search_enabled": prospect.exec_search_enabled,
+                }
+                for prospect in eligible_exec_companies
+            ],
+            "executives": exec_rows,
         }
     )
 

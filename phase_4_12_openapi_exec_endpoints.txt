@@ -1,0 +1,18 @@
+Executive discovery OpenAPI excerpt (Phase 4.12)
+===============================================
+Source: http://localhost:8006/openapi.json
+
+status: 200
+
+/company-research/runs/{run_id}/executive-discovery/eligible [GET]
+- summary: List Executive Discovery Eligible
+- operationId: list_executive_discovery_eligible_company_research_runs__run_id__executive_discovery_eligible_get
+- description: List companies approved for executive discovery (accepted + exec_search_enabled).
+- params: run_id, x-tenant-id
+
+/company-research/runs/{run_id}/executive-discovery/run [POST]
+- summary: Run Executive Discovery
+- operationId: run_executive_discovery_company_research_runs__run_id__executive_discovery_run_post
+- description: Start executive discovery for a run using external payloads.
+- params: run_id, x-tenant-id
+- request body: application/json

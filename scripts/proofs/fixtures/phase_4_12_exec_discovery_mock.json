@@ -1,0 +1,55 @@
+{
+  "schema_version": "executive_discovery_v1",
+  "provider": "mock",
+  "model": "mock",
+  "query": "executive search demo",
+  "companies": [
+    {
+      "company_name": "Aurora Metals",
+      "company_normalized": "aurora metals",
+      "company_website": "https://aurorametals.example.com",
+      "executives": [
+        {
+          "name": "Dana Summit",
+          "title": "Chief Executive Officer",
+          "profile_url": "https://aurorametals.example.com/leadership/dana",
+          "linkedin_url": "https://www.linkedin.com/in/danasummit",
+          "email": "dana.summit@example.com",
+          "location": "Dubai, UAE",
+          "confidence": 0.92,
+          "evidence": [
+            {
+              "url": "https://aurorametals.example.com/leadership/dana",
+              "label": "Leadership Page",
+              "kind": "homepage",
+              "snippet": "Dana Summit leads Aurora Metals as CEO"
+            },
+            {
+              "url": "https://news.example.com/aurora-metals-ceo",
+              "label": "Press Coverage",
+              "kind": "press_release",
+              "snippet": "Aurora Metals appoints Dana Summit as CEO"
+            }
+          ]
+        },
+        {
+          "name": "Ravi Menon",
+          "title": "Chief Financial Officer",
+          "profile_url": "https://aurorametals.example.com/leadership/ravi",
+          "linkedin_url": "https://www.linkedin.com/in/ravimenon",
+          "email": "ravi.menon@example.com",
+          "location": "Abu Dhabi, UAE",
+          "confidence": 0.88,
+          "evidence": [
+            {
+              "url": "https://aurorametals.example.com/leadership/ravi",
+              "label": "Leadership Page",
+              "kind": "homepage",
+              "snippet": "Ravi Menon serves as CFO"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

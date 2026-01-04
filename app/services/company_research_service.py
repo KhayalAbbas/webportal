@@ -27,12 +27,15 @@ from app.models.company_research import (
     CompanyResearchJob,
     CompanyResearchRunPlan,
     CompanyResearchRunStep,
+    ExecutiveProspect,
+    ExecutiveProspectEvidence,
 )
 from app.models.ai_enrichment_record import AIEnrichmentRecord
 from app.services.ai_proposal_service import AIProposalService
 from app.schemas.ai_proposal import AIProposal
 from app.schemas.ai_enrichment import AIEnrichmentCreate
 from app.schemas.llm_discovery import LlmDiscoveryPayload
+from app.schemas.executive_discovery import ExecutiveDiscoveryPayload
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
     CompanyResearchRunUpdate,
@@ -472,6 +475,20 @@ class CompanyResearchService:
     ) -> List[CompanyProspectEvidence]:
         """List all evidence for a specific prospect."""
         return await self.repo.list_evidence_for_prospect(tenant_id, prospect_id)
+
+    async def list_executives_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> List[ExecutiveProspect]:
+        """List executive prospects for a research run."""
+        result = await self.db.execute(
+            select(ExecutiveProspect).where(
+                ExecutiveProspect.tenant_id == tenant_id,
+                ExecutiveProspect.company_research_run_id == run_id,
+            ).order_by(ExecutiveProspect.created_at.desc())
+        )
+        return list(result.scalars().all())
     
     # ========================================================================
     # Metric Operations
@@ -633,6 +650,16 @@ class CompanyResearchService:
     def _canonical_json(data: Any) -> str:
         """Return deterministic JSON string for hashing/idempotency."""
         return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
+
+    @staticmethod
+    def _normalize_person_name(name: Optional[str]) -> str:
+        """Normalize person names for matching."""
+        if not name:
+            return ""
+        normalized = name.lower().strip()
+        normalized = normalized.replace(".", " ").replace(",", " ")
+        normalized = " ".join(normalized.split())
+        return normalized
 
     @staticmethod
     def _merge_discovered_by(existing: Optional[str], incoming: str) -> str:
@@ -969,6 +996,247 @@ class CompanyResearchService:
                     )
                     url_norm_map[url_norm] = url_source
                     stats["urls_created"] += 1
+
+        source.status = "processed"
+        source.error_message = None
+        source.meta = {**(source.meta or {}), "ingest_stats": stats, "enrichment_id": str(enrichment.id)}
+
+        await self.db.flush()
+
+        return {
+            "source_id": str(source.id),
+            "enrichment_id": str(enrichment.id),
+            "content_hash": content_hash,
+            **stats,
+        }
+
+    async def list_executive_eligible_companies(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> List[CompanyProspect]:
+        """List companies approved for executive discovery."""
+        result = await self.db.execute(
+            select(CompanyProspect).where(
+                CompanyProspect.tenant_id == tenant_id,
+                CompanyProspect.company_research_run_id == run_id,
+                CompanyProspect.exec_search_enabled.is_(True),
+                CompanyProspect.status == "accepted",
+            )
+        )
+        return list(result.scalars().all())
+
+    async def ingest_executive_llm_json_payload(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        payload: dict,
+        provider: str,
+        model_name: Optional[str],
+        title: Optional[str],
+    ) -> dict:
+        """Ingest executive discovery payload with gating and idempotency."""
+
+        parsed = ExecutiveDiscoveryPayload(**payload)
+        canonical = self._canonical_json(parsed.canonical_dict())
+        content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+        existing_source = await self.repo.find_source_by_hash(tenant_id, run_id, content_hash)
+        if existing_source and existing_source.source_type == "llm_json":
+            ingest_meta = {
+                "executives_new": 0,
+                "executives_existing": 0,
+                "evidence_created": 0,
+                "urls_created": 0,
+                "urls_existing": 0,
+                "companies_targeted": 0,
+            }
+            return {
+                "skipped": True,
+                "reason": "duplicate_hash",
+                "source_id": str(existing_source.id),
+                "ingest_stats": ingest_meta,
+            }
+
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        eligible = await self.list_executive_eligible_companies(tenant_id, run_id)
+        eligible_map = {self._normalize_company_name(p.name_normalized or p.name_raw): p for p in eligible}
+
+        requested_companies: list[str] = []
+        missing: list[str] = []
+        for company in parsed.companies:
+            norm = self._normalize_company_name(company.company_normalized or company.company_name)
+            if not norm:
+                continue
+            requested_companies.append(norm)
+            prospect = eligible_map.get(norm)
+            if not prospect:
+                missing.append(norm)
+
+        if not requested_companies:
+            raise ValueError("no_companies_in_payload")
+        if missing:
+            raise ValueError(f"ineligible_companies:{','.join(sorted(set(missing)))}")
+
+        existing_sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+        url_norm_map = {self._normalize_url_value(s.url): s for s in existing_sources if s.url}
+
+        source_meta = {
+            "kind": "llm_json",
+            "provider": provider,
+            "model": model_name,
+            "purpose": "executive_discovery",
+            "schema_version": parsed.schema_version,
+        }
+
+        source = await self.add_source(
+            tenant_id,
+            SourceDocumentCreate(
+                company_research_run_id=run_id,
+                source_type="llm_json",
+                title=title or "External Executive LLM JSON",
+                mime_type="application/json",
+                content_text=canonical,
+                content_hash=content_hash,
+                meta=source_meta,
+            ),
+        )
+
+        enrichment_query = await self.db.execute(
+            select(AIEnrichmentRecord).where(
+                AIEnrichmentRecord.tenant_id == tenant_id,
+                AIEnrichmentRecord.company_research_run_id == run_id,
+                AIEnrichmentRecord.purpose == "executive_discovery",
+                AIEnrichmentRecord.provider == provider,
+                AIEnrichmentRecord.content_hash == content_hash,
+            )
+        )
+        enrichment = enrichment_query.scalar_one_or_none()
+        if not enrichment:
+            enrichment = AIEnrichmentRecord(
+                tenant_id=tenant_id,
+                target_type="COMPANY_RESEARCH_RUN",
+                target_id=run_id,
+                model_name=model_name,
+                enrichment_type="EXECUTIVE_DISCOVERY_JSON",
+                payload=parsed.canonical_dict(),
+                company_research_run_id=run_id,
+                purpose="executive_discovery",
+                provider=provider,
+                input_scope_hash=content_hash,
+                content_hash=content_hash,
+                source_document_id=source.id,
+                status="success",
+            )
+            self.db.add(enrichment)
+
+        await self.db.flush()
+
+        exec_result = await self.db.execute(
+            select(ExecutiveProspect).where(
+                ExecutiveProspect.tenant_id == tenant_id,
+                ExecutiveProspect.company_research_run_id == run_id,
+            )
+        )
+        existing_exec_map: dict[UUID, dict[str, ExecutiveProspect]] = defaultdict(dict)
+        for exec_rec in exec_result.scalars().all():
+            existing_exec_map[exec_rec.company_prospect_id][exec_rec.name_normalized] = exec_rec
+
+        stats = {
+            "executives_new": 0,
+            "executives_existing": 0,
+            "evidence_created": 0,
+            "urls_created": 0,
+            "urls_existing": 0,
+            "companies_targeted": len(requested_companies),
+        }
+
+        evidence_seen: set[tuple[str, str, str]] = set()
+
+        for company in parsed.companies:
+            norm = self._normalize_company_name(company.company_normalized or company.company_name)
+            if not norm:
+                continue
+            prospect = eligible_map.get(norm)
+            if not prospect:
+                continue
+
+            for exec_entry in company.executives or []:
+                exec_norm = self._normalize_person_name(exec_entry.name)
+                if not exec_norm:
+                    continue
+
+                existing_exec = existing_exec_map.get(prospect.id, {}).get(exec_norm)
+                if existing_exec:
+                    stats["executives_existing"] += 1
+                    target_exec = existing_exec
+                else:
+                    target_exec = ExecutiveProspect(
+                        tenant_id=tenant_id,
+                        company_research_run_id=run_id,
+                        company_prospect_id=prospect.id,
+                        name_raw=exec_entry.name,
+                        name_normalized=exec_norm,
+                        title=exec_entry.title,
+                        profile_url=self._normalize_url_value(exec_entry.profile_url),
+                        linkedin_url=self._normalize_url_value(exec_entry.linkedin_url),
+                        email=exec_entry.email,
+                        location=exec_entry.location,
+                        confidence=float(exec_entry.confidence or 0.0),
+                        status="new",
+                        source_label=provider,
+                        source_document_id=source.id,
+                    )
+                    self.db.add(target_exec)
+                    await self.db.flush()
+                    existing_exec_map[prospect.id][exec_norm] = target_exec
+                    stats["executives_new"] += 1
+
+                for ev in exec_entry.evidence or []:
+                    dedupe_key = (str(target_exec.id), ev.url or "", ev.label or ev.kind or "executive_llm_json")
+                    if dedupe_key in evidence_seen:
+                        continue
+                    evidence_seen.add(dedupe_key)
+
+                    evidence = ExecutiveProspectEvidence(
+                        tenant_id=tenant_id,
+                        executive_prospect_id=target_exec.id,
+                        source_type=ev.kind or "llm_json",
+                        source_name=ev.label or (ev.kind or "llm_json"),
+                        source_url=str(ev.url) if ev.url else None,
+                        raw_snippet=ev.snippet,
+                        evidence_weight=0.5,
+                        source_document_id=source.id,
+                        source_content_hash=content_hash,
+                    )
+                    self.db.add(evidence)
+                    stats["evidence_created"] += 1
+
+                    url_norm = self._normalize_url_value(str(ev.url)) if ev.url else None
+                    if url_norm and url_norm in url_norm_map:
+                        stats["urls_existing"] += 1
+                    elif url_norm:
+                        url_source = await self.add_source(
+                            tenant_id,
+                            SourceDocumentCreate(
+                                company_research_run_id=run_id,
+                                source_type="url",
+                                title=ev.label or str(ev.url),
+                                url=str(ev.url),
+                                meta={
+                                    "kind": "url",
+                                    "origin": "executive_llm_json",
+                                    "llm_source_id": str(source.id),
+                                    "evidence_kind": ev.kind,
+                                    "evidence_label": ev.label,
+                                },
+                            ),
+                        )
+                        url_norm_map[url_norm] = url_source
+                        stats["urls_created"] += 1
 
         source.status = "processed"
         source.error_message = None
