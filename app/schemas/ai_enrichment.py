@@ -17,6 +17,14 @@ class AIEnrichmentCreate(BaseModel):
     model_name: str
     enrichment_type: str  # SUMMARY, COMPETENCY_MAP, TAGGING, RISK_FLAGS, OTHER
     payload: dict
+    company_research_run_id: Optional[UUID] = None
+    purpose: Optional[str] = None
+    provider: Optional[str] = None
+    input_scope_hash: Optional[str] = None
+    content_hash: Optional[str] = None
+    source_document_id: Optional[UUID] = None
+    status: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class AIEnrichmentUpdate(BaseModel):
@@ -28,6 +36,14 @@ class AIEnrichmentUpdate(BaseModel):
     model_name: Optional[str] = None
     enrichment_type: Optional[str] = None
     payload: Optional[dict] = None
+    company_research_run_id: Optional[UUID] = None
+    purpose: Optional[str] = None
+    provider: Optional[str] = None
+    input_scope_hash: Optional[str] = None
+    content_hash: Optional[str] = None
+    source_document_id: Optional[UUID] = None
+    status: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class AIEnrichmentRead(BaseModel):
@@ -42,3 +58,11 @@ class AIEnrichmentRead(BaseModel):
     enrichment_type: str
     payload: dict
     created_at: datetime
+    company_research_run_id: Optional[UUID] = None
+    purpose: Optional[str] = None
+    provider: Optional[str] = None
+    input_scope_hash: Optional[str] = None
+    content_hash: Optional[str] = None
+    source_document_id: Optional[UUID] = None
+    status: Optional[str] = None
+    error_message: Optional[str] = None

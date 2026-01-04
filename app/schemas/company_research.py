@@ -113,6 +113,9 @@ class CompanyProspectCreate(BaseModel):
     manual_priority: Optional[int] = None
     is_pinned: Optional[bool] = Field(default=False)
     status: Optional[str] = Field(default="new", max_length=50)
+    discovered_by: Optional[str] = Field(default="internal", max_length=50)
+    verification_status: Optional[str] = Field(default="unverified", max_length=50)
+    exec_search_enabled: Optional[bool] = Field(default=False)
 
 
 class CompanyProspectUpdateManual(BaseModel):
@@ -122,6 +125,9 @@ class CompanyProspectUpdateManual(BaseModel):
     manual_notes: Optional[str] = None
     is_pinned: Optional[bool] = None
     status: Optional[str] = Field(None, max_length=50)
+    discovered_by: Optional[str] = Field(default=None, max_length=50)
+    verification_status: Optional[str] = Field(default=None, max_length=50)
+    exec_search_enabled: Optional[bool] = None
 
 
 class CompanyProspectUpdate(BaseModel):
@@ -173,6 +179,9 @@ class CompanyProspectRead(TenantScopedRead):
     approved_by_user_id: Optional[UUID] = None
     approved_at: Optional[datetime] = None
     normalized_company_id: Optional[UUID] = None
+    discovered_by: str
+    verification_status: str
+    exec_search_enabled: bool
 
 
 # ============================================================================

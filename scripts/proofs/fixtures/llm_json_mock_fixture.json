@@ -1,0 +1,57 @@
+{
+  "schema_version": "company_discovery_v1",
+  "provider": "mock",
+  "model": "mock",
+  "generated_at": "2026-01-04T00:00:00Z",
+  "run_context": {
+    "query": "GCC facility management IFM providers",
+    "geo": ["UAE", "Saudi Arabia", "Oman"],
+    "industry": ["Integrated Facilities Management"],
+    "notes": "Sample fixture for deterministic proofs"
+  },
+  "companies": [
+    {
+      "name": "Example IFM Co A",
+      "website_url": "https://example-a.com",
+      "hq_country": "UAE",
+      "hq_city": "Dubai",
+      "sector": "Facilities Management",
+      "subsector": "Integrated FM",
+      "description": "Provides integrated facilities management services.",
+      "rationale": "Large regional IFM operator with multi-country footprint.",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "url": "https://example-a.com",
+          "label": "Homepage",
+          "kind": "homepage",
+          "snippet": "Integrated facilities management across the GCC."
+        },
+        {
+          "url": "https://example-a.com/investors/annual-report-2024.pdf",
+          "label": "Annual report 2024",
+          "kind": "annual_report"
+        }
+      ]
+    },
+    {
+      "name": "Example IFM Co B",
+      "website_url": null,
+      "hq_country": "Saudi Arabia",
+      "hq_city": "Riyadh",
+      "sector": "Facilities Management",
+      "subsector": "Hard FM",
+      "description": null,
+      "rationale": "Strong KSA footprint; relevant peer set.",
+      "confidence": 0.62,
+      "evidence": [
+        {
+          "url": "https://example-directory.com/ifm/ksa/example-b",
+          "label": "Industry directory listing",
+          "kind": "ranking_list",
+          "snippet": "Lists Example IFM Co B among top providers in KSA."
+        }
+      ]
+    }
+  ]
+}

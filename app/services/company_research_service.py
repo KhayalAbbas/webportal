@@ -7,6 +7,7 @@ Phase 1: Backend structures only, no external AI/crawling yet.
 
 import hashlib
 import json
+import os
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 from datetime import datetime
@@ -27,8 +28,11 @@ from app.models.company_research import (
     CompanyResearchRunPlan,
     CompanyResearchRunStep,
 )
+from app.models.ai_enrichment_record import AIEnrichmentRecord
 from app.services.ai_proposal_service import AIProposalService
 from app.schemas.ai_proposal import AIProposal
+from app.schemas.ai_enrichment import AIEnrichmentCreate
+from app.schemas.llm_discovery import LlmDiscoveryPayload
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
     CompanyResearchRunUpdate,
@@ -160,29 +164,42 @@ class CompanyResearchService:
             for src in sources
         )
 
+        has_llm_sources = any(
+            src.source_type == "llm_json" or (src.meta or {}).get("kind") == "llm_json"
+            for src in sources
+        )
+        external_llm_enabled = bool(int(os.getenv("EXTERNAL_LLM_ENABLED", "0") or 0))
+
         steps = [
             {
+                "step_key": "external_llm_company_discovery",
+                "step_order": 4,
+                "rationale": "Ingest external LLM JSON discovery payloads before fetching URLs",
+                "enabled": has_llm_sources or external_llm_enabled,
+                "max_attempts": 2,
+            },
+            {
                 "step_key": "fetch_url_sources",
-                "step_order": 5,
+                "step_order": 10,
                 "rationale": "Fetch URL sources before extraction",
                 "enabled": has_url_sources,
                 "max_attempts": 5,
             },
             {
                 "step_key": "process_sources",
-                "step_order": 10,
+                "step_order": 20,
                 "rationale": "Process queued research sources",
                 "enabled": True,
             },
             {
                 "step_key": "ingest_lists",
-                "step_order": 20,
+                "step_order": 30,
                 "rationale": "Ingest manual list sources if present",
                 "enabled": has_list_sources,
             },
             {
                 "step_key": "ingest_proposal",
-                "step_order": 30,
+                "step_order": 40,
                 "rationale": "Ingest AI proposals if provided",
                 "enabled": has_proposal_sources,
             },
@@ -593,6 +610,38 @@ class CompanyResearchService:
         if not url:
             return None
         return canonicalize_url(url)
+
+    @staticmethod
+    def _normalize_country_code(country: Optional[str]) -> Optional[str]:
+        """Normalize country to a 2-letter code to satisfy column constraints."""
+        if not country:
+            return None
+        normalized = (country or "").strip().upper()
+        replacements = {
+            "UAE": "AE",
+            "KSA": "SA",
+            "UK": "GB",
+            "GBR": "GB",
+            "USA": "US",
+        }
+        normalized = replacements.get(normalized, normalized)
+        if len(normalized) > 2:
+            normalized = normalized[:2]
+        return normalized or None
+
+    @staticmethod
+    def _canonical_json(data: Any) -> str:
+        """Return deterministic JSON string for hashing/idempotency."""
+        return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
+
+    @staticmethod
+    def _merge_discovered_by(existing: Optional[str], incoming: str) -> str:
+        """Combine discovery provenance into a compact label."""
+        if not existing:
+            return incoming
+        if existing == incoming or existing == "both":
+            return existing
+        return "both"
     
     async def add_source(
         self,
@@ -613,6 +662,326 @@ class CompanyResearchService:
         if data.content_bytes is not None and data.content_size is None:
             data.content_size = len(data.content_bytes)
         return await self.repo.create_source_document(tenant_id, data)
+
+    async def ingest_llm_json_payload(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        payload: dict,
+        provider: str,
+        model_name: Optional[str],
+        title: Optional[str],
+        purpose: str = "company_discovery",
+    ) -> dict:
+        """Ingest an external LLM JSON payload into the research run.
+
+        This is idempotent by canonical payload hash. If the same payload is
+        posted multiple times, no additional sources, enrichments, prospects,
+        or URL sources will be created.
+        """
+
+        if purpose != "company_discovery":
+            raise ValueError("invalid_purpose")
+
+        parsed = LlmDiscoveryPayload(**payload)
+        canonical = self._canonical_json(parsed.canonical_dict())
+        content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+        existing_source = await self.repo.find_source_by_hash(tenant_id, run_id, content_hash)
+        if existing_source and existing_source.source_type == "llm_json":
+            ingest_meta = {
+                "companies_new": 0,
+                "companies_existing": 0,
+                "evidence_created": 0,
+                "urls_created": 0,
+                "urls_existing": 0,
+            }
+            return {
+                "skipped": True,
+                "reason": "duplicate_hash",
+                "source_id": str(existing_source.id),
+                "ingest_stats": ingest_meta,
+            }
+
+        source_meta = {
+            "kind": "llm_json",
+            "provider": provider,
+            "model": model_name,
+            "purpose": purpose,
+            "schema_version": parsed.schema_version,
+        }
+
+        source = await self.add_source(
+            tenant_id,
+            SourceDocumentCreate(
+                company_research_run_id=run_id,
+                source_type="llm_json",
+                title=title or "External LLM JSON",
+                mime_type="application/json",
+                content_text=canonical,
+                content_hash=content_hash,
+                meta=source_meta,
+            ),
+        )
+
+        summary = await self._process_llm_source(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            source=source,
+            parsed_payload=parsed,
+            provider=provider,
+            model_name=model_name,
+            content_hash=content_hash,
+            canonical_json=canonical,
+            purpose=purpose,
+        )
+
+        return summary
+
+    async def process_llm_json_sources_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        allow_fixture: bool = False,
+    ) -> dict:
+        """Process any pending llm_json sources for a run.
+
+        If allow_fixture is True and no llm_json source exists, a mock fixture
+        is loaded from disk (provider=mock) when EXTERNAL_LLM_ENABLED is set.
+        """
+
+        sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+        llm_sources = [s for s in sources if s.source_type == "llm_json"]
+
+        created_from_fixture = False
+        if not llm_sources and allow_fixture:
+            provider = os.getenv("EXTERNAL_LLM_PROVIDER", "mock")
+            fixture_path = os.getenv(
+                "EXTERNAL_LLM_FIXTURE_PATH",
+                os.path.join("scripts", "proofs", "fixtures", "llm_json_mock_fixture.json"),
+            )
+            if provider == "mock" and os.path.exists(fixture_path):
+                with open(fixture_path, "r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+                await self.ingest_llm_json_payload(
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                    payload=payload,
+                    provider=provider,
+                    model_name=payload.get("model"),
+                    title=payload.get("title") or "Mock LLM JSON",
+                    purpose=payload.get("purpose") or "company_discovery",
+                )
+                created_from_fixture = True
+                sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+                llm_sources = [s for s in sources if s.source_type == "llm_json"]
+
+        processed = []
+        skipped = []
+        for src in llm_sources:
+            if (src.meta or {}).get("ingest_stats"):
+                skipped.append(str(src.id))
+                continue
+            try:
+                payload_dict = json.loads(src.content_text or "{}")
+                parsed = LlmDiscoveryPayload(**payload_dict)
+                canonical = self._canonical_json(parsed.canonical_dict())
+                content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                summary = await self._process_llm_source(
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                    source=src,
+                    parsed_payload=parsed,
+                    provider=(src.meta or {}).get("provider") or payload_dict.get("provider") or "mock",
+                    model_name=(src.meta or {}).get("model") or payload_dict.get("model"),
+                    content_hash=content_hash,
+                    canonical_json=canonical,
+                    purpose=(src.meta or {}).get("purpose") or payload_dict.get("purpose") or "company_discovery",
+                )
+                processed.append(summary)
+            except Exception as exc:  # noqa: BLE001
+                src.status = "failed"
+                src.error_message = str(exc)
+                skipped.append(str(src.id))
+        await self.db.flush()
+        return {
+            "processed": processed,
+            "skipped": skipped,
+            "created_from_fixture": created_from_fixture,
+        }
+
+    async def _process_llm_source(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        source: ResearchSourceDocument,
+        parsed_payload: LlmDiscoveryPayload,
+        provider: str,
+        model_name: Optional[str],
+        content_hash: str,
+        canonical_json: str,
+        purpose: str,
+    ) -> dict:
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        # Prepare existing maps for idempotent inserts
+        existing_sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+        url_norm_map = {
+            self._normalize_url_value(s.url): s
+            for s in existing_sources
+            if s.url
+        }
+
+        discovery_label = provider if provider in {"internal", "manual", "grok", "both"} else "grok"
+
+        prospect_result = await self.db.execute(
+            select(CompanyProspect).where(
+                CompanyProspect.tenant_id == tenant_id,
+                CompanyProspect.company_research_run_id == run_id,
+            )
+        )
+        prospect_map = {p.name_normalized: p for p in prospect_result.scalars().all()}
+
+        # Upsert enrichment record (idempotent via unique constraint)
+        existing_enrichment = None
+        enrichment_query = await self.db.execute(
+            select(AIEnrichmentRecord).where(
+                AIEnrichmentRecord.tenant_id == tenant_id,
+                AIEnrichmentRecord.company_research_run_id == run_id,
+                AIEnrichmentRecord.purpose == purpose,
+                AIEnrichmentRecord.provider == provider,
+                AIEnrichmentRecord.content_hash == content_hash,
+            )
+        )
+        existing_enrichment = enrichment_query.scalar_one_or_none()
+
+        if existing_enrichment:
+            enrichment = existing_enrichment
+        else:
+            enrichment = AIEnrichmentRecord(
+                tenant_id=tenant_id,
+                target_type="COMPANY_RESEARCH_RUN",
+                target_id=run_id,
+                model_name=model_name,
+                enrichment_type="COMPANY_DISCOVERY_JSON",
+                payload=parsed_payload.canonical_dict(),
+                company_research_run_id=run_id,
+                purpose=purpose,
+                provider=provider,
+                input_scope_hash=content_hash,
+                content_hash=content_hash,
+                source_document_id=source.id,
+                status="success",
+            )
+            self.db.add(enrichment)
+
+        await self.db.flush()
+
+        stats = {
+            "companies_new": 0,
+            "companies_existing": 0,
+            "evidence_created": 0,
+            "urls_created": 0,
+            "urls_existing": 0,
+        }
+
+        evidence_seen: set[tuple[str, str, str]] = set()
+
+        for company in parsed_payload.companies:
+            norm_name = self._normalize_company_name(company.name)
+            if not norm_name:
+                continue
+
+            existing = prospect_map.get(norm_name)
+            if existing:
+                stats["companies_existing"] += 1
+                existing.discovered_by = self._merge_discovered_by(existing.discovered_by, discovery_label)
+                if not getattr(existing, "verification_status", None):
+                    existing.verification_status = "unverified"
+            else:
+                prospect = CompanyProspect(
+                    tenant_id=tenant_id,
+                    company_research_run_id=run_id,
+                    role_mandate_id=run.role_mandate_id,
+                    name_raw=company.name,
+                    name_normalized=norm_name,
+                    website_url=company.website_url,
+                    hq_country=self._normalize_country_code(company.hq_country),
+                    hq_city=company.hq_city,
+                    sector=company.sector or run.sector,
+                    subsector=company.subsector,
+                    description=company.description,
+                    relevance_score=float(company.confidence or 0.0),
+                    evidence_score=0.0,
+                    status="new",
+                    discovered_by=discovery_label,
+                    verification_status="unverified",
+                    exec_search_enabled=False,
+                )
+                self.db.add(prospect)
+                await self.db.flush()
+                prospect_map[norm_name] = prospect
+                existing = prospect
+                stats["companies_new"] += 1
+
+            # Evidence handling
+            for ev in company.evidence or []:
+                dedupe_key = (str(existing.id), ev.url, ev.label or ev.kind or "llm_json")
+                if dedupe_key in evidence_seen:
+                    continue
+                evidence_seen.add(dedupe_key)
+
+                evidence = CompanyProspectEvidence(
+                    tenant_id=tenant_id,
+                    company_prospect_id=existing.id,
+                    source_type=ev.kind or "llm_json",
+                    source_name=ev.label or (ev.kind or "llm_json"),
+                    source_url=str(ev.url),
+                    raw_snippet=ev.snippet,
+                    source_document_id=source.id,
+                    source_content_hash=content_hash,
+                )
+                self.db.add(evidence)
+                stats["evidence_created"] += 1
+
+                # Add URL source for evidence to existing pipeline
+                url_norm = self._normalize_url_value(str(ev.url))
+                if url_norm and url_norm in url_norm_map:
+                    stats["urls_existing"] += 1
+                elif url_norm:
+                    url_source = await self.add_source(
+                        tenant_id,
+                        SourceDocumentCreate(
+                            company_research_run_id=run_id,
+                            source_type="url",
+                            title=ev.label or str(ev.url),
+                            url=str(ev.url),
+                            meta={
+                                "kind": "url",
+                                "origin": "llm_json",
+                                "llm_source_id": str(source.id),
+                                "evidence_kind": ev.kind,
+                                "evidence_label": ev.label,
+                            },
+                        ),
+                    )
+                    url_norm_map[url_norm] = url_source
+                    stats["urls_created"] += 1
+
+        source.status = "processed"
+        source.error_message = None
+        source.meta = {**(source.meta or {}), "ingest_stats": stats, "enrichment_id": str(enrichment.id)}
+
+        await self.db.flush()
+
+        return {
+            "source_id": str(source.id),
+            "enrichment_id": str(enrichment.id),
+            "content_hash": content_hash,
+            **stats,
+        }
     
     async def get_source(
         self,

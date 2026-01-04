@@ -325,6 +325,24 @@ class CompanyProspect(TenantScopedModel):
         default="new",
         index=True,
     )  # new, approved, rejected, duplicate, converted_to_company
+
+    discovered_by: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="internal",
+    )  # internal|grok|both|manual
+
+    verification_status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="unverified",
+    )  # unverified|partial|verified
+
+    exec_search_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
     
     approved_by_user_id: Mapped[Optional[UUID]] = mapped_column(
         UUID(as_uuid=True),

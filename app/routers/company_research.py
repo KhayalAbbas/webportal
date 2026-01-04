@@ -66,6 +66,14 @@ class PdfSourcePayload(BaseModel):
     mime_type: Optional[str] = Field(default="application/pdf", max_length=100)
 
 
+class LlmJsonSourcePayload(BaseModel):
+    title: Optional[str] = None
+    provider: str
+    model: Optional[str] = None
+    purpose: str = Field(default="company_discovery")
+    payload: dict
+
+
 # ============================================================================
 # Research Run Endpoints
 # ============================================================================
@@ -359,6 +367,39 @@ async def add_proposal_source(
     )
     await db.commit()
     return SourceDocumentRead.model_validate(doc)
+
+
+@router.post("/runs/{run_id}/sources/llm-json")
+async def add_llm_json_source(
+    run_id: UUID,
+    payload: LlmJsonSourcePayload,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Attach and ingest an external LLM company discovery JSON payload."""
+
+    service = CompanyResearchService(db)
+    try:
+        await service.ensure_sources_unlocked(current_user.tenant_id, run_id)
+    except ValueError as e:
+        if str(e) == "run_not_found":
+            raise HTTPException(status_code=404, detail="Research run not found")
+        raise HTTPException(status_code=409, detail="Sources are locked after run start")
+
+    if payload.purpose != "company_discovery":
+        raise HTTPException(status_code=400, detail="purpose must be company_discovery")
+
+    summary = await service.ingest_llm_json_payload(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        payload=payload.payload,
+        provider=payload.provider,
+        model_name=payload.model,
+        title=payload.title,
+        purpose=payload.purpose,
+    )
+    await db.commit()
+    return summary
 
 
 @router.post("/runs/{run_id}/retry", response_model=CompanyResearchJobRead)

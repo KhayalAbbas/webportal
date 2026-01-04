@@ -19,6 +19,14 @@ class AIEnrichmentRecordCreate(TenantScopedBase):
     model_name: Optional[str] = None
     enrichment_type: str
     payload: Optional[dict] = None
+    company_research_run_id: Optional[UUID] = None
+    purpose: Optional[str] = None
+    provider: Optional[str] = None
+    input_scope_hash: Optional[str] = None
+    content_hash: Optional[str] = None
+    source_document_id: Optional[UUID] = None
+    status: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class AIEnrichmentRecordUpdate(BaseModel):
@@ -28,6 +36,14 @@ class AIEnrichmentRecordUpdate(BaseModel):
     model_name: Optional[str] = None
     enrichment_type: Optional[str] = None
     payload: Optional[dict] = None
+    company_research_run_id: Optional[UUID] = None
+    purpose: Optional[str] = None
+    provider: Optional[str] = None
+    input_scope_hash: Optional[str] = None
+    content_hash: Optional[str] = None
+    source_document_id: Optional[UUID] = None
+    status: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class AIEnrichmentRecordRead(TenantScopedRead):
@@ -39,3 +55,11 @@ class AIEnrichmentRecordRead(TenantScopedRead):
     model_name: Optional[str] = None
     enrichment_type: str
     payload: Optional[dict] = None
+    company_research_run_id: Optional[UUID] = None
+    purpose: Optional[str] = None
+    provider: Optional[str] = None
+    input_scope_hash: Optional[str] = None
+    content_hash: Optional[str] = None
+    source_document_id: Optional[UUID] = None
+    status: Optional[str] = None
+    error_message: Optional[str] = None

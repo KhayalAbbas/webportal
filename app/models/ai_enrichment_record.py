@@ -53,3 +53,45 @@ class AIEnrichmentRecord(TenantScopedModel):
         JSONB,
         nullable=True,
     )
+
+    # Phase 4.11: research provenance and idempotency
+    company_research_run_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        "company_research_run_id",
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
+    purpose: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    provider: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    input_scope_hash: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    content_hash: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    source_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
+    status: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    error_message: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True,
+    )

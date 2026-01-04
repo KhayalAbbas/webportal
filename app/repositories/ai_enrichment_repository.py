@@ -93,6 +93,14 @@ class AIEnrichmentRepository:
             model_name=data.model_name,
             enrichment_type=data.enrichment_type,
             payload=data.payload,
+            company_research_run_id=data.company_research_run_id,
+            purpose=data.purpose,
+            provider=data.provider,
+            input_scope_hash=data.input_scope_hash,
+            content_hash=data.content_hash,
+            source_document_id=data.source_document_id,
+            status=data.status,
+            error_message=data.error_message,
         )
         self.db.add(enrichment)
         await self.db.flush()

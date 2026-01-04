@@ -119,6 +119,25 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
         )
 
         try:
+            if step.step_key == "external_llm_company_discovery":
+                allow_fixture = bool(int(os.getenv("EXTERNAL_LLM_ENABLED", "0") or 0))
+                summary = await service.process_llm_json_sources_for_run(
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                    allow_fixture=allow_fixture,
+                )
+                await service.repo.mark_step_succeeded(step.id, output_json=summary)
+                await service.append_event(
+                    tenant_id,
+                    run_id,
+                    "step_succeeded",
+                    "Completed external_llm_company_discovery",
+                    meta_json=summary,
+                )
+                await service.db.flush()
+                await service.db.commit()
+                continue
+
             if step.step_key == "fetch_url_sources":
                 extractor = CompanyExtractionService(service.db)
                 result = await extractor.fetch_url_sources(
