@@ -508,3 +508,35 @@ class EntityMergeLinkRead(TenantScopedRead):
     reason_codes: List[str]
     evidence_source_document_ids: List[str]
     resolution_hash: str
+
+
+# ============================================================================
+# Canonical People Schemas (Stage 6.2)
+# ============================================================================
+
+class CanonicalPersonEmailRead(TenantScopedRead):
+    canonical_person_id: UUID
+    email_normalized: str
+
+
+class CanonicalPersonLinkRead(TenantScopedRead):
+    canonical_person_id: UUID
+    person_entity_id: UUID
+    match_rule: str
+    evidence_source_document_id: UUID
+    evidence_company_research_run_id: Optional[UUID] = None
+
+
+class CanonicalPersonRead(TenantScopedRead):
+    canonical_full_name: Optional[str] = None
+    primary_email: Optional[str] = None
+    primary_linkedin_url: Optional[str] = None
+    emails: List[CanonicalPersonEmailRead] = Field(default_factory=list)
+    links: List[CanonicalPersonLinkRead] = Field(default_factory=list)
+
+
+class CanonicalPersonListItem(TenantScopedRead):
+    canonical_full_name: Optional[str] = None
+    primary_email: Optional[str] = None
+    primary_linkedin_url: Optional[str] = None
+    linked_entities_count: int = 0

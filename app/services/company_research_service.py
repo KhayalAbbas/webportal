@@ -33,6 +33,7 @@ from app.models.company_research import (
 from app.models.ai_enrichment_record import AIEnrichmentRecord
 from app.services.ai_proposal_service import AIProposalService
 from app.services.entity_resolution_service import EntityResolutionService
+from app.services.canonical_people_service import CanonicalPeopleService
 from app.schemas.ai_proposal import AIProposal
 from app.schemas.ai_enrichment import AIEnrichmentCreate
 from app.schemas.llm_discovery import LlmDiscoveryPayload
@@ -213,6 +214,13 @@ class CompanyResearchService:
                 "step_key": "entity_resolution",
                 "step_order": 25,
                 "rationale": "Resolve run-scoped executive duplicates with evidence-first merges",
+                "enabled": True,
+                "max_attempts": 2,
+            },
+            {
+                "step_key": "canonical_people_resolution",
+                "step_order": 27,
+                "rationale": "Build tenant-wide canonical people (email-first, evidence-first)",
                 "enabled": True,
                 "max_attempts": 2,
             },
@@ -1418,6 +1426,73 @@ class CompanyResearchService:
         """List entity merge links for a run (deterministic ordering)."""
         resolver = EntityResolutionService(self.db)
         return await resolver.list_entity_merge_links(tenant_id, run_id, entity_type=entity_type)
+
+    # ========================================================================
+    # Canonical People Resolution (Stage 6.2)
+    # ========================================================================
+
+    async def run_canonical_people_resolution_step(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> dict:
+        """Resolve tenant-wide canonical people with evidence-first linking."""
+
+        resolver = CanonicalPeopleService(self.db)
+        summary = await resolver.resolve_run_people(tenant_id=tenant_id, run_id=run_id)
+
+        enriched_summary = {
+            "stage": "6.2_canonical_people",
+            "entity_type": "executive",
+            **summary,
+        }
+
+        await self.repo.create_research_event(
+            tenant_id=tenant_id,
+            data=ResearchEventCreate(
+                company_research_run_id=run_id,
+                event_type="canonical_people_resolution",
+                status="ok",
+                input_json={"stage": "6.2_canonical_people", "entity_type": "executive"},
+                output_json=enriched_summary,
+            ),
+        )
+
+        return enriched_summary
+
+    async def list_canonical_people(
+        self,
+        tenant_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ):
+        records = await self.repo.list_canonical_people_with_counts(tenant_id, limit=limit, offset=offset)
+        results = []
+        for person, count in records:
+            results.append({
+                "person": person,
+                "linked_entities_count": int(count or 0),
+            })
+        return results
+
+    async def get_canonical_person_detail(
+        self,
+        tenant_id: str,
+        canonical_person_id: UUID,
+    ):
+        return await self.repo.get_canonical_person_with_children(tenant_id, canonical_person_id)
+
+    async def list_canonical_person_links(
+        self,
+        tenant_id: str,
+        canonical_person_id: Optional[UUID] = None,
+        person_entity_id: Optional[UUID] = None,
+    ):
+        return await self.repo.list_canonical_person_links(
+            tenant_id=tenant_id,
+            canonical_person_id=canonical_person_id,
+            person_entity_id=person_entity_id,
+        )
 
     # ========================================================================
     # List Ingestion

@@ -29,6 +29,9 @@ from app.models.company_research import (
     ExecutiveProspectEvidence,
     ResolvedEntity,
     EntityMergeLink,
+    CanonicalPerson,
+    CanonicalPersonEmail,
+    CanonicalPersonLink,
 )
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -477,6 +480,56 @@ class CompanyResearchRepository:
             )
             .order_by(ExecutiveProspectEvidence.created_at.asc())
         )
+        return list(result.scalars().all())
+
+    async def list_executive_prospects_by_email(
+        self,
+        tenant_id: str,
+        email_normalized: str,
+    ) -> List[ExecutiveProspect]:
+        query = (
+            select(ExecutiveProspect)
+            .where(
+                ExecutiveProspect.tenant_id == tenant_id,
+                func.lower(ExecutiveProspect.email) == email_normalized,
+            )
+            .order_by(ExecutiveProspect.created_at.asc())
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def list_executive_prospects_by_linkedin(
+        self,
+        tenant_id: str,
+        linkedin_normalized: str,
+    ) -> List[ExecutiveProspect]:
+        query = (
+            select(ExecutiveProspect)
+            .where(
+                ExecutiveProspect.tenant_id == tenant_id,
+                func.lower(ExecutiveProspect.linkedin_url) == linkedin_normalized,
+            )
+            .order_by(ExecutiveProspect.created_at.asc())
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def list_executive_evidence_for_exec_ids(
+        self,
+        tenant_id: str,
+        exec_ids: List[UUID],
+    ) -> List[ExecutiveProspectEvidence]:
+        if not exec_ids:
+            return []
+        query = (
+            select(ExecutiveProspectEvidence)
+            .where(
+                ExecutiveProspectEvidence.tenant_id == tenant_id,
+                ExecutiveProspectEvidence.executive_prospect_id.in_(exec_ids),
+            )
+            .order_by(ExecutiveProspectEvidence.created_at.asc())
+        )
+        result = await self.db.execute(query)
         return list(result.scalars().all())
     
     # ========================================================================
@@ -931,6 +984,175 @@ class CompanyResearchRepository:
             EntityMergeLink.canonical_entity_id.asc(),
             EntityMergeLink.duplicate_entity_id.asc(),
         )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    # ====================================================================
+    # Canonical People Operations (Stage 6.2)
+    # ====================================================================
+
+    async def get_canonical_person_by_email(
+        self,
+        tenant_id: str,
+        email_normalized: str,
+    ) -> Optional[CanonicalPerson]:
+        query = (
+            select(CanonicalPerson)
+            .join(CanonicalPersonEmail, CanonicalPersonEmail.canonical_person_id == CanonicalPerson.id)
+            .options(selectinload(CanonicalPerson.emails), selectinload(CanonicalPerson.links))
+            .where(
+                CanonicalPersonEmail.tenant_id == tenant_id,
+                CanonicalPersonEmail.email_normalized == email_normalized,
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_canonical_person_by_linkedin(
+        self,
+        tenant_id: str,
+        linkedin_normalized: str,
+    ) -> Optional[CanonicalPerson]:
+        query = (
+            select(CanonicalPerson)
+            .options(selectinload(CanonicalPerson.emails), selectinload(CanonicalPerson.links))
+            .where(
+                CanonicalPerson.tenant_id == tenant_id,
+                func.lower(CanonicalPerson.primary_linkedin_url) == linkedin_normalized,
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def create_canonical_person(
+        self,
+        tenant_id: str,
+        canonical_full_name: Optional[str] = None,
+        primary_email: Optional[str] = None,
+        primary_linkedin_url: Optional[str] = None,
+    ) -> CanonicalPerson:
+        person = CanonicalPerson(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            canonical_full_name=canonical_full_name,
+            primary_email=primary_email,
+            primary_linkedin_url=primary_linkedin_url,
+        )
+        self.db.add(person)
+        await self.db.flush()
+        await self.db.refresh(person)
+        return person
+
+    async def upsert_canonical_person_email(
+        self,
+        tenant_id: str,
+        canonical_person_id: UUID,
+        email_normalized: str,
+    ) -> CanonicalPersonEmail:
+        base_insert = insert(CanonicalPersonEmail).values(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            canonical_person_id=canonical_person_id,
+            email_normalized=email_normalized,
+        )
+        stmt = base_insert.on_conflict_do_update(
+            constraint="uq_canonical_person_emails_unique_email",
+            set_={
+                "canonical_person_id": base_insert.excluded.canonical_person_id,
+                "updated_at": func.now(),
+            },
+        ).returning(CanonicalPersonEmail)
+        result = await self.db.execute(stmt)
+        email = result.scalar_one()
+        await self.db.flush()
+        return email
+
+    async def upsert_canonical_person_link(
+        self,
+        tenant_id: str,
+        canonical_person_id: UUID,
+        person_entity_id: UUID,
+        match_rule: str,
+        evidence_source_document_id: UUID,
+        evidence_company_research_run_id: Optional[UUID],
+    ) -> CanonicalPersonLink:
+        base_insert = insert(CanonicalPersonLink).values(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            canonical_person_id=canonical_person_id,
+            person_entity_id=person_entity_id,
+            match_rule=match_rule,
+            evidence_source_document_id=evidence_source_document_id,
+            evidence_company_research_run_id=evidence_company_research_run_id,
+        )
+        stmt = base_insert.on_conflict_do_update(
+            constraint="uq_canonical_person_links_person",
+            set_={
+                "canonical_person_id": base_insert.excluded.canonical_person_id,
+                "match_rule": base_insert.excluded.match_rule,
+                "evidence_source_document_id": base_insert.excluded.evidence_source_document_id,
+                "evidence_company_research_run_id": base_insert.excluded.evidence_company_research_run_id,
+                "updated_at": func.now(),
+            },
+        ).returning(CanonicalPersonLink)
+        result = await self.db.execute(stmt)
+        link = result.scalar_one()
+        await self.db.flush()
+        return link
+
+    async def list_canonical_people_with_counts(
+        self,
+        tenant_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[tuple[CanonicalPerson, int]]:
+        link_count = func.count(CanonicalPersonLink.id)
+        query = (
+            select(CanonicalPerson, link_count)
+            .outerjoin(CanonicalPersonLink, and_(
+                CanonicalPersonLink.tenant_id == CanonicalPerson.tenant_id,
+                CanonicalPersonLink.canonical_person_id == CanonicalPerson.id,
+            ))
+            .where(CanonicalPerson.tenant_id == tenant_id)
+            .group_by(CanonicalPerson.id)
+            .order_by(CanonicalPerson.created_at.asc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.db.execute(query)
+        return list(result.all())
+
+    async def get_canonical_person_with_children(
+        self,
+        tenant_id: str,
+        canonical_person_id: UUID,
+    ) -> Optional[CanonicalPerson]:
+        query = (
+            select(CanonicalPerson)
+            .options(
+                selectinload(CanonicalPerson.emails),
+                selectinload(CanonicalPerson.links),
+            )
+            .where(
+                CanonicalPerson.tenant_id == tenant_id,
+                CanonicalPerson.id == canonical_person_id,
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def list_canonical_person_links(
+        self,
+        tenant_id: str,
+        canonical_person_id: Optional[UUID] = None,
+        person_entity_id: Optional[UUID] = None,
+    ) -> List[CanonicalPersonLink]:
+        query = select(CanonicalPersonLink).where(CanonicalPersonLink.tenant_id == tenant_id)
+        if canonical_person_id:
+            query = query.where(CanonicalPersonLink.canonical_person_id == canonical_person_id)
+        if person_entity_id:
+            query = query.where(CanonicalPersonLink.person_entity_id == person_entity_id)
+        query = query.order_by(CanonicalPersonLink.created_at.asc())
         result = await self.db.execute(query)
         return list(result.scalars().all())
 

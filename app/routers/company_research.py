@@ -39,6 +39,9 @@ from app.schemas.company_research import (
     SourceDocumentCreate,
     ResolvedEntityRead,
     EntityMergeLinkRead,
+    CanonicalPersonRead,
+    CanonicalPersonListItem,
+    CanonicalPersonLinkRead,
 )
 
 router = APIRouter(prefix="/company-research", tags=["company-research"])
@@ -587,6 +590,69 @@ async def list_entity_merge_links(
         entity_type=entity_type,
     )
     return [EntityMergeLinkRead.model_validate(l) for l in links]
+
+
+@router.get("/canonical-people", response_model=List[CanonicalPersonListItem])
+async def list_canonical_people(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List tenant-wide canonical people with linked entity counts."""
+    service = CompanyResearchService(db)
+    items = await service.list_canonical_people(
+        tenant_id=current_user.tenant_id,
+        limit=limit,
+        offset=offset,
+    )
+    response: List[CanonicalPersonListItem] = []
+    for entry in items:
+        person = entry.get("person")
+        count = entry.get("linked_entities_count", 0)
+        payload = {
+            "id": person.id,
+            "tenant_id": person.tenant_id,
+            "created_at": person.created_at,
+            "updated_at": person.updated_at,
+            "canonical_full_name": person.canonical_full_name,
+            "primary_email": person.primary_email,
+            "primary_linkedin_url": person.primary_linkedin_url,
+            "linked_entities_count": int(count or 0),
+        }
+        response.append(CanonicalPersonListItem.model_validate(payload))
+    return response
+
+
+@router.get("/canonical-people/{canonical_person_id}", response_model=CanonicalPersonRead)
+async def get_canonical_person_detail(
+    canonical_person_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch canonical person detail with emails and links."""
+    service = CompanyResearchService(db)
+    person = await service.get_canonical_person_detail(current_user.tenant_id, canonical_person_id)
+    if not person:
+        raise HTTPException(status_code=404, detail="Canonical person not found")
+    return CanonicalPersonRead.model_validate(person, from_attributes=True)
+
+
+@router.get("/canonical-person-links", response_model=List[CanonicalPersonLinkRead])
+async def list_canonical_person_links(
+    canonical_person_id: Optional[UUID] = Query(None, description="Filter by canonical person"),
+    person_entity_id: Optional[UUID] = Query(None, description="Filter by person entity id"),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List canonical person links (tenant-scoped)."""
+    service = CompanyResearchService(db)
+    links = await service.list_canonical_person_links(
+        tenant_id=current_user.tenant_id,
+        canonical_person_id=canonical_person_id,
+        person_entity_id=person_entity_id,
+    )
+    return [CanonicalPersonLinkRead.model_validate(l, from_attributes=True) for l in links]
 
 
 @router.get("/runs/{run_id}/prospects", response_model=List[CompanyProspectListItem])

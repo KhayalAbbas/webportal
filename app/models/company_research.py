@@ -459,6 +459,12 @@ class ExecutiveProspect(TenantScopedModel):
         cascade="all, delete-orphan",
     )
 
+    canonical_links: Mapped[List["CanonicalPersonLink"]] = relationship(
+        "CanonicalPersonLink",
+        back_populates="executive_prospect",
+        cascade="all, delete-orphan",
+    )
+
     __table_args__ = (
         Index("ix_executive_prospects_run_id", "company_research_run_id"),
         Index("ix_executive_prospects_company_id", "company_prospect_id"),
@@ -693,6 +699,109 @@ class EntityMergeLink(TenantScopedModel):
             name="uq_entity_merge_links_hash",
         ),
         Index("ix_entity_merge_links_run_type", "tenant_id", "company_research_run_id", "entity_type"),
+    )
+
+
+class CanonicalPerson(TenantScopedModel):
+    """Tenant-wide canonical person record."""
+
+    __tablename__ = "canonical_people"
+
+    canonical_full_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    primary_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    primary_linkedin_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    emails: Mapped[List["CanonicalPersonEmail"]] = relationship(
+        "CanonicalPersonEmail",
+        back_populates="canonical_person",
+        cascade="all, delete-orphan",
+    )
+
+    links: Mapped[List["CanonicalPersonLink"]] = relationship(
+        "CanonicalPersonLink",
+        back_populates="canonical_person",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_canonical_people_tenant", "tenant_id"),
+    )
+
+
+class CanonicalPersonEmail(TenantScopedModel):
+    """Normalized email tied to a canonical person."""
+
+    __tablename__ = "canonical_person_emails"
+
+    canonical_person_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("canonical_people.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    email_normalized: Mapped[str] = mapped_column(Text, nullable=False)
+
+    canonical_person: Mapped[CanonicalPerson] = relationship(
+        "CanonicalPerson",
+        back_populates="emails",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "email_normalized", name="uq_canonical_person_emails_unique_email"),
+        Index("ix_canonical_person_emails_tenant_email", "tenant_id", "email_normalized"),
+    )
+
+
+class CanonicalPersonLink(TenantScopedModel):
+    """Link between a discovered person entity and canonical person."""
+
+    __tablename__ = "canonical_person_links"
+
+    canonical_person_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("canonical_people.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    person_entity_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("executive_prospects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    match_rule: Mapped[str] = mapped_column(Text, nullable=False)
+
+    evidence_source_document_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    evidence_company_research_run_id: Mapped[Optional[UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    canonical_person: Mapped[CanonicalPerson] = relationship(
+        "CanonicalPerson",
+        back_populates="links",
+    )
+
+    executive_prospect: Mapped[ExecutiveProspect] = relationship(
+        "ExecutiveProspect",
+        back_populates="canonical_links",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "person_entity_id", name="uq_canonical_person_links_person"),
+        Index("ix_canonical_person_links_tenant_person", "tenant_id", "canonical_person_id"),
+        Index("ix_canonical_person_links_tenant_run", "tenant_id", "evidence_company_research_run_id"),
     )
 
 
