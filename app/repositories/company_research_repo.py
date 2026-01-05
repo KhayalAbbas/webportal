@@ -32,6 +32,9 @@ from app.models.company_research import (
     CanonicalPerson,
     CanonicalPersonEmail,
     CanonicalPersonLink,
+    CanonicalCompany,
+    CanonicalCompanyDomain,
+    CanonicalCompanyLink,
 )
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -447,6 +450,68 @@ class CompanyResearchRepository:
                 CompanyProspectEvidence.company_prospect_id == prospect_id,
             )
             .order_by(desc(CompanyProspectEvidence.evidence_weight), desc(CompanyProspectEvidence.created_at))
+        )
+        return list(result.scalars().all())
+
+    async def list_company_prospects_with_website(
+        self,
+        tenant_id: str,
+    ) -> List[CompanyProspect]:
+        result = await self.db.execute(
+            select(CompanyProspect)
+            .where(
+                CompanyProspect.tenant_id == tenant_id,
+                CompanyProspect.website_url.is_not(None),
+            )
+            .order_by(CompanyProspect.created_at.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_company_prospects_for_run_with_website(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> List[CompanyProspect]:
+        result = await self.db.execute(
+            select(CompanyProspect)
+            .where(
+                CompanyProspect.tenant_id == tenant_id,
+                CompanyProspect.company_research_run_id == run_id,
+                CompanyProspect.website_url.is_not(None),
+            )
+            .order_by(CompanyProspect.created_at.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_company_prospects_with_country(
+        self,
+        tenant_id: str,
+    ) -> List[CompanyProspect]:
+        result = await self.db.execute(
+            select(CompanyProspect)
+            .where(
+                CompanyProspect.tenant_id == tenant_id,
+                CompanyProspect.hq_country.is_not(None),
+            )
+            .order_by(CompanyProspect.created_at.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_company_evidence_for_prospect_ids(
+        self,
+        tenant_id: str,
+        prospect_ids: List[UUID],
+    ) -> List[CompanyProspectEvidence]:
+        if not prospect_ids:
+            return []
+
+        result = await self.db.execute(
+            select(CompanyProspectEvidence)
+            .where(
+                CompanyProspectEvidence.tenant_id == tenant_id,
+                CompanyProspectEvidence.company_prospect_id.in_(prospect_ids),
+            )
+            .order_by(CompanyProspectEvidence.created_at.asc())
         )
         return list(result.scalars().all())
 
@@ -984,6 +1049,183 @@ class CompanyResearchRepository:
             EntityMergeLink.canonical_entity_id.asc(),
             EntityMergeLink.duplicate_entity_id.asc(),
         )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    # ====================================================================
+    # Canonical Companies Operations (Stage 6.3)
+    # ====================================================================
+
+    async def get_canonical_company_by_domain(
+        self,
+        tenant_id: str,
+        domain_normalized: str,
+    ) -> Optional[CanonicalCompany]:
+        query = (
+            select(CanonicalCompany)
+            .join(CanonicalCompanyDomain, CanonicalCompanyDomain.canonical_company_id == CanonicalCompany.id)
+            .options(
+                selectinload(CanonicalCompany.domains),
+                selectinload(CanonicalCompany.links),
+            )
+            .where(
+                CanonicalCompanyDomain.tenant_id == tenant_id,
+                CanonicalCompanyDomain.domain_normalized == domain_normalized,
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_canonical_company_by_name_country(
+        self,
+        tenant_id: str,
+        name_normalized: str,
+        country_code: str,
+    ) -> Optional[CanonicalCompany]:
+        query = (
+            select(CanonicalCompany)
+            .options(
+                selectinload(CanonicalCompany.domains),
+                selectinload(CanonicalCompany.links),
+            )
+            .where(
+                CanonicalCompany.tenant_id == tenant_id,
+                func.lower(CanonicalCompany.canonical_name) == func.lower(name_normalized),
+                CanonicalCompany.country_code == country_code,
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def create_canonical_company(
+        self,
+        tenant_id: str,
+        canonical_name: Optional[str] = None,
+        primary_domain: Optional[str] = None,
+        country_code: Optional[str] = None,
+    ) -> CanonicalCompany:
+        company = CanonicalCompany(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            canonical_name=canonical_name,
+            primary_domain=primary_domain,
+            country_code=country_code,
+        )
+        self.db.add(company)
+        await self.db.flush()
+        await self.db.refresh(company)
+        return company
+
+    async def upsert_canonical_company_domain(
+        self,
+        tenant_id: str,
+        canonical_company_id: UUID,
+        domain_normalized: str,
+    ) -> CanonicalCompanyDomain:
+        base_insert = insert(CanonicalCompanyDomain).values(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            canonical_company_id=canonical_company_id,
+            domain_normalized=domain_normalized,
+        )
+        stmt = base_insert.on_conflict_do_update(
+            constraint="uq_canonical_company_domains_domain",
+            set_={
+                "canonical_company_id": base_insert.excluded.canonical_company_id,
+                "updated_at": func.now(),
+            },
+        ).returning(CanonicalCompanyDomain)
+        result = await self.db.execute(stmt)
+        record = result.scalar_one()
+        await self.db.flush()
+        return record
+
+    async def upsert_canonical_company_link(
+        self,
+        tenant_id: str,
+        canonical_company_id: UUID,
+        company_entity_id: UUID,
+        match_rule: str,
+        evidence_source_document_id: UUID,
+        evidence_company_research_run_id: Optional[UUID],
+    ) -> CanonicalCompanyLink:
+        base_insert = insert(CanonicalCompanyLink).values(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            canonical_company_id=canonical_company_id,
+            company_entity_id=company_entity_id,
+            match_rule=match_rule,
+            evidence_source_document_id=evidence_source_document_id,
+            evidence_company_research_run_id=evidence_company_research_run_id,
+        )
+        stmt = base_insert.on_conflict_do_update(
+            constraint="uq_canonical_company_links_entity",
+            set_={
+                "canonical_company_id": base_insert.excluded.canonical_company_id,
+                "match_rule": base_insert.excluded.match_rule,
+                "evidence_source_document_id": base_insert.excluded.evidence_source_document_id,
+                "evidence_company_research_run_id": base_insert.excluded.evidence_company_research_run_id,
+                "updated_at": func.now(),
+            },
+        ).returning(CanonicalCompanyLink)
+        result = await self.db.execute(stmt)
+        link = result.scalar_one()
+        await self.db.flush()
+        return link
+
+    async def list_canonical_companies_with_counts(
+        self,
+        tenant_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[tuple[CanonicalCompany, int]]:
+        link_count = func.count(CanonicalCompanyLink.id)
+        query = (
+            select(CanonicalCompany, link_count)
+            .outerjoin(CanonicalCompanyLink, and_(
+                CanonicalCompanyLink.tenant_id == CanonicalCompany.tenant_id,
+                CanonicalCompanyLink.canonical_company_id == CanonicalCompany.id,
+            ))
+            .where(CanonicalCompany.tenant_id == tenant_id)
+            .group_by(CanonicalCompany.id)
+            .order_by(CanonicalCompany.created_at.asc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.db.execute(query)
+        return list(result.all())
+
+    async def get_canonical_company_detail(
+        self,
+        tenant_id: str,
+        canonical_company_id: UUID,
+    ) -> Optional[CanonicalCompany]:
+        query = (
+            select(CanonicalCompany)
+            .options(
+                selectinload(CanonicalCompany.domains),
+                selectinload(CanonicalCompany.links),
+            )
+            .where(
+                CanonicalCompany.tenant_id == tenant_id,
+                CanonicalCompany.id == canonical_company_id,
+            )
+        )
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def list_canonical_company_links(
+        self,
+        tenant_id: str,
+        canonical_company_id: Optional[UUID] = None,
+        company_entity_id: Optional[UUID] = None,
+    ) -> List[CanonicalCompanyLink]:
+        query = select(CanonicalCompanyLink).where(CanonicalCompanyLink.tenant_id == tenant_id)
+        if canonical_company_id:
+            query = query.where(CanonicalCompanyLink.canonical_company_id == canonical_company_id)
+        if company_entity_id:
+            query = query.where(CanonicalCompanyLink.company_entity_id == company_entity_id)
+        query = query.order_by(CanonicalCompanyLink.created_at.asc())
         result = await self.db.execute(query)
         return list(result.scalars().all())
 

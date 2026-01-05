@@ -379,6 +379,12 @@ class CompanyProspect(TenantScopedModel):
         back_populates="company_prospect",
         cascade="all, delete-orphan",
     )
+
+    canonical_company_links: Mapped[List["CanonicalCompanyLink"]] = relationship(
+        "CanonicalCompanyLink",
+        back_populates="company_prospect",
+        cascade="all, delete-orphan",
+    )
     
     metrics: Mapped[List["CompanyProspectMetric"]] = relationship(
         "CompanyProspectMetric",
@@ -802,6 +808,109 @@ class CanonicalPersonLink(TenantScopedModel):
         UniqueConstraint("tenant_id", "person_entity_id", name="uq_canonical_person_links_person"),
         Index("ix_canonical_person_links_tenant_person", "tenant_id", "canonical_person_id"),
         Index("ix_canonical_person_links_tenant_run", "tenant_id", "evidence_company_research_run_id"),
+    )
+
+
+class CanonicalCompany(TenantScopedModel):
+    """Tenant-wide canonical company record."""
+
+    __tablename__ = "canonical_companies"
+
+    canonical_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    primary_domain: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    country_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    domains: Mapped[List["CanonicalCompanyDomain"]] = relationship(
+        "CanonicalCompanyDomain",
+        back_populates="canonical_company",
+        cascade="all, delete-orphan",
+    )
+
+    links: Mapped[List["CanonicalCompanyLink"]] = relationship(
+        "CanonicalCompanyLink",
+        back_populates="canonical_company",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_canonical_companies_tenant", "tenant_id"),
+    )
+
+
+class CanonicalCompanyDomain(TenantScopedModel):
+    """Normalized domain tied to a canonical company."""
+
+    __tablename__ = "canonical_company_domains"
+
+    canonical_company_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("canonical_companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    domain_normalized: Mapped[str] = mapped_column(Text, nullable=False)
+
+    canonical_company: Mapped[CanonicalCompany] = relationship(
+        "CanonicalCompany",
+        back_populates="domains",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "domain_normalized", name="uq_canonical_company_domains_domain"),
+        Index("ix_canonical_company_domains_tenant_domain", "tenant_id", "domain_normalized"),
+    )
+
+
+class CanonicalCompanyLink(TenantScopedModel):
+    """Link between a discovered company entity and canonical company."""
+
+    __tablename__ = "canonical_company_links"
+
+    canonical_company_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("canonical_companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    company_entity_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_prospects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    match_rule: Mapped[str] = mapped_column(Text, nullable=False)
+
+    evidence_source_document_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    evidence_company_research_run_id: Mapped[Optional[UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    canonical_company: Mapped[CanonicalCompany] = relationship(
+        "CanonicalCompany",
+        back_populates="links",
+    )
+
+    company_prospect: Mapped[CompanyProspect] = relationship(
+        "CompanyProspect",
+        back_populates="canonical_company_links",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "company_entity_id", name="uq_canonical_company_links_entity"),
+        Index("ix_canonical_company_links_tenant_company", "tenant_id", "canonical_company_id"),
+        Index("ix_canonical_company_links_tenant_run", "tenant_id", "evidence_company_research_run_id"),
     )
 
 

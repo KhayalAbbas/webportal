@@ -42,6 +42,9 @@ from app.schemas.company_research import (
     CanonicalPersonRead,
     CanonicalPersonListItem,
     CanonicalPersonLinkRead,
+    CanonicalCompanyRead,
+    CanonicalCompanyListItem,
+    CanonicalCompanyLinkRead,
 )
 
 router = APIRouter(prefix="/company-research", tags=["company-research"])
@@ -653,6 +656,69 @@ async def list_canonical_person_links(
         person_entity_id=person_entity_id,
     )
     return [CanonicalPersonLinkRead.model_validate(l, from_attributes=True) for l in links]
+
+
+@router.get("/canonical-companies", response_model=List[CanonicalCompanyListItem])
+async def list_canonical_companies(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List tenant-wide canonical companies with linked entity counts."""
+    service = CompanyResearchService(db)
+    items = await service.list_canonical_companies(
+        tenant_id=current_user.tenant_id,
+        limit=limit,
+        offset=offset,
+    )
+    response: List[CanonicalCompanyListItem] = []
+    for entry in items:
+        company = entry.get("company")
+        count = entry.get("linked_entities_count", 0)
+        payload = {
+            "id": company.id,
+            "tenant_id": company.tenant_id,
+            "created_at": company.created_at,
+            "updated_at": company.updated_at,
+            "canonical_name": getattr(company, "canonical_name", None),
+            "primary_domain": getattr(company, "primary_domain", None),
+            "country_code": getattr(company, "country_code", None),
+            "linked_entities_count": int(count or 0),
+        }
+        response.append(CanonicalCompanyListItem.model_validate(payload))
+    return response
+
+
+@router.get("/canonical-companies/{canonical_company_id}", response_model=CanonicalCompanyRead)
+async def get_canonical_company_detail(
+    canonical_company_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch canonical company detail with domains and links."""
+    service = CompanyResearchService(db)
+    company = await service.get_canonical_company_detail(current_user.tenant_id, canonical_company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Canonical company not found")
+    return CanonicalCompanyRead.model_validate(company, from_attributes=True)
+
+
+@router.get("/canonical-company-links", response_model=List[CanonicalCompanyLinkRead])
+async def list_canonical_company_links(
+    canonical_company_id: Optional[UUID] = Query(None, description="Filter by canonical company"),
+    company_entity_id: Optional[UUID] = Query(None, description="Filter by company entity id"),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List canonical company links (tenant-scoped)."""
+    service = CompanyResearchService(db)
+    links = await service.list_canonical_company_links(
+        tenant_id=current_user.tenant_id,
+        canonical_company_id=canonical_company_id,
+        company_entity_id=company_entity_id,
+    )
+    return [CanonicalCompanyLinkRead.model_validate(l, from_attributes=True) for l in links]
 
 
 @router.get("/runs/{run_id}/prospects", response_model=List[CompanyProspectListItem])

@@ -540,3 +540,35 @@ class CanonicalPersonListItem(TenantScopedRead):
     primary_email: Optional[str] = None
     primary_linkedin_url: Optional[str] = None
     linked_entities_count: int = 0
+
+
+# ============================================================================
+# Canonical Company Schemas (Stage 6.3)
+# ============================================================================
+
+class CanonicalCompanyDomainRead(TenantScopedRead):
+    canonical_company_id: UUID
+    domain_normalized: str
+
+
+class CanonicalCompanyLinkRead(TenantScopedRead):
+    canonical_company_id: UUID
+    company_entity_id: UUID
+    match_rule: str
+    evidence_source_document_id: UUID
+    evidence_company_research_run_id: Optional[UUID] = None
+
+
+class CanonicalCompanyRead(TenantScopedRead):
+    canonical_name: Optional[str] = None
+    primary_domain: Optional[str] = None
+    country_code: Optional[str] = None
+    domains: List[CanonicalCompanyDomainRead] = Field(default_factory=list)
+    links: List[CanonicalCompanyLinkRead] = Field(default_factory=list)
+
+
+class CanonicalCompanyListItem(TenantScopedRead):
+    canonical_name: Optional[str] = None
+    primary_domain: Optional[str] = None
+    country_code: Optional[str] = None
+    linked_entities_count: int = 0

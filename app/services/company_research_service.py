@@ -34,6 +34,7 @@ from app.models.ai_enrichment_record import AIEnrichmentRecord
 from app.services.ai_proposal_service import AIProposalService
 from app.services.entity_resolution_service import EntityResolutionService
 from app.services.canonical_people_service import CanonicalPeopleService
+from app.services.canonical_company_service import CanonicalCompanyService
 from app.schemas.ai_proposal import AIProposal
 from app.schemas.ai_enrichment import AIEnrichmentCreate
 from app.schemas.llm_discovery import LlmDiscoveryPayload
@@ -221,6 +222,13 @@ class CompanyResearchService:
                 "step_key": "canonical_people_resolution",
                 "step_order": 27,
                 "rationale": "Build tenant-wide canonical people (email-first, evidence-first)",
+                "enabled": True,
+                "max_attempts": 2,
+            },
+            {
+                "step_key": "canonical_company_resolution",
+                "step_order": 28,
+                "rationale": "Build tenant-wide canonical companies (domain-first, evidence-first)",
                 "enabled": True,
                 "max_attempts": 2,
             },
@@ -1492,6 +1500,73 @@ class CompanyResearchService:
             tenant_id=tenant_id,
             canonical_person_id=canonical_person_id,
             person_entity_id=person_entity_id,
+        )
+
+    # ========================================================================
+    # Canonical Company Resolution (Stage 6.3)
+    # ========================================================================
+
+    async def run_canonical_company_resolution_step(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> dict:
+        """Resolve tenant-wide canonical companies with domain-first deterministic linking."""
+
+        resolver = CanonicalCompanyService(self.db)
+        summary = await resolver.resolve_run_companies(tenant_id=tenant_id, run_id=run_id)
+
+        enriched_summary = {
+            "stage": "6.3_canonical_companies",
+            "entity_type": "company",
+            **summary,
+        }
+
+        await self.repo.create_research_event(
+            tenant_id=tenant_id,
+            data=ResearchEventCreate(
+                company_research_run_id=run_id,
+                event_type="canonical_company_resolution",
+                status="ok",
+                input_json={"stage": "6.3_canonical_companies", "entity_type": "company"},
+                output_json=enriched_summary,
+            ),
+        )
+
+        return enriched_summary
+
+    async def list_canonical_companies(
+        self,
+        tenant_id: str,
+        limit: int = 50,
+        offset: int = 0,
+    ):
+        records = await self.repo.list_canonical_companies_with_counts(tenant_id, limit=limit, offset=offset)
+        results = []
+        for company, count in records:
+            results.append({
+                "company": company,
+                "linked_entities_count": int(count or 0),
+            })
+        return results
+
+    async def get_canonical_company_detail(
+        self,
+        tenant_id: str,
+        canonical_company_id: UUID,
+    ):
+        return await self.repo.get_canonical_company_detail(tenant_id, canonical_company_id)
+
+    async def list_canonical_company_links(
+        self,
+        tenant_id: str,
+        canonical_company_id: Optional[UUID] = None,
+        company_entity_id: Optional[UUID] = None,
+    ):
+        return await self.repo.list_canonical_company_links(
+            tenant_id=tenant_id,
+            canonical_company_id=canonical_company_id,
+            company_entity_id=company_entity_id,
         )
 
     # ========================================================================
