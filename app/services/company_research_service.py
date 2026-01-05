@@ -32,6 +32,7 @@ from app.models.company_research import (
 )
 from app.models.ai_enrichment_record import AIEnrichmentRecord
 from app.services.ai_proposal_service import AIProposalService
+from app.services.entity_resolution_service import EntityResolutionService
 from app.schemas.ai_proposal import AIProposal
 from app.schemas.ai_enrichment import AIEnrichmentCreate
 from app.schemas.llm_discovery import LlmDiscoveryPayload
@@ -207,6 +208,13 @@ class CompanyResearchService:
                 "step_order": 20,
                 "rationale": "Process queued research sources",
                 "enabled": True,
+            },
+            {
+                "step_key": "entity_resolution",
+                "step_order": 25,
+                "rationale": "Resolve run-scoped executive duplicates with evidence-first merges",
+                "enabled": True,
+                "max_attempts": 2,
             },
             {
                 "step_key": "ingest_lists",
@@ -1298,6 +1306,118 @@ class CompanyResearchService:
         """Fetch pending URL sources for a run."""
         extractor = CompanyExtractionService(self.db)
         return await extractor.fetch_url_sources(tenant_id=tenant_id, run_id=run_id)
+
+    # ========================================================================
+    # Entity Resolution (Stage 6.1)
+    # ========================================================================
+
+    async def run_entity_resolution_step(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> dict:
+        """Resolve run-scoped executive duplicates with evidence-first merges."""
+
+        entity_type = "executive"
+        resolver = EntityResolutionService(self.db)
+
+        resolved_before = await self.repo.list_resolved_entities_for_run(
+            tenant_id,
+            run_id,
+            entity_type=entity_type,
+        )
+        links_before = await self.repo.list_entity_merge_links_for_run(
+            tenant_id,
+            run_id,
+            entity_type=entity_type,
+        )
+
+        try:
+            summary = await resolver.resolve_run_entities(
+                tenant_id=tenant_id,
+                run_id=run_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=ResearchEventCreate(
+                    company_research_run_id=run_id,
+                    event_type="entity_resolution",
+                    status="failed",
+                    input_json={"stage": "6.1_entity_resolution", "entity_type": entity_type},
+                    output_json=None,
+                    error_message=f"{type(exc).__name__}: {exc}",
+                ),
+            )
+            raise
+
+        resolved_after = await self.repo.list_resolved_entities_for_run(
+            tenant_id,
+            run_id,
+            entity_type=entity_type,
+        )
+        links_after = await self.repo.list_entity_merge_links_for_run(
+            tenant_id,
+            run_id,
+            entity_type=entity_type,
+        )
+
+        resolved_new = max(len(resolved_after) - len(resolved_before), 0)
+        links_new = max(len(links_after) - len(links_before), 0)
+
+        enriched_summary = {
+            "stage": "6.1_entity_resolution",
+            "entity_type": entity_type,
+            "inputs_considered": summary.get("executives_scanned", 0),
+            "resolved_entities_total": len(resolved_after),
+            "resolved_entities_new": resolved_new,
+            "resolved_entities_existing": len(resolved_before),
+            "merge_links_total": len(links_after),
+            "merge_links_new": links_new,
+            "merge_links_existing": len(links_before),
+            **summary,
+        }
+
+        status = "ok"
+        if summary.get("skipped"):
+            status = "ok"
+
+        await self.repo.create_research_event(
+            tenant_id=tenant_id,
+            data=ResearchEventCreate(
+                company_research_run_id=run_id,
+                event_type="entity_resolution",
+                status=status,
+                input_json={
+                    "stage": "6.1_entity_resolution",
+                    "entity_type": entity_type,
+                    "executives_scanned": summary.get("executives_scanned", 0),
+                },
+                output_json=enriched_summary,
+            ),
+        )
+
+        return enriched_summary
+
+    async def list_resolved_entities_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        entity_type: Optional[str] = None,
+    ) -> List:
+        """List resolved entities for a run (deterministic ordering)."""
+        resolver = EntityResolutionService(self.db)
+        return await resolver.list_resolved_entities(tenant_id, run_id, entity_type=entity_type)
+
+    async def list_entity_merge_links_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        entity_type: Optional[str] = None,
+    ) -> List:
+        """List entity merge links for a run (deterministic ordering)."""
+        resolver = EntityResolutionService(self.db)
+        return await resolver.list_entity_merge_links(tenant_id, run_id, entity_type=entity_type)
 
     # ========================================================================
     # List Ingestion

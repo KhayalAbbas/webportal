@@ -30,6 +30,8 @@ from app.models.company_research import CompanyResearchRun, CompanyResearchJob
 from app.models.company_research import (
     CompanyResearchRunPlan,
     CompanyResearchRunStep,
+    ResolvedEntity,
+    EntityMergeLink,
 )
 
 # Export all models
@@ -60,4 +62,6 @@ __all__ = [
     "CompanyResearchJob",
         "CompanyResearchRunPlan",
         "CompanyResearchRunStep",
+        "ResolvedEntity",
+        "EntityMergeLink",
 ]

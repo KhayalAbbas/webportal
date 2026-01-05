@@ -478,3 +478,33 @@ class ResearchEventRead(TenantScopedRead):
     input_json: Optional[Dict[str, Any]] = None
     output_json: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None
+
+
+# ============================================================================
+# Entity Resolution Schemas
+# ============================================================================
+
+class ResolvedEntityRead(TenantScopedRead):
+    """Schema for reading resolved canonical entities."""
+
+    company_research_run_id: UUID
+    entity_type: str
+    canonical_entity_id: UUID
+    match_keys: Dict[str, Any]
+    reason_codes: List[str]
+    evidence_source_document_ids: List[str]
+    resolution_hash: str
+
+
+class EntityMergeLinkRead(TenantScopedRead):
+    """Schema for reading merge links between duplicates and canonicals."""
+
+    company_research_run_id: UUID
+    entity_type: str
+    resolved_entity_id: UUID
+    canonical_entity_id: UUID
+    duplicate_entity_id: UUID
+    match_keys: Dict[str, Any]
+    reason_codes: List[str]
+    evidence_source_document_ids: List[str]
+    resolution_hash: str

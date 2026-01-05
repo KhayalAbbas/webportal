@@ -25,6 +25,10 @@ from app.models.company_research import (
     CompanyResearchRunPlan,
     CompanyResearchRunStep,
     RobotsPolicyCache,
+    ExecutiveProspect,
+    ExecutiveProspectEvidence,
+    ResolvedEntity,
+    EntityMergeLink,
 )
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -442,6 +446,38 @@ class CompanyResearchRepository:
             .order_by(desc(CompanyProspectEvidence.evidence_weight), desc(CompanyProspectEvidence.created_at))
         )
         return list(result.scalars().all())
+
+    async def list_executive_prospects_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> List[ExecutiveProspect]:
+        result = await self.db.execute(
+            select(ExecutiveProspect)
+            .where(
+                ExecutiveProspect.tenant_id == tenant_id,
+                ExecutiveProspect.company_research_run_id == run_id,
+            )
+            .order_by(ExecutiveProspect.created_at.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_executive_evidence_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> List[ExecutiveProspectEvidence]:
+        result = await self.db.execute(
+            select(ExecutiveProspectEvidence)
+            .join(ExecutiveProspect, ExecutiveProspect.id == ExecutiveProspectEvidence.executive_prospect_id)
+            .where(
+                ExecutiveProspectEvidence.tenant_id == tenant_id,
+                ExecutiveProspect.tenant_id == tenant_id,
+                ExecutiveProspect.company_research_run_id == run_id,
+            )
+            .order_by(ExecutiveProspectEvidence.created_at.asc())
+        )
+        return list(result.scalars().all())
     
     # ========================================================================
     # Company Prospect Metric Operations
@@ -775,6 +811,127 @@ class CompanyResearchRepository:
             .order_by(CompanyResearchEvent.created_at.desc())
             .limit(limit)
         )
+        return list(result.scalars().all())
+
+    # ========================================================================
+    # Entity Resolution Operations
+    # ========================================================================
+
+    async def upsert_resolved_entity(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        entity_type: str,
+        canonical_entity_id: UUID,
+        match_keys: dict,
+        reason_codes: list,
+        evidence_source_document_ids: list,
+        resolution_hash: str,
+    ) -> ResolvedEntity:
+        base_insert = insert(ResolvedEntity).values(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            company_research_run_id=run_id,
+            entity_type=entity_type,
+            canonical_entity_id=canonical_entity_id,
+            match_keys=match_keys,
+            reason_codes=reason_codes,
+            evidence_source_document_ids=evidence_source_document_ids,
+            resolution_hash=resolution_hash,
+        )
+
+        insert_stmt = base_insert.on_conflict_do_update(
+            constraint="uq_resolved_entities_hash",
+            set_={
+                "match_keys": base_insert.excluded.match_keys,
+                "reason_codes": base_insert.excluded.reason_codes,
+                "evidence_source_document_ids": base_insert.excluded.evidence_source_document_ids,
+                "updated_at": func.now(),
+            },
+        ).returning(ResolvedEntity)
+        result = await self.db.execute(insert_stmt)
+        resolved = result.scalar_one()
+        await self.db.flush()
+        return resolved
+
+    async def upsert_entity_merge_link(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        entity_type: str,
+        resolved_entity_id: UUID,
+        canonical_entity_id: UUID,
+        duplicate_entity_id: UUID,
+        match_keys: dict,
+        reason_codes: list,
+        evidence_source_document_ids: list,
+        resolution_hash: str,
+    ) -> EntityMergeLink:
+        base_insert = insert(EntityMergeLink).values(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            company_research_run_id=run_id,
+            entity_type=entity_type,
+            resolved_entity_id=resolved_entity_id,
+            canonical_entity_id=canonical_entity_id,
+            duplicate_entity_id=duplicate_entity_id,
+            match_keys=match_keys,
+            reason_codes=reason_codes,
+            evidence_source_document_ids=evidence_source_document_ids,
+            resolution_hash=resolution_hash,
+        )
+
+        insert_stmt = base_insert.on_conflict_do_update(
+            constraint="uq_entity_merge_links_hash",
+            set_={
+                "match_keys": base_insert.excluded.match_keys,
+                "reason_codes": base_insert.excluded.reason_codes,
+                "evidence_source_document_ids": base_insert.excluded.evidence_source_document_ids,
+                "resolved_entity_id": base_insert.excluded.resolved_entity_id,
+                "updated_at": func.now(),
+            },
+        ).returning(EntityMergeLink)
+        result = await self.db.execute(insert_stmt)
+        link = result.scalar_one()
+        await self.db.flush()
+        return link
+
+    async def list_resolved_entities_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        entity_type: Optional[str] = None,
+    ) -> List[ResolvedEntity]:
+        query = select(ResolvedEntity).where(
+            ResolvedEntity.tenant_id == tenant_id,
+            ResolvedEntity.company_research_run_id == run_id,
+        )
+        if entity_type:
+            query = query.where(ResolvedEntity.entity_type == entity_type)
+        query = query.order_by(
+            ResolvedEntity.canonical_entity_id.asc(),
+            ResolvedEntity.resolution_hash.asc(),
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def list_entity_merge_links_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        entity_type: Optional[str] = None,
+    ) -> List[EntityMergeLink]:
+        query = select(EntityMergeLink).where(
+            EntityMergeLink.tenant_id == tenant_id,
+            EntityMergeLink.company_research_run_id == run_id,
+        )
+        if entity_type:
+            query = query.where(EntityMergeLink.entity_type == entity_type)
+        query = query.order_by(
+            EntityMergeLink.canonical_entity_id.asc(),
+            EntityMergeLink.duplicate_entity_id.asc(),
+        )
+        result = await self.db.execute(query)
         return list(result.scalars().all())
 
     # ====================================================================

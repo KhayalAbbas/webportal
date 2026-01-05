@@ -267,6 +267,23 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                 await service.db.commit()
                 continue
 
+            if step.step_key == "entity_resolution":
+                summary = await service.run_entity_resolution_step(
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                )
+                await service.repo.mark_step_succeeded(step.id, output_json=summary)
+                await service.append_event(
+                    tenant_id,
+                    run_id,
+                    "step_succeeded",
+                    f"Completed step {step.step_key}",
+                    meta_json={"step_key": step.step_key, "result": summary},
+                )
+                await service.db.flush()
+                await service.db.commit()
+                continue
+
             if step.step_key == "ingest_lists":
                 summary = await service.ingest_list_sources(tenant_id, run_id)
                 await service.repo.mark_step_succeeded(step.id, output_json=summary)

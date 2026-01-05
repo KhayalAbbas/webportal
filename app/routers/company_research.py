@@ -37,6 +37,8 @@ from app.schemas.company_research import (
     ResearchEventRead,
     SourceDocumentRead,
     SourceDocumentCreate,
+    ResolvedEntityRead,
+    EntityMergeLinkRead,
 )
 
 router = APIRouter(prefix="/company-research", tags=["company-research"])
@@ -543,6 +545,48 @@ async def list_research_events(
         raise HTTPException(status_code=404, detail="Research run not found")
     events = await service.list_events_for_run(current_user.tenant_id, run_id, limit=limit)
     return [ResearchEventRead.model_validate(e) for e in events]
+
+
+@router.get("/runs/{run_id}/resolved-entities", response_model=List[ResolvedEntityRead])
+async def list_resolved_entities(
+    run_id: UUID,
+    entity_type: Optional[str] = Query(None, description="Filter by entity type"),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List resolved canonical entities for a run (deterministic ordering)."""
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    entities = await service.list_resolved_entities_for_run(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        entity_type=entity_type,
+    )
+    return [ResolvedEntityRead.model_validate(e) for e in entities]
+
+
+@router.get("/runs/{run_id}/entity-merge-links", response_model=List[EntityMergeLinkRead])
+async def list_entity_merge_links(
+    run_id: UUID,
+    entity_type: Optional[str] = Query(None, description="Filter by entity type"),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List merge links for resolved entities (deterministic ordering)."""
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    links = await service.list_entity_merge_links_for_run(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        entity_type=entity_type,
+    )
+    return [EntityMergeLinkRead.model_validate(l) for l in links]
 
 
 @router.get("/runs/{run_id}/prospects", response_model=List[CompanyProspectListItem])

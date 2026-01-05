@@ -612,6 +612,90 @@ class ExecutiveProspectEvidence(TenantScopedModel):
     )
 
 
+class ResolvedEntity(TenantScopedModel):
+    """Run-scoped canonical entity for deterministic resolution."""
+
+    __tablename__ = "resolved_entities"
+
+    company_research_run_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    canonical_entity_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    match_keys: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    reason_codes: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    evidence_source_document_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    resolution_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "company_research_run_id",
+            "entity_type",
+            "canonical_entity_id",
+            name="uq_resolved_entities_canonical",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "company_research_run_id",
+            "entity_type",
+            "resolution_hash",
+            name="uq_resolved_entities_hash",
+        ),
+        Index("ix_resolved_entities_run_type", "tenant_id", "company_research_run_id", "entity_type"),
+    )
+
+
+class EntityMergeLink(TenantScopedModel):
+    """Merge link between duplicate entities within a run."""
+
+    __tablename__ = "entity_merge_links"
+
+    company_research_run_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    resolved_entity_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("resolved_entities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    canonical_entity_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    duplicate_entity_id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    match_keys: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    reason_codes: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    evidence_source_document_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    resolution_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "company_research_run_id",
+            "entity_type",
+            "canonical_entity_id",
+            "duplicate_entity_id",
+            name="uq_entity_merge_links_pair",
+        ),
+        UniqueConstraint(
+            "tenant_id",
+            "company_research_run_id",
+            "entity_type",
+            "resolution_hash",
+            name="uq_entity_merge_links_hash",
+        ),
+        Index("ix_entity_merge_links_run_type", "tenant_id", "company_research_run_id", "entity_type"),
+    )
+
+
 class CompanyProspectMetric(TenantScopedModel):
     """
     Company prospect metric - stores numeric metrics per company.

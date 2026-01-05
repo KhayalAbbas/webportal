@@ -1,0 +1,14 @@
+Proof script: scripts/proofs/phase_6_1_entity_resolution.py
+Command: C:/ATS/.venv/Scripts/python.exe scripts/proofs/phase_6_1_entity_resolution.py | Tee-Object -FilePath scripts/proofs/_artifacts/phase_6_1_proof_console_5.txt
+Tenant ID: b3909011-8bd3-439d-a421-3b70fae124e9
+Run ID: 1c8d676d-46a6-4fc5-806e-5b6d4c945c15
+
+Assertions:
+- Pass1 resolved_entities count: 1
+- Pass1 entity_merge_links count: 1
+- Pass2 resolved_entities count: 1 (delta 0)
+- Pass2 entity_merge_links count: 1 (delta 0)
+- Run status: succeeded (finalize step completed)
+- Console log: scripts/proofs/_artifacts/phase_6_1_proof_console_5.txt
+
+PHASE_6_1_PROOF: PASS
