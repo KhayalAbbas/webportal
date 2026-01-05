@@ -24,6 +24,7 @@ from app.routers import (
     research_events,
     source_documents,
     ai_enrichments,
+    enrichment_assignments,
     search,
     company_research,
     research_runs,
@@ -93,6 +94,7 @@ app.include_router(lists.list_item_router)
 app.include_router(research_events.router)
 app.include_router(source_documents.router)
 app.include_router(ai_enrichments.router)
+app.include_router(enrichment_assignments.router)
 app.include_router(search.router)
 app.include_router(company_research.router)
 app.include_router(research_runs.router)
