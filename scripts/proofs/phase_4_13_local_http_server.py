@@ -8,12 +8,29 @@ from typing import Any
 RATE_LIMIT_STATE = {"count": 0}
 FIXTURE_DIR = Path("scripts/proofs/_fixtures")
 PDF_FIXTURE = FIXTURE_DIR / "sample.pdf"
-LONG_HTML_SENTENCE = (
-    "Deterministic fixture text for extraction quality checks. Orion Analytics builds secure telemetry platforms "
-    "for spacecraft, while Harbor Navigation automates port logistics with resilient APIs. Each release ships "
-    "with observability, rate limits, and typed contracts for safety-critical integrations."
+LONG_HTML_SENTENCES = [
+    "Deterministic fixture text for extraction quality checks with typed contracts and rate limits.",
+    "Orion Analytics builds secure telemetry platforms for spacecraft with hardened runtime sandboxes.",
+    "Harbor Navigation automates port logistics and customs manifests with resilient APIs and retries.",
+    "Mesa Compute delivers reproducible notebooks that ship with policy-as-code guardrails and lineage.",
+    "Keystone Security automates key rotation, audit exports, and privileged session recording by default.",
+    "Northwind Power optimizes turbine telemetry streams with edge filters and real-time anomaly scoring.",
+    "Atlas Robotics curates operator training data with clear safety envelopes and deterministic replay.",
+    "Helio Labs provisions zero-trust tunnels for CI agents, enforcing mutual TLS and short-lived creds.",
+    "Citrine Health schedules clinical workflows with strict SLAs, fallback playbooks, and observability.",
+    "Polar Manufacturing predicts line stoppages using vibration baselines and root-cause explainability.",
+    "Tandem Finance reconciles ledgers with double-entry guarantees, hash-chains, and drift alerts." ,
+    "Granite Ops maintains air-gapped backups, quarterly restore drills, and immutable storage policies.",
+    "Vista Mobility deploys OTA updates with staged rollouts, kill switches, and signed artifacts only.",
+    "Mariner GIS fuses nautical charts with AIS telemetry, alerting on draft depth and restricted lanes.",
+    "Beacon Support trains copilots on outage runbooks, escalation matrices, and verification prompts.",
+]
+LONG_HTML_BODY = " ".join(LONG_HTML_SENTENCES * 2)
+BOILERPLATE_SENTENCE = (
+    "We value your privacy and cookies are required to continue. Accept cookies to proceed and review our policy. "
+    "This page uses cookies."
 )
-LONG_HTML_BODY = " ".join([LONG_HTML_SENTENCE for _ in range(40)])
+BOILERPLATE_BODY = " ".join([BOILERPLATE_SENTENCE for _ in range(120)])
 
 
 class FixtureHandler(BaseHTTPRequestHandler):
@@ -87,6 +104,14 @@ class FixtureHandler(BaseHTTPRequestHandler):
             body = (
                 f"<html><head><title>Fixture Content</title></head><body>"
                 f"<h1>Fixture Content</h1><p>{LONG_HTML_BODY}{variant_tail}</p></body></html>"
+            ).encode("utf-8")
+            self._write(200, {"Content-Type": "text/html"}, body)
+            return
+
+        if path == "/boilerplate_long_html":
+            body = (
+                f"<html><head><title>Cookie Notice</title></head><body>"
+                f"<h1>Cookie Notice</h1><p>{BOILERPLATE_BODY}</p></body></html>"
             ).encode("utf-8")
             self._write(200, {"Content-Type": "text/html"}, body)
             return

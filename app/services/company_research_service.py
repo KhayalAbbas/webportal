@@ -196,6 +196,13 @@ class CompanyResearchService:
                 "max_attempts": 3,
             },
             {
+                "step_key": "classify_sources",
+                "step_order": 17,
+                "rationale": "Classify extracted sources for duplicates and junk before processing",
+                "enabled": has_url_sources,
+                "max_attempts": 3,
+            },
+            {
                 "step_key": "process_sources",
                 "step_order": 20,
                 "rationale": "Process queued research sources",

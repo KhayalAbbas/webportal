@@ -231,6 +231,24 @@ async def _process_job(service: CompanyResearchService, job, worker_id: str) -> 
                 await service.db.commit()
                 continue
 
+            if step.step_key == "classify_sources":
+                classifier = CompanySourceExtractionService(service.db)
+                result = await classifier.classify_sources(
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                )
+                await service.repo.mark_step_succeeded(step.id, output_json=result)
+                await service.append_event(
+                    tenant_id,
+                    run_id,
+                    "step_succeeded",
+                    f"Completed step {step.step_key}",
+                    meta_json={"step_key": step.step_key, "result": result},
+                )
+                await service.db.flush()
+                await service.db.commit()
+                continue
+
             if step.step_key == "process_sources":
                 extractor = CompanyExtractionService(service.db)
                 result = await extractor.process_sources(
