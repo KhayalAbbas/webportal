@@ -1,20 +1,17 @@
-## master...origin/master
- M scripts/proofs/_artifacts/phase_7_8_git_after.txt
- M scripts/proofs/_artifacts/phase_7_8_push.txt
+## master...origin/master [ahead 2]
 
-C:/Program Files/Git/bin/git.exe log -1 --decorate
-commit 9e40162820cf6b8bb3cde6226fb5242a7cc660e3 (HEAD -> master, tag: phase_7_8_signed_off, origin/master, origin/HEAD)
+C:\Program Files\Git\bin\git.exe log -1 --decorate
+commit 3cf77043e20a4d14357ea6e0be1a748b25bbd750 (HEAD -> master)
 Author: ATS Local <local@ats>
-Date:   Tue Jan 6 19:57:29 2026 +0400
+Date:   Tue Jan 6 20:18:56 2026 +0400
 
-    chore: phase 7.8 git evidence
+    Phase 7.8: dual engine executive discovery + provenance merge + evidence-first storage + idempotent proof
 
-C:/Program Files/Git/bin/git.exe rev-parse HEAD
-9e40162820cf6b8bb3cde6226fb5242a7cc660e3
+C:\Program Files\Git\bin\git.exe rev-parse HEAD
+3cf77043e20a4d14357ea6e0be1a748b25bbd750
 
-C:/Program Files/Git/bin/git.exe show-ref --tags -d | findstr /i "phase_7_8_signed_off"
-564ebeb83d398d7d492aedc8833e11f847eed805 refs/tags/phase_7_8_signed_off
-9e40162820cf6b8bb3cde6226fb5242a7cc660e3 refs/tags/phase_7_8_signed_off^{}
+C:\Program Files\Git\bin\git.exe show-ref --tags -d | findstr /i phase_7_8_signed_off
+838994845522afbf265c5b2ac5f650d255e459fe refs/tags/phase_7_8_signed_off
 
-TREE_CLEAN=False
-TAG_AT_HEAD=True
+TREE_CLEAN=True
+TAG_AT_HEAD=False
