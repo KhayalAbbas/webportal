@@ -388,6 +388,53 @@ class CompanyProspectRanking(BaseModel):
     why_included: List[ProspectSignalEvidence] = []
 
 
+# ============================================================================
+# Executive Prospect Schemas (Phase 7.7)
+# ============================================================================
+
+class ExecutiveEvidenceRead(BaseModel):
+    """Evidence backing an executive prospect."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    executive_prospect_id: UUID
+    source_type: str
+    source_name: str
+    source_url: Optional[str] = None
+    raw_snippet: Optional[str] = None
+    evidence_weight: float
+    source_document_id: Optional[UUID] = None
+    source_content_hash: Optional[str] = None
+
+
+class ExecutiveProspectRead(BaseModel):
+    """Run-scoped executive prospect with evidence pointers."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    run_id: UUID
+    company_prospect_id: UUID
+    company_name: str
+    canonical_company_id: Optional[UUID] = None
+    discovered_by: Optional[str] = None
+    verification_status: Optional[str] = None
+    name: str
+    name_normalized: str
+    title: Optional[str] = None
+    profile_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    email: Optional[str] = None
+    location: Optional[str] = None
+    confidence: float
+    status: str
+    source_label: Optional[str] = None
+    source_document_id: Optional[UUID] = None
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+    evidence: List[ExecutiveEvidenceRead] = Field(default_factory=list)
+
+
 class CompanyResearchRunSummary(BaseModel):
     """Summary schema for research run with prospect count."""
     

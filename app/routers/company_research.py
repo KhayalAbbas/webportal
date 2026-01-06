@@ -33,6 +33,7 @@ from app.schemas.company_research import (
     CompanyProspectListItem,
     CompanyProspectWithEvidence,
     CompanyProspectRanking,
+    ExecutiveProspectRead,
     CompanyProspectUpdateManual,
     CompanyProspectReviewUpdate,
     CompanyProspectEvidenceCreate,
@@ -622,6 +623,133 @@ async def run_executive_discovery(
         "external_result": external_result,
         "skipped": skipped,
     }
+
+
+@router.get("/runs/{run_id}/executives", response_model=List[ExecutiveProspectRead])
+async def list_executive_prospects(
+    run_id: UUID,
+    canonical_company_id: Optional[UUID] = Query(None, description="Filter by canonical company identifier"),
+    company_prospect_id: Optional[UUID] = Query(None, description="Filter by company prospect identifier"),
+    discovered_by: Optional[str] = Query(None, description="Filter by discovery provenance"),
+    verification_status: Optional[str] = Query(None, description="Filter by company verification status"),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """List executives for a run with evidence pointers and deterministic ordering."""
+
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    exec_rows = await service.list_executive_prospects_with_evidence(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        canonical_company_id=canonical_company_id,
+        company_prospect_id=company_prospect_id,
+        discovered_by=discovered_by,
+        verification_status=verification_status,
+    )
+    return [ExecutiveProspectRead.model_validate(row) for row in exec_rows]
+
+
+@router.get("/runs/{run_id}/executives.json", response_model=List[ExecutiveProspectRead])
+async def export_executives_json(
+    run_id: UUID,
+    canonical_company_id: Optional[UUID] = Query(None, description="Filter by canonical company identifier"),
+    company_prospect_id: Optional[UUID] = Query(None, description="Filter by company prospect identifier"),
+    discovered_by: Optional[str] = Query(None, description="Filter by discovery provenance"),
+    verification_status: Optional[str] = Query(None, description="Filter by company verification status"),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export executive prospects as JSON using stable ordering."""
+
+    service = CompanyResearchService(db)
+    exec_rows = await service.list_executive_prospects_with_evidence(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        canonical_company_id=canonical_company_id,
+        company_prospect_id=company_prospect_id,
+        discovered_by=discovered_by,
+        verification_status=verification_status,
+    )
+    return [ExecutiveProspectRead.model_validate(row) for row in exec_rows]
+
+
+@router.get("/runs/{run_id}/executives.csv")
+async def export_executives_csv(
+    run_id: UUID,
+    canonical_company_id: Optional[UUID] = Query(None, description="Filter by canonical company identifier"),
+    company_prospect_id: Optional[UUID] = Query(None, description="Filter by company prospect identifier"),
+    discovered_by: Optional[str] = Query(None, description="Filter by discovery provenance"),
+    verification_status: Optional[str] = Query(None, description="Filter by company verification status"),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export executive prospects as CSV with evidence pointers."""
+
+    service = CompanyResearchService(db)
+    exec_rows = await service.list_executive_prospects_with_evidence(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        canonical_company_id=canonical_company_id,
+        company_prospect_id=company_prospect_id,
+        discovered_by=discovered_by,
+        verification_status=verification_status,
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "company_name",
+            "canonical_company_id",
+            "company_prospect_id",
+            "name",
+            "title",
+            "source_label",
+            "source_document_id",
+            "evidence_source_document_ids",
+            "evidence_count",
+            "profile_url",
+            "linkedin_url",
+            "email",
+            "location",
+            "discovered_by",
+            "verification_status",
+            "status",
+            "confidence",
+        ]
+    )
+
+    for row in exec_rows:
+        evidence_ids = row.get("evidence_source_document_ids") or []
+        writer.writerow(
+            [
+                row.get("company_name", ""),
+                row.get("canonical_company_id"),
+                row.get("company_prospect_id"),
+                row.get("name", ""),
+                row.get("title"),
+                row.get("source_label"),
+                row.get("source_document_id"),
+                "|".join(str(eid) for eid in evidence_ids),
+                len(row.get("evidence", []) or []),
+                row.get("profile_url"),
+                row.get("linkedin_url"),
+                row.get("email"),
+                row.get("location"),
+                row.get("discovered_by"),
+                row.get("verification_status"),
+                row.get("status"),
+                row.get("confidence"),
+            ]
+        )
+
+    stream = io.BytesIO(output.getvalue().encode("utf-8"))
+    headers = {"Content-Disposition": f"attachment; filename=run_{run_id}_executives.csv"}
+    return StreamingResponse(stream, media_type="text/csv", headers=headers)
 
 
 @router.post("/runs/{run_id}/retry", response_model=CompanyResearchJobRead)

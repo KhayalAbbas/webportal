@@ -238,39 +238,67 @@
     </div>
 
     <div style="margin-top: 16px;">
-        <h3 class="section-title" style="font-size: 15px;">Executive Prospects ({{ executives|length }})</h3>
-        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-            <thead>
-                <tr style="background: #f8f9fa;">
-                    <th style="text-align: left; padding: 8px;">Company</th>
-                    <th style="text-align: left; padding: 8px;">Name</th>
-                    <th style="text-align: left; padding: 8px;">Title</th>
-                    <th style="text-align: left; padding: 8px;">Email</th>
-                    <th style="text-align: left; padding: 8px;">Location</th>
-                    <th style="text-align: left; padding: 8px;">Profile</th>
-                    <th style="text-align: left; padding: 8px;">Evidence</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if executives %}
-                {% for exec in executives %}
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 8px;">{{ exec.company }}</td>
-                    <td style="padding: 8px; font-weight: 600;">{{ exec.name }}</td>
-                    <td style="padding: 8px;">{{ exec.title or '-' }}</td>
-                    <td style="padding: 8px;">{{ exec.email or '-' }}</td>
-                    <td style="padding: 8px;">{{ exec.location or '-' }}</td>
-                    <td style="padding: 8px;">
-                        {% if exec.linkedin_url %}<a href="{{ exec.linkedin_url }}" target="_blank">LinkedIn</a>{% elif exec.profile_url %}<a href="{{ exec.profile_url }}" target="_blank">Profile</a>{% else %}-{% endif %}
-                    </td>
-                    <td style="padding: 8px;">{{ exec.evidence_count }}</td>
-                </tr>
-                {% endfor %}
-                {% else %}
-                <tr><td colspan="7" style="padding: 8px;">No executive prospects yet.</td></tr>
-                {% endif %}
-            </tbody>
-        </table>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
+            <h3 class="section-title" style="font-size: 15px; margin: 0;">Executive Prospects ({{ executive_total_count }})</h3>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <a class="btn btn-secondary" href="/company-research/runs/{{ run.id }}/executives.json">Export executives JSON</a>
+                <a class="btn btn-secondary" href="/company-research/runs/{{ run.id }}/executives.csv">Export executives CSV</a>
+            </div>
+        </div>
+
+        {% if executive_groups %}
+            {% for group in executive_groups %}
+            <details style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 10px; margin-bottom: 10px;" {% if loop.first %}open{% endif %}>
+                <summary style="cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <span>{{ group.company_name }} ({{ group.executives|length }})</span>
+                    <span style="font-size: 12px; color: #555;">Verification: {{ group.verification_status or '-' }} · Discovered by: {{ group.discovered_by or '-' }}</span>
+                </summary>
+                <div style="margin-top: 8px;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                        <a class="btn btn-secondary" href="/company-research/runs/{{ run.id }}/executives.json?company_prospect_id={{ group.company_prospect_id }}">Export company JSON</a>
+                        <a class="btn btn-secondary" href="/company-research/runs/{{ run.id }}/executives.csv?company_prospect_id={{ group.company_prospect_id }}">Export company CSV</a>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                        <thead>
+                            <tr style="background: #f8f9fa;">
+                                <th style="text-align: left; padding: 6px;">Name</th>
+                                <th style="text-align: left; padding: 6px;">Title</th>
+                                <th style="text-align: left; padding: 6px;">Provenance</th>
+                                <th style="text-align: left; padding: 6px;">Verification</th>
+                                <th style="text-align: left; padding: 6px;">Evidence pointers</th>
+                                <th style="text-align: left; padding: 6px;">Profile</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for exec in group.executives %}
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 6px; font-weight: 600;">{{ exec.name }}</td>
+                                <td style="padding: 6px;">{{ exec.title or '-' }}</td>
+                                <td style="padding: 6px;">{{ exec.source_label or '-' }}</td>
+                                <td style="padding: 6px;">{{ group.verification_status or '-' }}</td>
+                                <td style="padding: 6px;">
+                                    {% if exec.source_document_id %}
+                                        <div style="font-size: 11px;">source: {{ exec.source_document_id }}</div>
+                                    {% endif %}
+                                    {% if exec.evidence_source_document_ids %}
+                                        <div style="font-size: 11px;">evidence: {{ exec.evidence_source_document_ids|join(', ') }}</div>
+                                    {% else %}
+                                        <div style="font-size: 11px; color: #666;">-</div>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 6px;">
+                                    {% if exec.linkedin_url %}<a href="{{ exec.linkedin_url }}" target="_blank">LinkedIn</a>{% elif exec.profile_url %}<a href="{{ exec.profile_url }}" target="_blank">Profile</a>{% else %}-{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+            {% endfor %}
+        {% else %}
+            <div style="padding: 8px; border: 1px dashed #ddd;">No executive prospects yet.</div>
+        {% endif %}
     </div>
 </div>
 

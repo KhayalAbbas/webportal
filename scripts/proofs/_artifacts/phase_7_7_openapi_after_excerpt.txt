@@ -1,0 +1,404 @@
+{
+  "/company-research/runs/{run_id}/executives": {
+    "get": {
+      "description": "List executives for a run with evidence pointers and deterministic ordering.",
+      "operationId": "list_executive_prospects_company_research_runs__run_id__executives_get",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "run_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Filter by canonical company identifier",
+          "in": "query",
+          "name": "canonical_company_id",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by canonical company identifier",
+            "title": "Canonical Company Id"
+          }
+        },
+        {
+          "description": "Filter by company prospect identifier",
+          "in": "query",
+          "name": "company_prospect_id",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by company prospect identifier",
+            "title": "Company Prospect Id"
+          }
+        },
+        {
+          "description": "Filter by discovery provenance",
+          "in": "query",
+          "name": "discovered_by",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by discovery provenance",
+            "title": "Discovered By"
+          }
+        },
+        {
+          "description": "Filter by company verification status",
+          "in": "query",
+          "name": "verification_status",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by company verification status",
+            "title": "Verification Status"
+          }
+        },
+        {
+          "in": "header",
+          "name": "x-tenant-id",
+          "required": false,
+          "schema": {
+            "title": "X-Tenant-Id",
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/ExecutiveProspectRead"
+                },
+                "title": "Response List Executive Prospects Company Research Runs  Run Id  Executives Get",
+                "type": "array"
+              }
+            }
+          },
+          "description": "Successful Response"
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          },
+          "description": "Validation Error"
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "summary": "List Executive Prospects",
+      "tags": [
+        "company-research"
+      ]
+    }
+  },
+  "/company-research/runs/{run_id}/executives.csv": {
+    "get": {
+      "description": "Export executive prospects as CSV with evidence pointers.",
+      "operationId": "export_executives_csv_company_research_runs__run_id__executives_csv_get",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "run_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Filter by canonical company identifier",
+          "in": "query",
+          "name": "canonical_company_id",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by canonical company identifier",
+            "title": "Canonical Company Id"
+          }
+        },
+        {
+          "description": "Filter by company prospect identifier",
+          "in": "query",
+          "name": "company_prospect_id",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by company prospect identifier",
+            "title": "Company Prospect Id"
+          }
+        },
+        {
+          "description": "Filter by discovery provenance",
+          "in": "query",
+          "name": "discovered_by",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by discovery provenance",
+            "title": "Discovered By"
+          }
+        },
+        {
+          "description": "Filter by company verification status",
+          "in": "query",
+          "name": "verification_status",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by company verification status",
+            "title": "Verification Status"
+          }
+        },
+        {
+          "in": "header",
+          "name": "x-tenant-id",
+          "required": false,
+          "schema": {
+            "title": "X-Tenant-Id",
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "description": "Successful Response"
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          },
+          "description": "Validation Error"
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "summary": "Export Executives Csv",
+      "tags": [
+        "company-research"
+      ]
+    }
+  },
+  "/company-research/runs/{run_id}/executives.json": {
+    "get": {
+      "description": "Export executive prospects as JSON using stable ordering.",
+      "operationId": "export_executives_json_company_research_runs__run_id__executives_json_get",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "run_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Filter by canonical company identifier",
+          "in": "query",
+          "name": "canonical_company_id",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by canonical company identifier",
+            "title": "Canonical Company Id"
+          }
+        },
+        {
+          "description": "Filter by company prospect identifier",
+          "in": "query",
+          "name": "company_prospect_id",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by company prospect identifier",
+            "title": "Company Prospect Id"
+          }
+        },
+        {
+          "description": "Filter by discovery provenance",
+          "in": "query",
+          "name": "discovered_by",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by discovery provenance",
+            "title": "Discovered By"
+          }
+        },
+        {
+          "description": "Filter by company verification status",
+          "in": "query",
+          "name": "verification_status",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Filter by company verification status",
+            "title": "Verification Status"
+          }
+        },
+        {
+          "in": "header",
+          "name": "x-tenant-id",
+          "required": false,
+          "schema": {
+            "title": "X-Tenant-Id",
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/ExecutiveProspectRead"
+                },
+                "title": "Response Export Executives Json Company Research Runs  Run Id  Executives Json Get",
+                "type": "array"
+              }
+            }
+          },
+          "description": "Successful Response"
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          },
+          "description": "Validation Error"
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "summary": "Export Executives Json",
+      "tags": [
+        "company-research"
+      ]
+    }
+  }
+}

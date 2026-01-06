@@ -1,0 +1,2404 @@
+{
+  "paths": {
+    "/company-research/runs/{run_id}": {
+      "get": {
+        "description": "Get a research run by ID with prospect count summary.",
+        "operationId": "get_research_run_company_research_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyResearchRunSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Research Run",
+        "tags": [
+          "company-research"
+        ]
+      },
+      "patch": {
+        "description": "Update a research run (status, description, config, etc.).",
+        "operationId": "update_research_run_company_research_runs__run_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyResearchRunUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyResearchRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Research Run",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/cancel": {
+      "post": {
+        "description": "Request cancellation for a research run job.",
+        "operationId": "cancel_research_run_company_research_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cancel Research Run",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/entity-merge-links": {
+      "get": {
+        "description": "List merge links for resolved entities (deterministic ordering).",
+        "operationId": "list_entity_merge_links_company_research_runs__run_id__entity_merge_links_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by entity type",
+            "in": "query",
+            "name": "entity_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by entity type",
+              "title": "Entity Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntityMergeLinkRead"
+                  },
+                  "title": "Response List Entity Merge Links Company Research Runs  Run Id  Entity Merge Links Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Entity Merge Links",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/events": {
+      "get": {
+        "description": "List recent events for a research run.",
+        "operationId": "list_research_events_company_research_runs__run_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/app__schemas__company_research__ResearchEventRead"
+                  },
+                  "title": "Response List Research Events Company Research Runs  Run Id  Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Research Events",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/executive-discovery/eligible": {
+      "get": {
+        "description": "List companies approved for executive discovery (accepted + exec_search_enabled).",
+        "operationId": "list_executive_discovery_eligible_company_research_runs__run_id__executive_discovery_eligible_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ExecutiveEligibilityItem"
+                  },
+                  "title": "Response List Executive Discovery Eligible Company Research Runs  Run Id  Executive Discovery Eligible Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Executive Discovery Eligible",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/executive-discovery/run": {
+      "post": {
+        "description": "Start executive discovery for a run using external payloads.",
+        "operationId": "run_executive_discovery_company_research_runs__run_id__executive_discovery_run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutiveDiscoveryRunPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Run Executive Discovery",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/plan": {
+      "get": {
+        "description": "Get or build the deterministic plan for a research run.",
+        "operationId": "get_research_run_plan_company_research_runs__run_id__plan_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyResearchRunPlanRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Research Run Plan",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/prospects": {
+      "get": {
+        "description": "List company prospects for a research run.\n\nSupports filtering by status, minimum relevance score, and ordering by AI or manual ranking.\n\nOrdering modes:\n- \"ai\": Pinned first, then by AI relevance_score DESC\n- \"manual\": Pinned first, then by manual_priority ASC (1=highest) NULLS LAST, then relevance",
+        "operationId": "list_prospects_for_run_company_research_runs__run_id__prospects_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Minimum AI relevance score",
+            "in": "query",
+            "name": "min_relevance_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum AI relevance score",
+              "title": "Min Relevance Score"
+            }
+          },
+          {
+            "description": "Filter by review status (new, accepted, hold, rejected)",
+            "in": "query",
+            "name": "review_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by review status (new, accepted, hold, rejected)",
+              "title": "Review Status"
+            }
+          },
+          {
+            "description": "Filter by verification status",
+            "in": "query",
+            "name": "verification_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by verification status",
+              "title": "Verification Status"
+            }
+          },
+          {
+            "description": "Filter by discovery provenance",
+            "in": "query",
+            "name": "discovered_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by discovery provenance",
+              "title": "Discovered By"
+            }
+          },
+          {
+            "description": "Filter by exec_search_enabled flag",
+            "in": "query",
+            "name": "exec_search_enabled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by exec_search_enabled flag",
+              "title": "Exec Search Enabled"
+            }
+          },
+          {
+            "description": "Ordering mode: 'ai' (relevance) or 'manual' (user priority)",
+            "in": "query",
+            "name": "order_by",
+            "required": false,
+            "schema": {
+              "default": "ai",
+              "description": "Ordering mode: 'ai' (relevance) or 'manual' (user priority)",
+              "title": "Order By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyProspectListItem"
+                  },
+                  "title": "Response List Prospects For Run Company Research Runs  Run Id  Prospects Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Prospects For Run",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/prospects-ranked": {
+      "get": {
+        "description": "Return deterministic, evidence-backed prospect rankings with explainability.",
+        "operationId": "rank_prospects_for_run_company_research_runs__run_id__prospects_ranked_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Minimum AI relevance score",
+            "in": "query",
+            "name": "min_relevance_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum AI relevance score",
+              "title": "Min Relevance Score"
+            }
+          },
+          {
+            "description": "Filter by review status (new, accepted, hold, rejected)",
+            "in": "query",
+            "name": "review_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by review status (new, accepted, hold, rejected)",
+              "title": "Review Status"
+            }
+          },
+          {
+            "description": "Filter by verification status",
+            "in": "query",
+            "name": "verification_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by verification status",
+              "title": "Verification Status"
+            }
+          },
+          {
+            "description": "Filter by discovery provenance",
+            "in": "query",
+            "name": "discovered_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by discovery provenance",
+              "title": "Discovered By"
+            }
+          },
+          {
+            "description": "Filter by exec_search_enabled flag",
+            "in": "query",
+            "name": "exec_search_enabled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by exec_search_enabled flag",
+              "title": "Exec Search Enabled"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyProspectRanking"
+                  },
+                  "title": "Response Rank Prospects For Run Company Research Runs  Run Id  Prospects Ranked Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Rank Prospects For Run",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/prospects-ranked.csv": {
+      "get": {
+        "description": "Export ranked prospects as CSV with explainability rollup.",
+        "operationId": "export_ranked_prospects_csv_company_research_runs__run_id__prospects_ranked_csv_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Minimum AI relevance score",
+            "in": "query",
+            "name": "min_relevance_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum AI relevance score",
+              "title": "Min Relevance Score"
+            }
+          },
+          {
+            "description": "Minimum computed score after ranking",
+            "in": "query",
+            "name": "min_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum computed score after ranking",
+              "title": "Min Score"
+            }
+          },
+          {
+            "description": "Require HQ country signal",
+            "in": "query",
+            "name": "has_hq",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Require HQ country signal",
+              "title": "Has Hq",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Require ownership signal",
+            "in": "query",
+            "name": "has_ownership",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Require ownership signal",
+              "title": "Has Ownership",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Require industry keywords signal",
+            "in": "query",
+            "name": "has_industry",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Require industry keywords signal",
+              "title": "Has Industry",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter by review status (new, accepted, hold, rejected)",
+            "in": "query",
+            "name": "review_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by review status (new, accepted, hold, rejected)",
+              "title": "Review Status"
+            }
+          },
+          {
+            "description": "Filter by verification status",
+            "in": "query",
+            "name": "verification_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by verification status",
+              "title": "Verification Status"
+            }
+          },
+          {
+            "description": "Filter by discovery provenance",
+            "in": "query",
+            "name": "discovered_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by discovery provenance",
+              "title": "Discovered By"
+            }
+          },
+          {
+            "description": "Filter by exec_search_enabled flag",
+            "in": "query",
+            "name": "exec_search_enabled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by exec_search_enabled flag",
+              "title": "Exec Search Enabled"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Ranked Prospects Csv",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/prospects-ranked.json": {
+      "get": {
+        "description": "Export ranked prospects as JSON with optional explainability filters.",
+        "operationId": "export_ranked_prospects_json_company_research_runs__run_id__prospects_ranked_json_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Minimum AI relevance score",
+            "in": "query",
+            "name": "min_relevance_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum AI relevance score",
+              "title": "Min Relevance Score"
+            }
+          },
+          {
+            "description": "Minimum computed score after ranking",
+            "in": "query",
+            "name": "min_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum computed score after ranking",
+              "title": "Min Score"
+            }
+          },
+          {
+            "description": "Require HQ country signal",
+            "in": "query",
+            "name": "has_hq",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Require HQ country signal",
+              "title": "Has Hq",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Require ownership signal",
+            "in": "query",
+            "name": "has_ownership",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Require ownership signal",
+              "title": "Has Ownership",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Require industry keywords signal",
+            "in": "query",
+            "name": "has_industry",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Require industry keywords signal",
+              "title": "Has Industry",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter by review status (new, accepted, hold, rejected)",
+            "in": "query",
+            "name": "review_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by review status (new, accepted, hold, rejected)",
+              "title": "Review Status"
+            }
+          },
+          {
+            "description": "Filter by verification status",
+            "in": "query",
+            "name": "verification_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by verification status",
+              "title": "Verification Status"
+            }
+          },
+          {
+            "description": "Filter by discovery provenance",
+            "in": "query",
+            "name": "discovered_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by discovery provenance",
+              "title": "Discovered By"
+            }
+          },
+          {
+            "description": "Filter by exec_search_enabled flag",
+            "in": "query",
+            "name": "exec_search_enabled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by exec_search_enabled flag",
+              "title": "Exec Search Enabled"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyProspectRanking"
+                  },
+                  "title": "Response Export Ranked Prospects Json Company Research Runs  Run Id  Prospects Ranked Json Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Ranked Prospects Json",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/prospects-with-evidence": {
+      "get": {
+        "description": "List company prospects for a research run with evidence and source document details.\n\nReturns prospects with nested evidence records and their linked source documents.\nUses efficient joins to avoid N+1 queries.\n\nOrdering modes:\n- \"ai\": Pinned first, then by AI relevance_score DESC\n- \"manual\": Pinned first, then by manual_priority ASC (1=highest) NULLS LAST, then relevance",
+        "operationId": "list_prospects_for_run_with_evidence_company_research_runs__run_id__prospects_with_evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status (new, approved, rejected, duplicate, converted)",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Minimum AI relevance score",
+            "in": "query",
+            "name": "min_relevance_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum AI relevance score",
+              "title": "Min Relevance Score"
+            }
+          },
+          {
+            "description": "Filter by review status (new, accepted, hold, rejected)",
+            "in": "query",
+            "name": "review_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by review status (new, accepted, hold, rejected)",
+              "title": "Review Status"
+            }
+          },
+          {
+            "description": "Filter by verification status",
+            "in": "query",
+            "name": "verification_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by verification status",
+              "title": "Verification Status"
+            }
+          },
+          {
+            "description": "Filter by discovery provenance",
+            "in": "query",
+            "name": "discovered_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by discovery provenance",
+              "title": "Discovered By"
+            }
+          },
+          {
+            "description": "Filter by exec_search_enabled flag",
+            "in": "query",
+            "name": "exec_search_enabled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by exec_search_enabled flag",
+              "title": "Exec Search Enabled"
+            }
+          },
+          {
+            "description": "Ordering mode: 'ai' (relevance) or 'manual' (user priority)",
+            "in": "query",
+            "name": "order_by",
+            "required": false,
+            "schema": {
+              "default": "ai",
+              "description": "Ordering mode: 'ai' (relevance) or 'manual' (user priority)",
+              "title": "Order By",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyProspectWithEvidence"
+                  },
+                  "title": "Response List Prospects For Run With Evidence Company Research Runs  Run Id  Prospects With Evidence Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Prospects For Run With Evidence",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/resolved-entities": {
+      "get": {
+        "description": "List resolved canonical entities for a run (deterministic ordering).",
+        "operationId": "list_resolved_entities_company_research_runs__run_id__resolved_entities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by entity type",
+            "in": "query",
+            "name": "entity_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by entity type",
+              "title": "Entity Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ResolvedEntityRead"
+                  },
+                  "title": "Response List Resolved Entities Company Research Runs  Run Id  Resolved Entities Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Resolved Entities",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/retry": {
+      "post": {
+        "description": "Retry a research run by enqueuing a new job (idempotent).",
+        "operationId": "retry_research_run_company_research_runs__run_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyResearchJobRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Retry Research Run",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/seed-dummy-prospects": {
+      "post": {
+        "description": "[DEV ONLY] Create 5 dummy company prospects for testing.\n\nThis endpoint creates realistic fake data to test listing and sorting logic.\nRemove or protect this endpoint in production.",
+        "operationId": "seed_dummy_prospects_company_research_runs__run_id__seed_dummy_prospects_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyProspectRead"
+                  },
+                  "title": "Response Seed Dummy Prospects Company Research Runs  Run Id  Seed Dummy Prospects Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Seed Dummy Prospects",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/sources": {
+      "get": {
+        "description": "List source documents attached to a run.",
+        "operationId": "list_run_sources_company_research_runs__run_id__sources_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/app__schemas__company_research__SourceDocumentRead"
+                  },
+                  "title": "Response List Run Sources Company Research Runs  Run Id  Sources Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Run Sources",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/start": {
+      "post": {
+        "description": "Enqueue a research run for processing.",
+        "operationId": "start_research_run_company_research_runs__run_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyResearchJobRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Start Research Run",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/company-research/runs/{run_id}/steps": {
+      "get": {
+        "description": "List deterministic steps for a research run.",
+        "operationId": "list_research_run_steps_company_research_runs__run_id__steps_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-tenant-id",
+            "required": false,
+            "schema": {
+              "title": "X-Tenant-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyResearchRunStepRead"
+                  },
+                  "title": "Response List Research Run Steps Company Research Runs  Run Id  Steps Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Research Run Steps",
+        "tags": [
+          "company-research"
+        ]
+      }
+    },
+    "/ui/company-research/runs/{run_id}/prospects-ranked": {
+      "get": {
+        "description": "Consultant-ready ranked prospects view with explainability.",
+        "operationId": "company_research_ranked_ui_ui_company_research_runs__run_id__prospects_ranked_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2.0,
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Score"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_hq",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Has Hq",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_ownership",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Has Ownership",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_industry",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Has Industry",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "review_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Review Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "verification_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Verification Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "discovered_by",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Discovered By"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exec_search_enabled",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exec Search Enabled"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Company Research Ranked Ui"
+      }
+    }
+  },
+  "schemas": {
+    "CompanyProspectRanking": {
+      "description": "Deterministic ranking response with explainability.",
+      "properties": {
+        "computed_score": {
+          "title": "Computed Score",
+          "type": "number"
+        },
+        "discovered_by": {
+          "title": "Discovered By",
+          "type": "string"
+        },
+        "evidence_score": {
+          "title": "Evidence Score",
+          "type": "number"
+        },
+        "exec_search_enabled": {
+          "title": "Exec Search Enabled",
+          "type": "boolean"
+        },
+        "hq_country": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hq Country"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "is_pinned": {
+          "title": "Is Pinned",
+          "type": "boolean"
+        },
+        "manual_priority": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Manual Priority"
+        },
+        "name_normalized": {
+          "title": "Name Normalized",
+          "type": "string"
+        },
+        "normalized_company_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Normalized Company Id"
+        },
+        "relevance_score": {
+          "title": "Relevance Score",
+          "type": "number"
+        },
+        "review_status": {
+          "title": "Review Status",
+          "type": "string"
+        },
+        "score_components": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Score Components",
+          "type": "object"
+        },
+        "sector": {
+          "title": "Sector",
+          "type": "string"
+        },
+        "subsector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Subsector"
+        },
+        "verification_status": {
+          "title": "Verification Status",
+          "type": "string"
+        },
+        "website_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Website Url"
+        },
+        "why_included": {
+          "default": [],
+          "items": {
+            "$ref": "#/components/schemas/ProspectSignalEvidence"
+          },
+          "title": "Why Included",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name_normalized",
+        "sector",
+        "relevance_score",
+        "evidence_score",
+        "is_pinned",
+        "review_status",
+        "discovered_by",
+        "verification_status",
+        "exec_search_enabled",
+        "computed_score",
+        "score_components"
+      ],
+      "title": "CompanyProspectRanking",
+      "type": "object"
+    },
+    "ExecutiveDiscoveryRunPayload": {
+      "properties": {
+        "mode": {
+          "default": "external",
+          "pattern": "^(internal|external|both)$",
+          "title": "Mode",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Model"
+        },
+        "payload": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Payload"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Provider"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        }
+      },
+      "title": "ExecutiveDiscoveryRunPayload",
+      "type": "object"
+    },
+    "ExecutiveEligibilityItem": {
+      "properties": {
+        "exec_search_enabled": {
+          "title": "Exec Search Enabled",
+          "type": "boolean"
+        },
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "name_normalized": {
+          "title": "Name Normalized",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name_normalized",
+        "status",
+        "exec_search_enabled"
+      ],
+      "title": "ExecutiveEligibilityItem",
+      "type": "object"
+    }
+  }
+}

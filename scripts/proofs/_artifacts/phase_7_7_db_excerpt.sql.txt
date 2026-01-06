@@ -1,0 +1,53 @@
+-- executive_prospects
+[
+  {
+    "company_prospect_id": "f6a6aaee-c231-49e2-a05f-e5b91c718280",
+    "id": "d5acd2a5-59bb-4ad3-b811-424e65fd0aaa",
+    "name_normalized": "delta exec eligible ceo",
+    "source_document_id": "54d43acf-5e75-4f7d-82cd-e2989907bcc7",
+    "status": "new",
+    "title": "Chief Executive Officer"
+  },
+  {
+    "company_prospect_id": "f6a6aaee-c231-49e2-a05f-e5b91c718280",
+    "id": "9dbf2714-a058-401a-94b8-47bb5fd3c960",
+    "name_normalized": "delta exec eligible cfo",
+    "source_document_id": "54d43acf-5e75-4f7d-82cd-e2989907bcc7",
+    "status": "new",
+    "title": "Chief Financial Officer"
+  }
+]
+-- executive_prospect_evidence
+[
+  {
+    "executive_prospect_id": "d5acd2a5-59bb-4ad3-b811-424e65fd0aaa",
+    "source_content_hash": "c65edea893130535527c18b4dbc8ab6be2e3058f96d04e3f048ebe0ba23d06e7",
+    "source_document_id": "54d43acf-5e75-4f7d-82cd-e2989907bcc7"
+  },
+  {
+    "executive_prospect_id": "9dbf2714-a058-401a-94b8-47bb5fd3c960",
+    "source_content_hash": "c65edea893130535527c18b4dbc8ab6be2e3058f96d04e3f048ebe0ba23d06e7",
+    "source_document_id": "54d43acf-5e75-4f7d-82cd-e2989907bcc7"
+  }
+]
+-- source_documents
+[
+  {
+    "content_hash": "0f2681a180834f8194e7bbfa900be7046d5b08a92f2ee5ae0855efc948f25f35",
+    "id": "64268926-c459-4b19-a779-202dfecc598e",
+    "source_type": "text",
+    "title": "seed source"
+  },
+  {
+    "content_hash": null,
+    "id": "550cec75-c8fb-406f-9c15-9a4be648acfe",
+    "source_type": "url",
+    "title": "Internal stub leadership page"
+  },
+  {
+    "content_hash": "c65edea893130535527c18b4dbc8ab6be2e3058f96d04e3f048ebe0ba23d06e7",
+    "id": "54d43acf-5e75-4f7d-82cd-e2989907bcc7",
+    "source_type": "llm_json",
+    "title": "Internal Executive Discovery"
+  }
+]

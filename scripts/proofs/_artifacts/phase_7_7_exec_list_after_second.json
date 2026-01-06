@@ -1,0 +1,74 @@
+[
+  {
+    "canonical_company_id": "69c0be6d-6dbd-40c6-a1b7-d9c566ba7451",
+    "company_name": "delta exec eligible",
+    "company_prospect_id": "f6a6aaee-c231-49e2-a05f-e5b91c718280",
+    "confidence": 0.9,
+    "discovered_by": "internal",
+    "email": null,
+    "evidence": [
+      {
+        "evidence_weight": 0.5,
+        "executive_prospect_id": "d5acd2a5-59bb-4ad3-b811-424e65fd0aaa",
+        "id": "c7625c51-eaf4-4127-bcbc-eb89ff22af7d",
+        "raw_snippet": "Leadership listing for delta exec eligible CEO.",
+        "source_content_hash": "c65edea893130535527c18b4dbc8ab6be2e3058f96d04e3f048ebe0ba23d06e7",
+        "source_document_id": "54d43acf-5e75-4f7d-82cd-e2989907bcc7",
+        "source_name": "Internal stub leadership page",
+        "source_type": "internal_stub",
+        "source_url": "https://delta-77.example.com/"
+      }
+    ],
+    "evidence_source_document_ids": [
+      "54d43acf-5e75-4f7d-82cd-e2989907bcc7"
+    ],
+    "id": "d5acd2a5-59bb-4ad3-b811-424e65fd0aaa",
+    "linkedin_url": "https://www.linkedin.com/in/delta-exec-eligible-ceo",
+    "location": "Unknown",
+    "name": "delta exec eligible CEO",
+    "name_normalized": "delta exec eligible ceo",
+    "profile_url": "https://example.com/delta-exec-eligible/ceo",
+    "run_id": "3367ef83-e42d-45ea-9447-7b7759eaf169",
+    "source_document_id": "54d43acf-5e75-4f7d-82cd-e2989907bcc7",
+    "source_label": "internal_stub",
+    "status": "new",
+    "title": "Chief Executive Officer",
+    "verification_status": "verified"
+  },
+  {
+    "canonical_company_id": "69c0be6d-6dbd-40c6-a1b7-d9c566ba7451",
+    "company_name": "delta exec eligible",
+    "company_prospect_id": "f6a6aaee-c231-49e2-a05f-e5b91c718280",
+    "confidence": 0.85,
+    "discovered_by": "internal",
+    "email": null,
+    "evidence": [
+      {
+        "evidence_weight": 0.5,
+        "executive_prospect_id": "9dbf2714-a058-401a-94b8-47bb5fd3c960",
+        "id": "2f0f1522-7e67-42b4-9b47-efb18d2990a4",
+        "raw_snippet": "Finance lead reference for delta exec eligible CFO.",
+        "source_content_hash": "c65edea893130535527c18b4dbc8ab6be2e3058f96d04e3f048ebe0ba23d06e7",
+        "source_document_id": "54d43acf-5e75-4f7d-82cd-e2989907bcc7",
+        "source_name": "Internal stub leadership page",
+        "source_type": "internal_stub",
+        "source_url": "https://delta-77.example.com/"
+      }
+    ],
+    "evidence_source_document_ids": [
+      "54d43acf-5e75-4f7d-82cd-e2989907bcc7"
+    ],
+    "id": "9dbf2714-a058-401a-94b8-47bb5fd3c960",
+    "linkedin_url": "https://www.linkedin.com/in/delta-exec-eligible-cfo",
+    "location": "Unknown",
+    "name": "delta exec eligible CFO",
+    "name_normalized": "delta exec eligible cfo",
+    "profile_url": "https://example.com/delta-exec-eligible/cfo",
+    "run_id": "3367ef83-e42d-45ea-9447-7b7759eaf169",
+    "source_document_id": "54d43acf-5e75-4f7d-82cd-e2989907bcc7",
+    "source_label": "internal_stub",
+    "status": "new",
+    "title": "Chief Financial Officer",
+    "verification_status": "verified"
+  }
+]

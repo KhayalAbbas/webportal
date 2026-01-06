@@ -1,0 +1,9 @@
+- [x] Preflight recorded (phase_7_7_preflight.txt)
+- [x] OpenAPI before saved (+ excerpt)
+- [x] Discovery notes captured
+- [x] Exec read APIs with filters and evidence pointers
+- [x] Exec exports (JSON/CSV) deterministic ordering
+- [x] UI executives section with company selector + export links
+- [x] Proof script executed, PASS, artifacts captured
+- [x] OpenAPI after + excerpt saved
+- [ ] Git evidence + sign-off (commit/tag/push)

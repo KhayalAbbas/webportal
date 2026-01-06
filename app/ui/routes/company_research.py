@@ -460,8 +460,7 @@ async def company_research_run_detail(
         tenant_id=current_user.tenant_id,
         run_id=run_id,
     )
-
-    executive_prospects = await service.list_executives_for_run(
+    executive_rows = await service.list_executive_prospects_with_evidence(
         tenant_id=current_user.tenant_id,
         run_id=run_id,
     )
@@ -584,24 +583,63 @@ async def company_research_run_detail(
             "metrics": metrics_dict,  # All metrics for this prospect
         })
 
-    exec_rows = []
-    for exec_prospect in executive_prospects:
-        parent = prospect_lookup.get(exec_prospect.company_prospect_id)
-        exec_rows.append(
+    exec_groups = {}
+    for exec_row in executive_rows:
+        parent = prospect_lookup.get(exec_row.get("company_prospect_id"))
+        group = exec_groups.setdefault(
+            exec_row.get("company_prospect_id"),
             {
-                "id": str(exec_prospect.id),
-                "company": parent.name_normalized if parent else "-",
-                "name": exec_prospect.name_raw,
-                "title": exec_prospect.title,
-                "profile_url": exec_prospect.profile_url,
-                "linkedin_url": exec_prospect.linkedin_url,
-                "email": exec_prospect.email,
-                "location": exec_prospect.location,
-                "confidence": exec_prospect.confidence,
-                "status": exec_prospect.status,
-                "evidence_count": len(getattr(exec_prospect, "evidence", []) or []),
+                "company_prospect_id": exec_row.get("company_prospect_id"),
+                "company_name": exec_row.get("company_name"),
+                "canonical_company_id": exec_row.get("canonical_company_id"),
+                "verification_status": exec_row.get("verification_status"),
+                "discovered_by": exec_row.get("discovered_by"),
+                "status": getattr(parent, "status", None),
+                "exec_search_enabled": getattr(parent, "exec_search_enabled", None),
+                "executives": [],
+            },
+        )
+
+        group["executives"].append(
+            {
+                "id": str(exec_row.get("id")),
+                "name": exec_row.get("name"),
+                "title": exec_row.get("title"),
+                "profile_url": exec_row.get("profile_url"),
+                "linkedin_url": exec_row.get("linkedin_url"),
+                "email": exec_row.get("email"),
+                "location": exec_row.get("location"),
+                "confidence": exec_row.get("confidence"),
+                "status": exec_row.get("status"),
+                "source_label": exec_row.get("source_label"),
+                "source_document_id": exec_row.get("source_document_id"),
+                "evidence_count": len(exec_row.get("evidence", []) or []),
+                "evidence_source_document_ids": exec_row.get("evidence_source_document_ids", []),
             }
         )
+
+    executive_groups = sorted(
+        exec_groups.values(),
+        key=lambda item: (item.get("company_name") or "").lower(),
+    )
+
+    executive_total_count = len(executive_rows)
+    executives_flat = [
+        {
+            "id": str(exec_row.get("id")),
+            "company": exec_row.get("company_name"),
+            "name": exec_row.get("name"),
+            "title": exec_row.get("title"),
+            "profile_url": exec_row.get("profile_url"),
+            "linkedin_url": exec_row.get("linkedin_url"),
+            "email": exec_row.get("email"),
+            "location": exec_row.get("location"),
+            "confidence": exec_row.get("confidence"),
+            "status": exec_row.get("status"),
+            "evidence_count": len(exec_row.get("evidence", []) or []),
+        }
+        for exec_row in executive_rows
+    ]
     
     # Get sources for this run (Phase 2A)
     sources_list = await service.list_sources_for_run(
@@ -693,7 +731,9 @@ async def company_research_run_detail(
                 }
                 for prospect in eligible_exec_companies
             ],
-            "executives": exec_rows,
+            "executives": executives_flat,
+            "executive_groups": executive_groups,
+            "executive_total_count": executive_total_count,
         }
     )
 

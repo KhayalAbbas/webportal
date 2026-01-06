@@ -1,0 +1,15 @@
+﻿openapi status: 200
+openapi length: 294507
+db check: 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine select pg_catalog.version() 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine [raw sql] () 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine select current_schema() 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine [raw sql] () 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine show standard_conforming_strings 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine [raw sql] () 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine BEGIN (implicit) 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine select 1 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine [generated in 0.00010s] () 1 2026-01-06 15:20:36,493 INFO sqlalchemy.engine.Engine COMMIT
+alembic current:
+1a2b3c4d5e6f (head)
+alembic heads:
+1a2b3c4d5e6f (head)
+git status -sb:
+## master...origin/master
+git log -1 --decorate:
+commit 04e3d1aa6c3b6fbabd5bdf9953aab7cf36118989 (HEAD -> master, tag: phase_7_6_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Tue Jan 6 15:06:15 2026 +0400
+
+    Phase 7.6: executive discovery gate enforcement + evidence storage + idempotent proof

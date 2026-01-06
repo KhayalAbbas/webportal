@@ -735,6 +735,121 @@ class CompanyResearchService:
             ).order_by(ExecutiveProspect.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def list_executive_prospects_with_evidence(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        canonical_company_id: Optional[UUID] = None,
+        company_prospect_id: Optional[UUID] = None,
+        discovered_by: Optional[str] = None,
+        verification_status: Optional[str] = None,
+    ) -> List[dict]:
+        """List executives for a run with evidence pointers and stable ordering."""
+
+        base_query = (
+            select(ExecutiveProspect, CompanyProspect)
+            .join(CompanyProspect, CompanyProspect.id == ExecutiveProspect.company_prospect_id)
+            .where(
+                ExecutiveProspect.tenant_id == tenant_id,
+                ExecutiveProspect.company_research_run_id == run_id,
+                CompanyProspect.tenant_id == tenant_id,
+                CompanyProspect.company_research_run_id == run_id,
+            )
+        )
+
+        if company_prospect_id:
+            base_query = base_query.where(ExecutiveProspect.company_prospect_id == company_prospect_id)
+        if discovered_by:
+            base_query = base_query.where(CompanyProspect.discovered_by == discovered_by)
+        if verification_status:
+            base_query = base_query.where(CompanyProspect.verification_status == verification_status)
+
+        result = await self.db.execute(base_query)
+        exec_and_companies = result.all()
+        if not exec_and_companies:
+            return []
+
+        prospect_ids = [company.id for _, company in exec_and_companies]
+        canonical_links = await self.repo.list_canonical_links_for_prospects(
+            tenant_id=tenant_id,
+            prospect_ids=prospect_ids,
+            run_id=run_id,
+        )
+        canonical_by_prospect: Dict[UUID, UUID] = {}
+        for link in canonical_links:
+            canonical_by_prospect.setdefault(link.company_entity_id, link.canonical_company_id)
+
+        exec_ids = [exec_row.id for exec_row, _ in exec_and_companies]
+        evidence_rows = await self.repo.list_executive_evidence_for_exec_ids(tenant_id, exec_ids)
+        evidence_map: Dict[UUID, List[ExecutiveProspectEvidence]] = defaultdict(list)
+        for ev in evidence_rows:
+            evidence_map[ev.executive_prospect_id].append(ev)
+
+        filtered_triplets: List[tuple[ExecutiveProspect, CompanyProspect, Optional[UUID]]] = []
+        for exec_row, company in exec_and_companies:
+            canonical_id = company.normalized_company_id or canonical_by_prospect.get(company.id)
+            if canonical_company_id and canonical_id != canonical_company_id:
+                continue
+            filtered_triplets.append((exec_row, company, canonical_id))
+
+        sorted_triplets = sorted(
+            filtered_triplets,
+            key=lambda row: (
+                (row[1].name_normalized or row[1].name_raw or "").lower(),
+                row[0].name_normalized.lower(),
+                row[0].title or "",
+            ),
+        )
+
+        payload: List[dict] = []
+        for exec_row, company, canonical_id in sorted_triplets:
+            evidence_items = evidence_map.get(exec_row.id, [])
+            evidence_payload = [
+                {
+                    "id": ev.id,
+                    "executive_prospect_id": ev.executive_prospect_id,
+                    "source_type": ev.source_type,
+                    "source_name": ev.source_name,
+                    "source_url": ev.source_url,
+                    "raw_snippet": ev.raw_snippet,
+                    "evidence_weight": float(ev.evidence_weight or 0.0),
+                    "source_document_id": ev.source_document_id,
+                    "source_content_hash": ev.source_content_hash,
+                }
+                for ev in evidence_items
+            ]
+
+            evidence_source_document_ids = [
+                ev.source_document_id for ev in evidence_items if ev.source_document_id
+            ]
+
+            payload.append(
+                {
+                    "id": exec_row.id,
+                    "run_id": exec_row.company_research_run_id,
+                    "company_prospect_id": exec_row.company_prospect_id,
+                    "company_name": company.name_normalized or company.name_raw,
+                    "canonical_company_id": canonical_id,
+                    "discovered_by": company.discovered_by,
+                    "verification_status": getattr(company, "verification_status", None),
+                    "name": exec_row.name_raw,
+                    "name_normalized": exec_row.name_normalized,
+                    "title": exec_row.title,
+                    "profile_url": exec_row.profile_url,
+                    "linkedin_url": exec_row.linkedin_url,
+                    "email": exec_row.email,
+                    "location": exec_row.location,
+                    "confidence": float(exec_row.confidence or 0.0),
+                    "status": exec_row.status,
+                    "source_label": exec_row.source_label,
+                    "source_document_id": exec_row.source_document_id,
+                    "evidence_source_document_ids": list(dict.fromkeys(evidence_source_document_ids)),
+                    "evidence": evidence_payload,
+                }
+            )
+
+        return payload
     
     # ========================================================================
     # Metric Operations
