@@ -21,3 +21,4 @@ OK phase_7_7_git_after.txt size=262
 OK phase_7_7_git_log_after.txt size=744
 OK phase_7_7_push.txt size=3550
 proof.txt endswith_PASS=True
+NOTE: tag phase_7_7_signed_off was force-updated to include post-proof artifact additions; push evidence in phase_7_7_push.txt.
