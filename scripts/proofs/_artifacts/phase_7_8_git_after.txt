@@ -1,17 +1,17 @@
-## master...origin/master [ahead 2]
+﻿## master...origin/master
 
 C:\Program Files\Git\bin\git.exe log -1 --decorate
-commit 3cf77043e20a4d14357ea6e0be1a748b25bbd750 (HEAD -> master)
+commit 3cbfb511a945e0aabe9d0fccbd2d26020e8907da (HEAD -> master, tag: phase_7_8_signed_off, origin/master, origin/HEAD)
 Author: ATS Local <local@ats>
-Date:   Tue Jan 6 20:18:56 2026 +0400
+Date:   Tue Jan 6 20:20:28 2026 +0400
 
-    Phase 7.8: dual engine executive discovery + provenance merge + evidence-first storage + idempotent proof
+    chore: refresh phase 7.8 git-after
 
 C:\Program Files\Git\bin\git.exe rev-parse HEAD
-3cf77043e20a4d14357ea6e0be1a748b25bbd750
+3cbfb511a945e0aabe9d0fccbd2d26020e8907da
 
 C:\Program Files\Git\bin\git.exe show-ref --tags -d | findstr /i phase_7_8_signed_off
-838994845522afbf265c5b2ac5f650d255e459fe refs/tags/phase_7_8_signed_off
+3cbfb511a945e0aabe9d0fccbd2d26020e8907da refs/tags/phase_7_8_signed_off
 
 TREE_CLEAN=True
-TAG_AT_HEAD=False
+TAG_AT_HEAD=True
