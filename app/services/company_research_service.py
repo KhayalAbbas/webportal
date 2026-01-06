@@ -761,9 +761,9 @@ class CompanyResearchService:
         if company_prospect_id:
             base_query = base_query.where(ExecutiveProspect.company_prospect_id == company_prospect_id)
         if discovered_by:
-            base_query = base_query.where(CompanyProspect.discovered_by == discovered_by)
+            base_query = base_query.where(ExecutiveProspect.discovered_by == discovered_by)
         if verification_status:
-            base_query = base_query.where(CompanyProspect.verification_status == verification_status)
+            base_query = base_query.where(ExecutiveProspect.verification_status == verification_status)
 
         result = await self.db.execute(base_query)
         exec_and_companies = result.all()
@@ -831,8 +831,9 @@ class CompanyResearchService:
                     "company_prospect_id": exec_row.company_prospect_id,
                     "company_name": company.name_normalized or company.name_raw,
                     "canonical_company_id": canonical_id,
-                    "discovered_by": company.discovered_by,
-                    "verification_status": getattr(company, "verification_status", None),
+                    "discovered_by": exec_row.discovered_by,
+                    "provenance": exec_row.discovered_by,
+                    "verification_status": getattr(exec_row, "verification_status", None) or getattr(company, "verification_status", None),
                     "name": exec_row.name_raw,
                     "name_normalized": exec_row.name_normalized,
                     "title": exec_row.title,
@@ -1387,6 +1388,25 @@ class CompanyResearchService:
         )
         return list(result.scalars().all())
 
+    def _merge_provenance(self, current: Optional[str], incoming: str) -> str:
+        cur = (current or "").lower()
+        inc = (incoming or "").lower()
+        if not cur:
+            return incoming
+        if cur == inc:
+            return cur
+        if cur == "both" or inc == "both":
+            return "both"
+        return "both"
+
+    def _promote_verification(self, current: Optional[str], incoming: Optional[str]) -> str:
+        order = ["unverified", "partial", "verified"]
+        cur = (current or "unverified").lower()
+        inc = (incoming or cur).lower()
+        cur = cur if cur in order else "unverified"
+        inc = inc if inc in order else cur
+        return inc if order.index(inc) > order.index(cur) else cur
+
     async def ingest_executive_llm_json_payload(
         self,
         tenant_id: str,
@@ -1395,12 +1415,21 @@ class CompanyResearchService:
         provider: str,
         model_name: Optional[str],
         title: Optional[str],
+        engine: str = "external",
+        request_payload: Optional[dict] = None,
     ) -> dict:
         """Ingest executive discovery payload with gating and idempotency."""
-
         parsed = ExecutiveDiscoveryPayload(**payload)
-        canonical = self._canonical_json(parsed.canonical_dict())
-        content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        response_canonical = self._canonical_json(parsed.canonical_dict())
+
+        req_payload = request_payload or payload
+        if isinstance(req_payload, ExecutiveDiscoveryPayload):
+            request_canonical = self._canonical_json(req_payload.canonical_dict())
+        else:
+            request_canonical = self._canonical_json(req_payload)
+
+        response_hash = hashlib.sha256(f"{engine}:response:{response_canonical}".encode("utf-8")).hexdigest()
+        request_hash = hashlib.sha256(f"{engine}:request:{request_canonical}".encode("utf-8")).hexdigest()
 
         run = await self.get_research_run(tenant_id, run_id)
         if not run:
@@ -1408,29 +1437,6 @@ class CompanyResearchService:
 
         eligible = await self.list_executive_eligible_companies(tenant_id, run_id)
         eligible_map = {self._normalize_company_name(p.name_normalized or p.name_raw): p for p in eligible}
-        targeted_count = sum(
-            1 for company in parsed.companies if self._normalize_company_name(company.company_normalized or company.company_name)
-        )
-
-        existing_source = await self.repo.find_source_by_hash(tenant_id, run_id, content_hash)
-        if existing_source and existing_source.source_type == "llm_json":
-            ingest_meta = {
-                "executives_new": 0,
-                "executives_existing": 0,
-                "evidence_created": 0,
-                "urls_created": 0,
-                "urls_existing": 0,
-                "companies_targeted": 0,
-            }
-            return {
-                "skipped": True,
-                "reason": "duplicate_hash",
-                "source_id": str(existing_source.id),
-                "ingest_stats": ingest_meta,
-                "eligible_company_count": len(eligible),
-                "processed_company_count": targeted_count,
-                "company_summaries": [],
-            }
 
         requested_companies: list[str] = []
         missing: list[str] = []
@@ -1448,29 +1454,8 @@ class CompanyResearchService:
         if missing:
             raise ValueError(f"ineligible_companies:{','.join(sorted(set(missing)))}")
 
-        existing_sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
-        url_norm_map = {self._normalize_url_value(s.url): s for s in existing_sources if s.url}
-
-        source_meta = {
-            "kind": "llm_json",
-            "provider": provider,
-            "model": model_name,
-            "purpose": "executive_discovery",
-            "schema_version": parsed.schema_version,
-        }
-
-        source = await self.add_source(
-            tenant_id,
-            SourceDocumentCreate(
-                company_research_run_id=run_id,
-                source_type="llm_json",
-                title=title or "External Executive LLM JSON",
-                mime_type="application/json",
-                content_text=canonical,
-                content_hash=content_hash,
-                meta=source_meta,
-            ),
-        )
+        existing_request_source = await self.repo.find_source_by_hash(tenant_id, run_id, request_hash)
+        existing_response_source = await self.repo.find_source_by_hash(tenant_id, run_id, response_hash)
 
         enrichment_query = await self.db.execute(
             select(AIEnrichmentRecord).where(
@@ -1478,10 +1463,73 @@ class CompanyResearchService:
                 AIEnrichmentRecord.company_research_run_id == run_id,
                 AIEnrichmentRecord.purpose == "executive_discovery",
                 AIEnrichmentRecord.provider == provider,
-                AIEnrichmentRecord.content_hash == content_hash,
+                AIEnrichmentRecord.content_hash == response_hash,
             )
         )
         enrichment = enrichment_query.scalar_one_or_none()
+        if enrichment and existing_response_source:
+            ingest_meta = {
+                "executives_new": 0,
+                "executives_existing": 0,
+                "evidence_created": 0,
+                "urls_created": 0,
+                "urls_existing": 0,
+                "companies_targeted": 0,
+            }
+            return {
+                "skipped": True,
+                "reason": "duplicate_hash",
+                "source_id": str(existing_response_source.id),
+                "request_source_id": str(existing_request_source.id) if existing_request_source else None,
+                "enrichment_id": str(enrichment.id),
+                "ingest_stats": ingest_meta,
+                "eligible_company_count": len(eligible),
+                "processed_company_count": len(requested_companies),
+                "company_summaries": [],
+            }
+
+        existing_sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+        url_norm_map = {self._normalize_url_value(s.url): s for s in existing_sources if s.url}
+
+        request_source = existing_request_source or await self.add_source(
+            tenant_id,
+            SourceDocumentCreate(
+                company_research_run_id=run_id,
+                source_type="llm_json",
+                title=title or f"{engine} executive discovery request",
+                mime_type="application/json",
+                content_text=request_canonical,
+                content_hash=request_hash,
+                meta={
+                    "kind": "llm_json_request",
+                    "purpose": "executive_discovery",
+                    "engine": engine,
+                    "provider": provider,
+                    "model": model_name,
+                },
+            ),
+        )
+
+        response_source = existing_response_source or await self.add_source(
+            tenant_id,
+            SourceDocumentCreate(
+                company_research_run_id=run_id,
+                source_type="llm_json",
+                title=title or f"{engine} executive discovery response",
+                mime_type="application/json",
+                content_text=response_canonical,
+                content_hash=response_hash,
+                meta={
+                    "kind": "llm_json_response",
+                    "purpose": "executive_discovery",
+                    "engine": engine,
+                    "provider": provider,
+                    "model": model_name,
+                    "request_source_id": str(request_source.id),
+                },
+            ),
+        )
+
         if not enrichment:
             enrichment = AIEnrichmentRecord(
                 tenant_id=tenant_id,
@@ -1493,9 +1541,9 @@ class CompanyResearchService:
                 company_research_run_id=run_id,
                 purpose="executive_discovery",
                 provider=provider,
-                input_scope_hash=content_hash,
-                content_hash=content_hash,
-                source_document_id=source.id,
+                input_scope_hash=request_hash,
+                content_hash=response_hash,
+                source_document_id=response_source.id,
                 status="success",
             )
             self.db.add(enrichment)
@@ -1522,8 +1570,7 @@ class CompanyResearchService:
         }
 
         company_stats: dict[UUID, dict[str, object]] = {}
-
-        evidence_seen: set[tuple[str, str, str]] = set()
+        evidence_seen: set[tuple[str, str, str, str]] = set()
 
         for company in parsed.companies:
             norm = self._normalize_company_name(company.company_normalized or company.company_name)
@@ -1541,6 +1588,7 @@ class CompanyResearchService:
                     "executives_new": 0,
                     "executives_existing": 0,
                     "evidence_created": 0,
+                    "engine": engine,
                 },
             )
 
@@ -1554,6 +1602,12 @@ class CompanyResearchService:
                     stats["executives_existing"] += 1
                     company_entry["executives_existing"] += 1
                     target_exec = existing_exec
+                    target_exec.discovered_by = self._merge_provenance(target_exec.discovered_by, engine)
+                    target_exec.source_label = self._merge_provenance(target_exec.source_label, engine)
+                    target_exec.verification_status = self._promote_verification(
+                        target_exec.verification_status,
+                        getattr(prospect, "verification_status", None),
+                    )
                 else:
                     target_exec = ExecutiveProspect(
                         tenant_id=tenant_id,
@@ -1568,8 +1622,10 @@ class CompanyResearchService:
                         location=exec_entry.location,
                         confidence=float(exec_entry.confidence or 0.0),
                         status="new",
-                        source_label=provider,
-                        source_document_id=source.id,
+                        source_label=engine,
+                        source_document_id=response_source.id,
+                        discovered_by=engine,
+                        verification_status=getattr(prospect, "verification_status", "unverified") or "unverified",
                     )
                     self.db.add(target_exec)
                     await self.db.flush()
@@ -1578,7 +1634,12 @@ class CompanyResearchService:
                     company_entry["executives_new"] += 1
 
                 for ev in exec_entry.evidence or []:
-                    dedupe_key = (str(target_exec.id), ev.url or "", ev.label or ev.kind or "executive_llm_json")
+                    dedupe_key = (
+                        str(target_exec.id),
+                        engine,
+                        ev.url or "",
+                        ev.label or ev.kind or "executive_llm_json",
+                    )
                     if dedupe_key in evidence_seen:
                         continue
                     evidence_seen.add(dedupe_key)
@@ -1591,8 +1652,8 @@ class CompanyResearchService:
                         source_url=str(ev.url) if ev.url else None,
                         raw_snippet=ev.snippet,
                         evidence_weight=0.5,
-                        source_document_id=source.id,
-                        source_content_hash=content_hash,
+                        source_document_id=response_source.id,
+                        source_content_hash=response_hash,
                     )
                     self.db.add(evidence)
                     stats["evidence_created"] += 1
@@ -1612,25 +1673,32 @@ class CompanyResearchService:
                                 meta={
                                     "kind": "url",
                                     "origin": "executive_llm_json",
-                                    "llm_source_id": str(source.id),
+                                    "llm_source_id": str(response_source.id),
                                     "evidence_kind": ev.kind,
                                     "evidence_label": ev.label,
+                                    "engine": engine,
                                 },
                             ),
                         )
                         url_norm_map[url_norm] = url_source
                         stats["urls_created"] += 1
 
-        source.status = "processed"
-        source.error_message = None
-        source.meta = {**(source.meta or {}), "ingest_stats": stats, "enrichment_id": str(enrichment.id)}
+        response_source.status = "processed"
+        response_source.error_message = None
+        response_source.meta = {
+            **(response_source.meta or {}),
+            "ingest_stats": stats,
+            "enrichment_id": str(enrichment.id),
+            "request_source_id": str(request_source.id),
+        }
 
         await self.db.flush()
 
         return {
-            "source_id": str(source.id),
+            "source_id": str(response_source.id),
+            "request_source_id": str(request_source.id),
             "enrichment_id": str(enrichment.id),
-            "content_hash": content_hash,
+            "content_hash": response_hash,
             "eligible_company_count": len(eligible),
             "processed_company_count": len(requested_companies),
             "company_summaries": list(company_stats.values()),
@@ -1731,6 +1799,8 @@ class CompanyResearchService:
             provider=provider,
             model_name=model_name,
             title="Internal Executive Discovery",
+            engine="internal",
+            request_payload=payload,
         )
 
         return {

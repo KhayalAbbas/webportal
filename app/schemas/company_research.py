@@ -419,6 +419,7 @@ class ExecutiveProspectRead(BaseModel):
     company_name: str
     canonical_company_id: Optional[UUID] = None
     discovered_by: Optional[str] = None
+    provenance: Optional[str] = None
     verification_status: Optional[str] = None
     name: str
     name_normalized: str

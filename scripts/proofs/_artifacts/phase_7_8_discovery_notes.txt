@@ -1,0 +1,10 @@
+Phase 7.8 discovery notes (dual-engine executive discovery)
+
+- Endpoint: POST /company-research/runs/{run_id}/executive-discovery/run uses ExecutiveDiscoveryRunPayload (mode default internal; engine internal|external; provider/model/title optional; payload required for external/both). Gating limits to accepted + exec_search_enabled companies; eligible helper endpoint remains.
+- Exec listing: GET /company-research/runs/{run_id}/executives (+ .json/.csv) supports discovered_by + verification_status filters; responses carry evidence_source_document_ids plus evidence blocks with source_document_id/source_content_hash and merged provenance/verification.
+- SourceDocument: engine-specific llm_json request/response pairs with meta.kind llm_json_request/llm_json_response, meta.engine, request_source_id linkage, ingest_stats; evidence URLs stored as source_type=url with meta.origin=executive_llm_json + engine/label/kind.
+- AIEnrichmentRecord: purpose=executive_discovery per engine/provider/content_hash; response_hash prefixes engine + canonical JSON; request payload hashed into input_scope_hash.
+- ExecutiveProspects: dedupe key company_prospect_id + name_normalized; fields discovered_by/source_label/verification_status merged via _merge_provenance/_promote_verification, promoting verification when either side verified.
+- Evidence: executive_prospect_evidence references source_document_id/source_content_hash; dedupe on exec + source document + URL/label; exec payload aggregates unique evidence_source_document_ids.
+- Hashing/idempotency: request/response hashes include engine prefixes; duplicate hashes reuse existing source/enrichment/evidence; exec listing stable across reruns.
+- Proof: scripts/proofs/phase_7_8_dual_engine_exec_discovery.py seeds run, runs internal/external/both, verifies CEO provenance merge to both, COO external only, verification promotion, idempotent reruns, writes exec_after_* JSONs, db excerpt, proof console/summary.

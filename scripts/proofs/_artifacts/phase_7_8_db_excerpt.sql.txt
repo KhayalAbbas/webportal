@@ -1,0 +1,208 @@
+-- source_documents
+[
+  {
+    "content_hash": "42a4ac516ab98ca4845b43fbe83f1d84c0f4fb152686aedd3a35a4b744141d4f",
+    "id": "c4b18e2b-4c18-403c-a514-4d5f66badb9a",
+    "meta": {
+      "label": "seed"
+    },
+    "source_type": "text",
+    "title": "seed source"
+  },
+  {
+    "content_hash": "21250ce0acd7e65f0c78722e92c55fd29d20f46c7303e968c23d95bd70c3f7fd",
+    "id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+    "meta": {
+      "engine": "internal",
+      "enrichment_id": "dc0f0f9c-7ceb-4fd7-a411-85ed07dd92b1",
+      "ingest_stats": {
+        "companies_targeted": 1,
+        "evidence_created": 2,
+        "executives_existing": 0,
+        "executives_new": 2,
+        "urls_created": 1,
+        "urls_existing": 1
+      },
+      "kind": "llm_json_response",
+      "model": "deterministic_stub_v1",
+      "provider": "internal_stub",
+      "purpose": "executive_discovery",
+      "request_source_id": "dbb62b66-1bf1-4113-b774-836dc1754927"
+    },
+    "source_type": "llm_json",
+    "title": "Internal Executive Discovery"
+  },
+  {
+    "content_hash": "1625e20ed8a219011e08a8cb59250fd9c0ae7843293efdf63e57ee9173d38425",
+    "id": "dbb62b66-1bf1-4113-b774-836dc1754927",
+    "meta": {
+      "engine": "internal",
+      "kind": "llm_json_request",
+      "model": "deterministic_stub_v1",
+      "provider": "internal_stub",
+      "purpose": "executive_discovery"
+    },
+    "source_type": "llm_json",
+    "title": "Internal Executive Discovery"
+  },
+  {
+    "content_hash": null,
+    "id": "653f98cb-4cd9-4d38-ada4-a951371bb190",
+    "meta": {
+      "engine": "internal",
+      "evidence_kind": "internal_stub",
+      "evidence_label": "Internal stub leadership page",
+      "kind": "url",
+      "llm_source_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+      "origin": "executive_llm_json"
+    },
+    "source_type": "url",
+    "title": "Internal stub leadership page"
+  },
+  {
+    "content_hash": null,
+    "id": "bd7f0fc9-f4e1-4bc1-9108-9000a9178b1a",
+    "meta": {
+      "engine": "external",
+      "evidence_kind": "external",
+      "evidence_label": "External leadership",
+      "kind": "url",
+      "llm_source_id": "61306137-06fe-4de2-ad35-3a1939909711",
+      "origin": "executive_llm_json"
+    },
+    "source_type": "url",
+    "title": "External leadership"
+  },
+  {
+    "content_hash": "f169e7d7c54b436e0388618b9c88a2a818d7e1d8c7bb232f160d15f923dfaae2",
+    "id": "ea77c925-4513-45d5-a347-bc6d50575934",
+    "meta": {
+      "engine": "external",
+      "kind": "llm_json_request",
+      "model": "mock-model",
+      "provider": "external_engine",
+      "purpose": "executive_discovery"
+    },
+    "source_type": "llm_json",
+    "title": "External Executive Payload"
+  },
+  {
+    "content_hash": null,
+    "id": "80f02526-c038-4598-95b4-ba3e31632e61",
+    "meta": {
+      "engine": "external",
+      "evidence_kind": "external",
+      "evidence_label": "External leadership",
+      "kind": "url",
+      "llm_source_id": "61306137-06fe-4de2-ad35-3a1939909711",
+      "origin": "executive_llm_json"
+    },
+    "source_type": "url",
+    "title": "External leadership"
+  },
+  {
+    "content_hash": "f9b082fbfe810b21a8939ee7cc5f62c6ad70f807cb00055ceb019ccd55479bbf",
+    "id": "61306137-06fe-4de2-ad35-3a1939909711",
+    "meta": {
+      "engine": "external",
+      "enrichment_id": "8daea901-88dd-410c-ad56-df5efecb36a7",
+      "ingest_stats": {
+        "companies_targeted": 1,
+        "evidence_created": 2,
+        "executives_existing": 1,
+        "executives_new": 1,
+        "urls_created": 2,
+        "urls_existing": 0
+      },
+      "kind": "llm_json_response",
+      "model": "mock-model",
+      "provider": "external_engine",
+      "purpose": "executive_discovery",
+      "request_source_id": "ea77c925-4513-45d5-a347-bc6d50575934"
+    },
+    "source_type": "llm_json",
+    "title": "External Executive Payload"
+  }
+]
+-- ai_enrichment_record
+[
+  {
+    "content_hash": "21250ce0acd7e65f0c78722e92c55fd29d20f46c7303e968c23d95bd70c3f7fd",
+    "id": "dc0f0f9c-7ceb-4fd7-a411-85ed07dd92b1",
+    "model_name": "deterministic_stub_v1",
+    "provider": "internal_stub",
+    "purpose": "executive_discovery",
+    "source_document_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+    "status": "success"
+  },
+  {
+    "content_hash": "f9b082fbfe810b21a8939ee7cc5f62c6ad70f807cb00055ceb019ccd55479bbf",
+    "id": "8daea901-88dd-410c-ad56-df5efecb36a7",
+    "model_name": "mock-model",
+    "provider": "external_engine",
+    "purpose": "executive_discovery",
+    "source_document_id": "61306137-06fe-4de2-ad35-3a1939909711",
+    "status": "success"
+  }
+]
+-- executive_prospects
+[
+  {
+    "company_prospect_id": "d3936df7-a3f8-43b6-9576-d9753e70b5ca",
+    "discovered_by": "internal",
+    "id": "763926bd-7bcf-46df-8a24-ec5d290bf336",
+    "name_normalized": "omega exec eligible cfo",
+    "source_document_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+    "source_label": "internal",
+    "verification_status": "partial"
+  },
+  {
+    "company_prospect_id": "d3936df7-a3f8-43b6-9576-d9753e70b5ca",
+    "discovered_by": "both",
+    "id": "e43967e2-8201-41ea-b7d2-a322a352624c",
+    "name_normalized": "omega exec eligible ceo",
+    "source_document_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+    "source_label": "both",
+    "verification_status": "verified"
+  },
+  {
+    "company_prospect_id": "d3936df7-a3f8-43b6-9576-d9753e70b5ca",
+    "discovered_by": "external",
+    "id": "5bc98b8e-f864-46af-a8cf-2fdefbdb5356",
+    "name_normalized": "omega exec eligible coo",
+    "source_document_id": "61306137-06fe-4de2-ad35-3a1939909711",
+    "source_label": "external",
+    "verification_status": "verified"
+  }
+]
+-- executive_prospect_evidence
+[
+  {
+    "executive_prospect_id": "e43967e2-8201-41ea-b7d2-a322a352624c",
+    "source_content_hash": "21250ce0acd7e65f0c78722e92c55fd29d20f46c7303e968c23d95bd70c3f7fd",
+    "source_document_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+    "source_type": "internal_stub",
+    "source_url": "https://omega-78.example.com/"
+  },
+  {
+    "executive_prospect_id": "763926bd-7bcf-46df-8a24-ec5d290bf336",
+    "source_content_hash": "21250ce0acd7e65f0c78722e92c55fd29d20f46c7303e968c23d95bd70c3f7fd",
+    "source_document_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+    "source_type": "internal_stub",
+    "source_url": "https://omega-78.example.com/"
+  },
+  {
+    "executive_prospect_id": "e43967e2-8201-41ea-b7d2-a322a352624c",
+    "source_content_hash": "f9b082fbfe810b21a8939ee7cc5f62c6ad70f807cb00055ceb019ccd55479bbf",
+    "source_document_id": "61306137-06fe-4de2-ad35-3a1939909711",
+    "source_type": "external",
+    "source_url": "https://ext.example.com/omega/ceo"
+  },
+  {
+    "executive_prospect_id": "5bc98b8e-f864-46af-a8cf-2fdefbdb5356",
+    "source_content_hash": "f9b082fbfe810b21a8939ee7cc5f62c6ad70f807cb00055ceb019ccd55479bbf",
+    "source_document_id": "61306137-06fe-4de2-ad35-3a1939909711",
+    "source_type": "external",
+    "source_url": "https://ext.example.com/omega/coo"
+  }
+]

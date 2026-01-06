@@ -420,6 +420,8 @@ async def company_research_run_detail(
     order_by: str = Query("manual"),  # Default to manual ordering
     success_message: Optional[str] = Query(None),
     error_message: Optional[str] = Query(None),
+    exec_discovered_by: Optional[str] = Query(None, description="Filter executive list by provenance"),
+    exec_verification_status: Optional[str] = Query(None, description="Filter executives by verification status"),
 ):
     """
     Company Research Run detail page - shows prospects with sorting.
@@ -463,6 +465,8 @@ async def company_research_run_detail(
     executive_rows = await service.list_executive_prospects_with_evidence(
         tenant_id=current_user.tenant_id,
         run_id=run_id,
+        discovered_by=exec_discovered_by,
+        verification_status=exec_verification_status,
     )
 
     # Events timeline (recent first)
@@ -583,6 +587,27 @@ async def company_research_run_detail(
             "metrics": metrics_dict,  # All metrics for this prospect
         })
 
+    def _merge_provenance(current: Optional[str], incoming: Optional[str]) -> Optional[str]:
+        if not incoming:
+            return current
+        if not current:
+            return incoming
+        if current == incoming:
+            return current
+        if current == "both" or incoming == "both":
+            return "both"
+        return "both"
+
+    def _promote_verification(current: Optional[str], incoming: Optional[str]) -> Optional[str]:
+        order = ["unverified", "partial", "verified"]
+        if not incoming:
+            incoming = current
+        cur = (current or "unverified")
+        inc = (incoming or cur)
+        cur = cur if cur in order else "unverified"
+        inc = inc if inc in order else cur
+        return inc if order.index(inc) > order.index(cur) else cur
+
     exec_groups = {}
     for exec_row in executive_rows:
         parent = prospect_lookup.get(exec_row.get("company_prospect_id"))
@@ -600,6 +625,12 @@ async def company_research_run_detail(
             },
         )
 
+        group["discovered_by"] = _merge_provenance(group.get("discovered_by"), exec_row.get("discovered_by"))
+        group["verification_status"] = _promote_verification(
+            group.get("verification_status"),
+            exec_row.get("verification_status"),
+        )
+
         group["executives"].append(
             {
                 "id": str(exec_row.get("id")),
@@ -613,6 +644,8 @@ async def company_research_run_detail(
                 "status": exec_row.get("status"),
                 "source_label": exec_row.get("source_label"),
                 "source_document_id": exec_row.get("source_document_id"),
+                "discovered_by": exec_row.get("discovered_by"),
+                "verification_status": exec_row.get("verification_status"),
                 "evidence_count": len(exec_row.get("evidence", []) or []),
                 "evidence_source_document_ids": exec_row.get("evidence_source_document_ids", []),
             }
@@ -711,6 +744,10 @@ async def company_research_run_detail(
             "available_metrics": available_metrics,
             "selected_metric_key": selected_metric_key,
             "order_by": order_by,
+            "exec_filters": {
+                "discovered_by": exec_discovered_by,
+                "verification_status": exec_verification_status,
+            },
             "success_message": success_message,
             "error_message": error_message,
             "events": [

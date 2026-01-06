@@ -173,7 +173,8 @@ class LlmJsonSourcePayload(BaseModel):
 
 
 class ExecutiveDiscoveryRunPayload(BaseModel):
-    mode: str = Field(default="external", pattern=r"^(internal|external|both)$")
+    mode: str = Field(default="internal", pattern=r"^(internal|external|both)$")
+    engine: Optional[str] = Field(default="external", pattern=r"^(internal|external)$")
     title: Optional[str] = None
     provider: Optional[str] = None
     model: Optional[str] = None
@@ -577,6 +578,7 @@ async def run_executive_discovery(
             raise HTTPException(status_code=400, detail="Missing payload for external mode")
         if not payload.provider:
             raise HTTPException(status_code=400, detail="provider is required for external mode")
+        engine = payload.engine or "external"
         try:
             external_result = await service.ingest_executive_llm_json_payload(
                 tenant_id=current_user.tenant_id,
@@ -585,6 +587,8 @@ async def run_executive_discovery(
                 provider=payload.provider,
                 model_name=payload.model,
                 title=payload.title,
+                engine=engine,
+                request_payload=payload.payload,
             )
         except ValueError as exc:  # noqa: BLE001
             message = str(exc)

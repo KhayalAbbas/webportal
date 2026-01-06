@@ -1,0 +1,125 @@
+[
+  {
+    "canonical_company_id": "55495725-1442-408c-9d35-cb74ba09c22c",
+    "company_name": "omega exec eligible",
+    "company_prospect_id": "d3936df7-a3f8-43b6-9576-d9753e70b5ca",
+    "confidence": 0.9,
+    "discovered_by": "both",
+    "email": null,
+    "evidence": [
+      {
+        "evidence_weight": 0.5,
+        "executive_prospect_id": "e43967e2-8201-41ea-b7d2-a322a352624c",
+        "id": "fef9d56a-0a25-447c-806d-51365c890e16",
+        "raw_snippet": "Leadership listing for omega exec eligible CEO.",
+        "source_content_hash": "21250ce0acd7e65f0c78722e92c55fd29d20f46c7303e968c23d95bd70c3f7fd",
+        "source_document_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+        "source_name": "Internal stub leadership page",
+        "source_type": "internal_stub",
+        "source_url": "https://omega-78.example.com/"
+      },
+      {
+        "evidence_weight": 0.5,
+        "executive_prospect_id": "e43967e2-8201-41ea-b7d2-a322a352624c",
+        "id": "2fb7812c-69f7-4aa3-b0da-dbf8ae4e79d6",
+        "raw_snippet": "CEO listing from external engine",
+        "source_content_hash": "f9b082fbfe810b21a8939ee7cc5f62c6ad70f807cb00055ceb019ccd55479bbf",
+        "source_document_id": "61306137-06fe-4de2-ad35-3a1939909711",
+        "source_name": "External leadership",
+        "source_type": "external",
+        "source_url": "https://ext.example.com/omega/ceo"
+      }
+    ],
+    "evidence_source_document_ids": [
+      "04ecdad9-9332-41e2-9741-3b92618ee750",
+      "61306137-06fe-4de2-ad35-3a1939909711"
+    ],
+    "id": "e43967e2-8201-41ea-b7d2-a322a352624c",
+    "linkedin_url": "https://www.linkedin.com/in/omega-exec-eligible-ceo",
+    "location": "Unknown",
+    "name": "omega exec eligible CEO",
+    "name_normalized": "omega exec eligible ceo",
+    "profile_url": "https://example.com/omega-exec-eligible/ceo",
+    "provenance": "both",
+    "run_id": "339ba963-7fd4-492d-ad62-ac4de0f62f27",
+    "source_document_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+    "source_label": "both",
+    "status": "new",
+    "title": "Chief Executive Officer",
+    "verification_status": "verified"
+  },
+  {
+    "canonical_company_id": "55495725-1442-408c-9d35-cb74ba09c22c",
+    "company_name": "omega exec eligible",
+    "company_prospect_id": "d3936df7-a3f8-43b6-9576-d9753e70b5ca",
+    "confidence": 0.85,
+    "discovered_by": "internal",
+    "email": null,
+    "evidence": [
+      {
+        "evidence_weight": 0.5,
+        "executive_prospect_id": "763926bd-7bcf-46df-8a24-ec5d290bf336",
+        "id": "aae8bd59-c996-49d7-a883-cca7737f3784",
+        "raw_snippet": "Finance lead reference for omega exec eligible CFO.",
+        "source_content_hash": "21250ce0acd7e65f0c78722e92c55fd29d20f46c7303e968c23d95bd70c3f7fd",
+        "source_document_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+        "source_name": "Internal stub leadership page",
+        "source_type": "internal_stub",
+        "source_url": "https://omega-78.example.com/"
+      }
+    ],
+    "evidence_source_document_ids": [
+      "04ecdad9-9332-41e2-9741-3b92618ee750"
+    ],
+    "id": "763926bd-7bcf-46df-8a24-ec5d290bf336",
+    "linkedin_url": "https://www.linkedin.com/in/omega-exec-eligible-cfo",
+    "location": "Unknown",
+    "name": "omega exec eligible CFO",
+    "name_normalized": "omega exec eligible cfo",
+    "profile_url": "https://example.com/omega-exec-eligible/cfo",
+    "provenance": "internal",
+    "run_id": "339ba963-7fd4-492d-ad62-ac4de0f62f27",
+    "source_document_id": "04ecdad9-9332-41e2-9741-3b92618ee750",
+    "source_label": "internal",
+    "status": "new",
+    "title": "Chief Financial Officer",
+    "verification_status": "partial"
+  },
+  {
+    "canonical_company_id": "55495725-1442-408c-9d35-cb74ba09c22c",
+    "company_name": "omega exec eligible",
+    "company_prospect_id": "d3936df7-a3f8-43b6-9576-d9753e70b5ca",
+    "confidence": 0.75,
+    "discovered_by": "external",
+    "email": null,
+    "evidence": [
+      {
+        "evidence_weight": 0.5,
+        "executive_prospect_id": "5bc98b8e-f864-46af-a8cf-2fdefbdb5356",
+        "id": "465b1c56-ffea-4e9d-bb9b-4ea962b95e29",
+        "raw_snippet": "COO listing from external engine",
+        "source_content_hash": "f9b082fbfe810b21a8939ee7cc5f62c6ad70f807cb00055ceb019ccd55479bbf",
+        "source_document_id": "61306137-06fe-4de2-ad35-3a1939909711",
+        "source_name": "External leadership",
+        "source_type": "external",
+        "source_url": "https://ext.example.com/omega/coo"
+      }
+    ],
+    "evidence_source_document_ids": [
+      "61306137-06fe-4de2-ad35-3a1939909711"
+    ],
+    "id": "5bc98b8e-f864-46af-a8cf-2fdefbdb5356",
+    "linkedin_url": null,
+    "location": null,
+    "name": "Omega Exec Eligible COO",
+    "name_normalized": "omega exec eligible coo",
+    "profile_url": "https://ext.example.com/omega/coo",
+    "provenance": "external",
+    "run_id": "339ba963-7fd4-492d-ad62-ac4de0f62f27",
+    "source_document_id": "61306137-06fe-4de2-ad35-3a1939909711",
+    "source_label": "external",
+    "status": "new",
+    "title": "Chief Operating Officer",
+    "verification_status": "verified"
+  }
+]

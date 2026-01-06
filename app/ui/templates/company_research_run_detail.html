@@ -222,12 +222,41 @@
                         <p style="font-size: 12px; color: #555; margin-bottom: 8px;">Runs deterministic internal discovery for eligible companies ({{ eligible_exec_companies|length }} eligible). Uses the same API, gating, and idempotent hashing.</p>
                         <button type="button" class="btn btn-secondary" onclick="runInternalExecDiscovery()">Run internal stub</button>
 
-                        <h3 style="margin-top: 16px; font-size: 14px;">Run External Executive Payload</h3>
-                        <p style="font-size: 12px; color: #555;">Paste the external <code>executive_discovery_v1</code> payload. This calls the API endpoint and respects gating + idempotency.</p>
+                        <h3 style="margin-top: 16px; font-size: 14px;">Run External / Both Executive Payload</h3>
+                        <p style="font-size: 12px; color: #555;">Paste the external <code>executive_discovery_v1</code> payload. Select mode + engine to drive provenance; external/both requires provider.</p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                <div style="min-width: 140px;">
+                    <label for="exec-mode" style="display: block; font-size: 12px; color: #555;">Mode</label>
+                    <select id="exec-mode" style="width: 100%; padding: 6px; font-size: 12px;">
+                        <option value="external" selected>external</option>
+                        <option value="both">both (internal + external)</option>
+                        <option value="internal">internal only</option>
+                    </select>
+                </div>
+                <div style="min-width: 140px;">
+                    <label for="exec-engine" style="display: block; font-size: 12px; color: #555;">Engine</label>
+                    <select id="exec-engine" style="width: 100%; padding: 6px; font-size: 12px;">
+                        <option value="external" selected>external</option>
+                        <option value="internal">internal</option>
+                    </select>
+                </div>
+                <div style="min-width: 160px;">
+                    <label for="exec-provider" style="display: block; font-size: 12px; color: #555;">Provider</label>
+                    <input id="exec-provider" type="text" value="external_engine" style="width: 100%; padding: 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px;" />
+                </div>
+                <div style="min-width: 140px;">
+                    <label for="exec-model" style="display: block; font-size: 12px; color: #555;">Model</label>
+                    <input id="exec-model" type="text" value="mock-model" style="width: 100%; padding: 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px;" />
+                </div>
+                <div style="min-width: 180px; flex: 1;">
+                    <label for="exec-title" style="display: block; font-size: 12px; color: #555;">Title</label>
+                    <input id="exec-title" type="text" value="Exec Discovery Payload" style="width: 100%; padding: 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px;" />
+                </div>
+            </div>
             <textarea id="exec-payload" rows="8" style="width: 100%; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">{
   "schema_version": "executive_discovery_v1",
-  "provider": "mock",
-  "model": "mock",
+  "provider": "external_engine",
+  "model": "mock-model",
   "companies": [
     {"company_name": "Sample Co", "executives": [{"name": "Alex Example", "title": "CEO", "profile_url": "https://example.com"}]}
   ]
@@ -245,6 +274,32 @@
                 <a class="btn btn-secondary" href="/company-research/runs/{{ run.id }}/executives.csv">Export executives CSV</a>
             </div>
         </div>
+
+        <form id="exec-filter-form" method="get" action="/ui/company-research/runs/{{ run.id }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px;">
+            <input type="hidden" name="order_by" value="{{ order_by }}" />
+            <div style="min-width: 160px;">
+                <label for="exec-filter-provenance" style="display: block; font-size: 12px; color: #555;">Provenance</label>
+                <select id="exec-filter-provenance" name="exec_discovered_by" style="width: 100%; padding: 6px; font-size: 12px;">
+                    <option value="" {% if not exec_filters.discovered_by %}selected{% endif %}>All</option>
+                    <option value="internal" {% if exec_filters.discovered_by == 'internal' %}selected{% endif %}>internal</option>
+                    <option value="external" {% if exec_filters.discovered_by == 'external' %}selected{% endif %}>external</option>
+                    <option value="both" {% if exec_filters.discovered_by == 'both' %}selected{% endif %}>both</option>
+                </select>
+            </div>
+            <div style="min-width: 180px;">
+                <label for="exec-filter-verification" style="display: block; font-size: 12px; color: #555;">Verification</label>
+                <select id="exec-filter-verification" name="exec_verification_status" style="width: 100%; padding: 6px; font-size: 12px;">
+                    <option value="" {% if not exec_filters.verification_status %}selected{% endif %}>All</option>
+                    <option value="unverified" {% if exec_filters.verification_status == 'unverified' %}selected{% endif %}>unverified</option>
+                    <option value="partial" {% if exec_filters.verification_status == 'partial' %}selected{% endif %}>partial</option>
+                    <option value="verified" {% if exec_filters.verification_status == 'verified' %}selected{% endif %}>verified</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="submit" class="btn btn-primary">Apply filters</button>
+                <a class="btn btn-secondary" href="/ui/company-research/runs/{{ run.id }}">Reset</a>
+            </div>
+        </form>
 
         {% if executive_groups %}
             {% for group in executive_groups %}
@@ -274,8 +329,8 @@
                             <tr style="border-bottom: 1px solid #eee;">
                                 <td style="padding: 6px; font-weight: 600;">{{ exec.name }}</td>
                                 <td style="padding: 6px;">{{ exec.title or '-' }}</td>
-                                <td style="padding: 6px;">{{ exec.source_label or '-' }}</td>
-                                <td style="padding: 6px;">{{ group.verification_status or '-' }}</td>
+                                <td style="padding: 6px;">{{ exec.discovered_by or exec.source_label or '-' }}</td>
+                                <td style="padding: 6px;">{{ exec.verification_status or group.verification_status or '-' }}</td>
                                 <td style="padding: 6px;">
                                     {% if exec.source_document_id %}
                                         <div style="font-size: 11px;">source: {{ exec.source_document_id }}</div>
@@ -690,27 +745,46 @@ function togglePin(prospectId, currentlyPinned) {
 async function runExecDiscovery() {
     const resultEl = document.getElementById('exec-result');
     const textarea = document.getElementById('exec-payload');
-    let parsed;
+    const modeSelect = document.getElementById('exec-mode');
+    const engineSelect = document.getElementById('exec-engine');
+    const providerInput = document.getElementById('exec-provider');
+    const modelInput = document.getElementById('exec-model');
+    const titleInput = document.getElementById('exec-title');
 
-    try {
-        parsed = JSON.parse(textarea.value);
-    } catch (err) {
-        resultEl.textContent = 'Invalid JSON payload';
-        return;
+    const mode = (modeSelect?.value || 'external').toLowerCase();
+    const engine = (engineSelect?.value || (mode === 'internal' ? 'internal' : 'external')).toLowerCase();
+    const provider = providerInput?.value || (mode === 'internal' ? 'internal_stub' : 'external');
+    const model = modelInput?.value || null;
+    const title = titleInput?.value || 'Exec Discovery Payload';
+
+    let parsed = null;
+    if (mode !== 'internal') {
+        try {
+            parsed = JSON.parse(textarea.value);
+        } catch (err) {
+            resultEl.textContent = 'Invalid JSON payload';
+            return;
+        }
     }
 
     resultEl.textContent = 'Submitting...';
     try {
+        const body = {
+            mode,
+            engine,
+            provider,
+            model,
+            title,
+        };
+
+        if (mode !== 'internal') {
+            body.payload = parsed;
+        }
+
         const response = await fetch('/company-research/runs/{{ run.id }}/executive-discovery/run', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                mode: 'external',
-                provider: parsed.provider || 'mock',
-                model: parsed.model || 'mock',
-                title: parsed.title || 'Exec Discovery Payload',
-                payload: parsed
-            })
+            body: JSON.stringify(body)
         });
 
         const text = await response.text();
@@ -732,7 +806,13 @@ async function runInternalExecDiscovery() {
         const response = await fetch('/company-research/runs/{{ run.id }}/executive-discovery/run', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ mode: 'internal' })
+            body: JSON.stringify({
+                mode: 'internal',
+                engine: 'internal',
+                provider: 'internal_stub',
+                model: 'deterministic_stub_v1',
+                title: 'Internal Executive Discovery'
+            })
         });
 
         const text = await response.text();

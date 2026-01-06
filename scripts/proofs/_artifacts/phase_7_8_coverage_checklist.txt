@@ -1,0 +1,11 @@
+[x] Preflight recorded (openapi/db/alembic/git)
+[x] OpenAPI before captured (json + excerpt)
+[x] Dual-engine exec discovery implemented (internal/external/both param, default internal)
+[x] Evidence storage: request/response SourceDocuments + AIEnrichmentRecords per engine
+[x] External engine deterministic stub wired with llm_json evidence
+[x] Exec provenance merge (internal/external/both) + idempotent reruns + verification promotion
+[x] UI updated for engine selection and provenance/filtering
+[x] Deterministic proof script executed, artifacts captured, PASS
+[x] OpenAPI after captured (json + excerpt)
+[ ] Git evidence captured (status/diff/log/push/tag)
+[ ] Artifact checklist validated

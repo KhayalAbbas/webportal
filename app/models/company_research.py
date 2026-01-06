@@ -456,6 +456,8 @@ class ExecutiveProspect(TenantScopedModel):
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     confidence: Mapped[float] = mapped_column(Numeric(3, 2), nullable=False, default=0.0)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="new", index=True)
+    discovered_by: Mapped[str] = mapped_column(String(50), nullable=False, default="internal")
+    verification_status: Mapped[str] = mapped_column(String(50), nullable=False, default="unverified")
     source_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     source_document_id: Mapped[Optional[UUID]] = mapped_column(
         UUID(as_uuid=True),
