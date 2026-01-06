@@ -2,92 +2,250 @@
   "paths": {
     "/company-research/runs/{run_id}/executive-discovery/run": {
       "post": {
+        "tags": [
+          "company-research"
+        ],
+        "summary": "Run Executive Discovery",
         "description": "Start executive discovery for a run using internal stub and/or external payloads.",
         "operationId": "run_executive_discovery_company_research_runs__run_id__executive_discovery_run_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
-            "in": "path",
             "name": "run_id",
+            "in": "path",
             "required": true,
             "schema": {
+              "type": "string",
               "format": "uuid",
-              "title": "Run Id",
-              "type": "string"
+              "title": "Run Id"
             }
           },
           {
-            "in": "header",
             "name": "x-tenant-id",
+            "in": "header",
             "required": false,
             "schema": {
-              "title": "X-Tenant-Id",
-              "type": "string"
+              "type": "string",
+              "title": "X-Tenant-Id"
             }
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ExecutiveDiscoveryRunPayload"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
               }
-            },
-            "description": "Successful Response"
+            }
           },
           "422": {
+            "description": "Validation Error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
-            },
-            "description": "Validation Error"
+            }
           }
-        },
+        }
+      }
+    },
+    "/company-research/runs/{run_id}/executives": {
+      "get": {
+        "tags": [
+          "company-research"
+        ],
+        "summary": "List Executive Prospects",
+        "description": "List executives for a run with evidence pointers and deterministic ordering.",
+        "operationId": "list_executive_prospects_company_research_runs__run_id__executives_get",
         "security": [
           {
             "HTTPBearer": []
           }
         ],
-        "summary": "Run Executive Discovery",
-        "tags": [
-          "company-research"
-        ]
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "canonical_company_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by canonical company identifier",
+              "title": "Canonical Company Id"
+            },
+            "description": "Filter by canonical company identifier"
+          },
+          {
+            "name": "company_prospect_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by company prospect identifier",
+              "title": "Company Prospect Id"
+            },
+            "description": "Filter by company prospect identifier"
+          },
+          {
+            "name": "discovered_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by discovery provenance",
+              "title": "Discovered By"
+            },
+            "description": "Filter by discovery provenance"
+          },
+          {
+            "name": "verification_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by company verification status",
+              "title": "Verification Status"
+            },
+            "description": "Filter by company verification status"
+          },
+          {
+            "name": "x-tenant-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Tenant-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExecutiveProspectRead"
+                  },
+                  "title": "Response List Executive Prospects Company Research Runs  Run Id  Executives Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
   "schemas": {
     "ExecutiveDiscoveryRunPayload": {
       "properties": {
+        "mode": {
+          "type": "string",
+          "pattern": "^(internal|external|both)$",
+          "title": "Mode",
+          "default": "internal"
+        },
         "engine": {
           "anyOf": [
             {
-              "pattern": "^(internal|external)$",
+              "type": "string",
+              "pattern": "^(internal|external)$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Engine",
+          "default": "external"
+        },
+        "title": {
+          "anyOf": [
+            {
               "type": "string"
             },
             {
               "type": "null"
             }
           ],
-          "default": "external",
-          "title": "Engine"
+          "title": "Title"
         },
-        "mode": {
-          "default": "internal",
-          "pattern": "^(internal|external|both)$",
-          "title": "Mode",
-          "type": "string"
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Provider"
         },
         "model": {
           "anyOf": [
@@ -110,60 +268,43 @@
             }
           ],
           "title": "Payload"
-        },
-        "provider": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Provider"
-        },
-        "title": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Title"
         }
       },
-      "title": "ExecutiveDiscoveryRunPayload",
-      "type": "object"
+      "type": "object",
+      "title": "ExecutiveDiscoveryRunPayload"
     },
     "ExecutiveProspectRead": {
-      "description": "Run-scoped executive prospect with evidence pointers.",
       "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "title": "Id"
+        },
+        "run_id": {
+          "type": "string",
+          "format": "uuid",
+          "title": "Run Id"
+        },
+        "company_prospect_id": {
+          "type": "string",
+          "format": "uuid",
+          "title": "Company Prospect Id"
+        },
+        "company_name": {
+          "type": "string",
+          "title": "Company Name"
+        },
         "canonical_company_id": {
           "anyOf": [
             {
-              "format": "uuid",
-              "type": "string"
+              "type": "string",
+              "format": "uuid"
             },
             {
               "type": "null"
             }
           ],
           "title": "Canonical Company Id"
-        },
-        "company_name": {
-          "title": "Company Name",
-          "type": "string"
-        },
-        "company_prospect_id": {
-          "format": "uuid",
-          "title": "Company Prospect Id",
-          "type": "string"
-        },
-        "confidence": {
-          "title": "Confidence",
-          "type": "number"
         },
         "discovered_by": {
           "anyOf": [
@@ -176,78 +317,6 @@
           ],
           "title": "Discovered By"
         },
-        "email": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Email"
-        },
-        "evidence": {
-          "items": {
-            "$ref": "#/components/schemas/ExecutiveEvidenceRead"
-          },
-          "title": "Evidence",
-          "type": "array"
-        },
-        "evidence_source_document_ids": {
-          "items": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "title": "Evidence Source Document Ids",
-          "type": "array"
-        },
-        "id": {
-          "format": "uuid",
-          "title": "Id",
-          "type": "string"
-        },
-        "linkedin_url": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Linkedin Url"
-        },
-        "location": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Location"
-        },
-        "name": {
-          "title": "Name",
-          "type": "string"
-        },
-        "name_normalized": {
-          "title": "Name Normalized",
-          "type": "string"
-        },
-        "profile_url": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Profile Url"
-        },
         "provenance": {
           "anyOf": [
             {
@@ -259,24 +328,7 @@
           ],
           "title": "Provenance"
         },
-        "run_id": {
-          "format": "uuid",
-          "title": "Run Id",
-          "type": "string"
-        },
-        "source_document_id": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Source Document Id"
-        },
-        "source_label": {
+        "verification_status": {
           "anyOf": [
             {
               "type": "string"
@@ -285,11 +337,15 @@
               "type": "null"
             }
           ],
-          "title": "Source Label"
+          "title": "Verification Status"
         },
-        "status": {
-          "title": "Status",
-          "type": "string"
+        "name": {
+          "type": "string",
+          "title": "Name"
+        },
+        "name_normalized": {
+          "type": "string",
+          "title": "Name Normalized"
         },
         "title": {
           "anyOf": [
@@ -302,7 +358,7 @@
           ],
           "title": "Title"
         },
-        "verification_status": {
+        "profile_url": {
           "anyOf": [
             {
               "type": "string"
@@ -311,9 +367,89 @@
               "type": "null"
             }
           ],
-          "title": "Verification Status"
+          "title": "Profile Url"
+        },
+        "linkedin_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Linkedin Url"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Email"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Location"
+        },
+        "confidence": {
+          "type": "number",
+          "title": "Confidence"
+        },
+        "status": {
+          "type": "string",
+          "title": "Status"
+        },
+        "source_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Label"
+        },
+        "source_document_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Document Id"
+        },
+        "evidence_source_document_ids": {
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": "array",
+          "title": "Evidence Source Document Ids"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/components/schemas/ExecutiveEvidenceRead"
+          },
+          "type": "array",
+          "title": "Evidence"
         }
       },
+      "type": "object",
       "required": [
         "id",
         "run_id",
@@ -325,7 +461,88 @@
         "status"
       ],
       "title": "ExecutiveProspectRead",
-      "type": "object"
+      "description": "Run-scoped executive prospect with evidence pointers."
+    },
+    "ExecutiveEvidenceRead": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "title": "Id"
+        },
+        "executive_prospect_id": {
+          "type": "string",
+          "format": "uuid",
+          "title": "Executive Prospect Id"
+        },
+        "source_type": {
+          "type": "string",
+          "title": "Source Type"
+        },
+        "source_name": {
+          "type": "string",
+          "title": "Source Name"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Url"
+        },
+        "raw_snippet": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Raw Snippet"
+        },
+        "evidence_weight": {
+          "type": "number",
+          "title": "Evidence Weight"
+        },
+        "source_document_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Document Id"
+        },
+        "source_content_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Content Hash"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "executive_prospect_id",
+        "source_type",
+        "source_name",
+        "evidence_weight"
+      ],
+      "title": "ExecutiveEvidenceRead",
+      "description": "Evidence backing an executive prospect."
     }
   }
 }
