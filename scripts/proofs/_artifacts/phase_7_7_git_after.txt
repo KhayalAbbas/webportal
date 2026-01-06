@@ -1,20 +1,20 @@
 C:\Program Files\Git\bin\git.exe status -sb
-## master...origin/master
+## master...origin/master [ahead 1]
 
 C:\Program Files\Git\bin\git.exe log -1 --decorate
-commit 6d3d1bfb21421efe03305c44b4149f3a340174eb (HEAD -> master, tag: phase_7_7_signed_off, origin/master, origin/HEAD)
+commit 825bd9a8f78728edea6885bf34d020cad7cbf8c0 (HEAD -> master, tag: phase_7_7_signed_off)
 Author: ATS Local <local@ats>
-Date:   Tue Jan 6 18:46:55 2026 +0400
+Date:   Tue Jan 6 18:47:35 2026 +0400
 
-    chore: refresh git evidence with explicit git path
+    chore: finalize git-after evidence
     
     Signed-off-by: ATS Local <local@ats>
 
 C:\Program Files\Git\bin\git.exe rev-parse HEAD
-6d3d1bfb21421efe03305c44b4149f3a340174eb
+825bd9a8f78728edea6885bf34d020cad7cbf8c0
 
 C:\Program Files\Git\bin\git.exe show-ref --tags -d | findstr /i "phase_7_7_signed_off"
-6d3d1bfb21421efe03305c44b4149f3a340174eb refs/tags/phase_7_7_signed_off
+825bd9a8f78728edea6885bf34d020cad7cbf8c0 refs/tags/phase_7_7_signed_off
 
 TREE_CLEAN=True
 TAG_AT_HEAD=True
