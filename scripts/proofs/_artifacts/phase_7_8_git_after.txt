@@ -1,14 +1,20 @@
-﻿## master...origin/master
+## master...origin/master
+ M scripts/proofs/_artifacts/phase_7_8_git_after.txt
+ M scripts/proofs/_artifacts/phase_7_8_push.txt
 
 C:/Program Files/Git/bin/git.exe log -1 --decorate
-commit 41684a45e02a1d76929df19f043d3b45f41f6108 (HEAD -> master, origin/master, origin/HEAD)
+commit 9e40162820cf6b8bb3cde6226fb5242a7cc660e3 (HEAD -> master, tag: phase_7_8_signed_off, origin/master, origin/HEAD)
 Author: ATS Local <local@ats>
-Date:   Tue Jan 6 19:54:03 2026 +0400
+Date:   Tue Jan 6 19:57:29 2026 +0400
 
-    Phase 7.8: dual-engine exec discovery
+    chore: phase 7.8 git evidence
 
 C:/Program Files/Git/bin/git.exe rev-parse HEAD
-41684a45e02a1d76929df19f043d3b45f41f6108
+9e40162820cf6b8bb3cde6226fb5242a7cc660e3
 
-TREE_CLEAN=True
-TAG_AT_HEAD=False
+C:/Program Files/Git/bin/git.exe show-ref --tags -d | findstr /i "phase_7_8_signed_off"
+564ebeb83d398d7d492aedc8833e11f847eed805 refs/tags/phase_7_8_signed_off
+9e40162820cf6b8bb3cde6226fb5242a7cc660e3 refs/tags/phase_7_8_signed_off^{}
+
+TREE_CLEAN=False
+TAG_AT_HEAD=True
