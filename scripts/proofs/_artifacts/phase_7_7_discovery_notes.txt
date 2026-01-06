@@ -5,3 +5,10 @@ Phase 7.7 discovery notes
 - Existing UI: app/ui/routes/company_research.py builds run detail context with eligible_exec_companies + executives from list_executives_for_run(); template company_research_run_detail.html renders a simple Executive Discovery section (eligible list, internal/external submission textarea, basic executives table without evidence/export). Ranked page uses prospects-ranked but has no executives list.
 - Existing exports: API router app/routers/company_research.py exposes /company-research/runs/{run_id}/prospects-ranked.json and .csv using _get_filtered_rankings() with deterministic sorting; CSV writer applies explicit header order. No executive exports exist yet.
 - Existing pagination/filter patterns: company prospect APIs accept filters (status, review_status, verification_status, discovered_by, exec_search_enabled, min_relevance_score, order_by, limit/offset). Executive eligibility uses list_executive_eligible_companies() requiring status=accepted and exec_search_enabled=true. Current list_executives_for_run() returns all execs for a run without filtering or evidence join.
+- Git path discovery (2026-01-06 PowerShell):
+  - where.exe git -> not found
+  - C:\Program Files\Git\bin\git.exe -> EXISTS (chosen GIT_EXE)
+  - C:\Program Files\Git\cmd\git.exe -> EXISTS
+  - C:\Program Files (x86)\Git\bin\git.exe -> MISSING
+  - C:\Program Files (x86)\Git\cmd\git.exe -> MISSING
+  - Selected GIT_EXE=C:\Program Files\Git\bin\git.exe

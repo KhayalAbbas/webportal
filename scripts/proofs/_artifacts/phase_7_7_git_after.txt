@@ -1,11 +1,22 @@
-﻿## master...origin/master
-commit 2f3d00ca31c69f44e01035299292ba457b7f767b (HEAD -> master, tag: phase_7_7_signed_off, origin/master, origin/HEAD)
-Author: ATS Local <local@ats>
-Date:   Tue Jan 6 18:37:48 2026 +0400
+C:\Program Files\Git\bin\git.exe status -sb
+## master...origin/master
+ M scripts/proofs/_artifacts/phase_7_7_discovery_notes.txt
+ M scripts/proofs/_artifacts/phase_7_7_git_after.txt
 
-    chore: finalize git snapshot outputs
+C:\Program Files\Git\bin\git.exe log -1 --decorate
+commit 8b220ba80b393d468d9dc8294f449e1edfd0ddaf (HEAD -> master, tag: phase_7_7_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Tue Jan 6 18:38:24 2026 +0400
+
+    chore: refresh git snapshots post-tag
     
     Signed-off-by: ATS Local <local@ats>
-2f3d00ca31c69f44e01035299292ba457b7f767b refs/tags/phase_7_7_signed_off
-2f3d00ca31c69f44e01035299292ba457b7f767b
 
+C:\Program Files\Git\bin\git.exe rev-parse HEAD
+8b220ba80b393d468d9dc8294f449e1edfd0ddaf
+
+C:\Program Files\Git\bin\git.exe show-ref --tags -d | findstr /i "phase_7_7_signed_off"
+8b220ba80b393d468d9dc8294f449e1edfd0ddaf refs/tags/phase_7_7_signed_off
+
+TREE_CLEAN=False
+TAG_AT_HEAD=True
