@@ -1,6 +1,6 @@
-﻿e43d57e chore: refresh git snapshot artifacts
+﻿2f3d00c chore: finalize git snapshot outputs
+e43d57e chore: refresh git snapshot artifacts
 70b7b0b docs: note tag update and refresh git_after
 e1e2dc7 docs: add phase_7_7 artifact checklist
 e07317f chore: update phase_7_7 push evidence
-87bd6cb chore: finalize phase_7_7 artifacts
 
