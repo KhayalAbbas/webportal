@@ -584,6 +584,24 @@ class CompanyResearchRepository:
         )
         return list(result.scalars().all())
 
+    async def get_executive_prospect(
+        self,
+        tenant_id: str,
+        executive_id: UUID,
+    ) -> Optional[ExecutiveProspect]:
+        result = await self.db.execute(
+            select(ExecutiveProspect)
+            .options(
+                selectinload(ExecutiveProspect.evidence),
+                selectinload(ExecutiveProspect.company_prospect),
+            )
+            .where(
+                ExecutiveProspect.tenant_id == tenant_id,
+                ExecutiveProspect.id == executive_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def list_executive_evidence_for_run(
         self,
         tenant_id: str,

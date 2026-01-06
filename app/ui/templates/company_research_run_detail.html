@@ -322,6 +322,7 @@
                                 <th style="text-align: left; padding: 6px;">Verification</th>
                                 <th style="text-align: left; padding: 6px;">Evidence pointers</th>
                                 <th style="text-align: left; padding: 6px;">Profile</th>
+                                <th style="text-align: left; padding: 6px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -343,6 +344,24 @@
                                 </td>
                                 <td style="padding: 6px;">
                                     {% if exec.linkedin_url %}<a href="{{ exec.linkedin_url }}" target="_blank">LinkedIn</a>{% elif exec.profile_url %}<a href="{{ exec.profile_url }}" target="_blank">Profile</a>{% else %}-{% endif %}
+                                </td>
+                                <td style="padding: 6px;">
+                                    {% set current_status = exec.verification_status or group.verification_status or 'unverified' %}
+                                    {% if current_status == 'verified' %}
+                                        <span style="font-size: 12px; color: #28a745; font-weight: 600;">verified</span>
+                                    {% else %}
+                                        <form method="post" action="/ui/company-research/executives/{{ exec.id }}/verification-status" style="display: flex; gap: 4px; align-items: center;">
+                                            <input type="hidden" name="run_id" value="{{ run.id }}" />
+                                            <input type="hidden" name="redirect_query" value="{{ exec_redirect_query }}" />
+                                            <select name="verification_status" style="padding: 4px; font-size: 12px;">
+                                                {% if current_status == 'unverified' %}
+                                                    <option value="partial">partial</option>
+                                                {% endif %}
+                                                <option value="verified">verified</option>
+                                            </select>
+                                            <button type="submit" class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;">Promote</button>
+                                        </form>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}

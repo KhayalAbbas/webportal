@@ -411,6 +411,44 @@ async def update_prospect_review_status_ui(
     return RedirectResponse(url=base_url, status_code=303)
 
 
+@router.post("/ui/company-research/executives/{executive_id}/verification-status")
+async def update_executive_verification_status_ui(
+    executive_id: UUID,
+    run_id: UUID = Form(...),
+    verification_status: str = Form(...),
+    redirect_query: Optional[str] = Form(""),
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    session: AsyncSession = Depends(get_db),
+):
+    """Handle verification status promotion from the UI (no downgrades)."""
+
+    service = CompanyResearchService(session)
+    try:
+        executive = await service.update_executive_verification_status(
+            tenant_id=current_user.tenant_id,
+            executive_id=executive_id,
+            verification_status=verification_status,
+            actor=current_user.email or current_user.username or "system",
+        )
+    except ValueError as exc:  # noqa: BLE001
+        message = str(exc)
+        if message == "invalid_verification_status":
+            raise HTTPException(status_code=400, detail="Invalid verification_status")
+        if message == "downgrade_not_allowed":
+            raise HTTPException(status_code=409, detail="Downgrades not allowed")
+        raise
+
+    if not executive:
+        raise HTTPException(status_code=404, detail="Executive prospect not found")
+
+    await session.commit()
+
+    base_url = f"/ui/company-research/runs/{run_id}"
+    if redirect_query:
+        return RedirectResponse(url=f"{base_url}?{redirect_query}", status_code=303)
+    return RedirectResponse(url=base_url, status_code=303)
+
+
 @router.get("/ui/company-research/runs/{run_id}", response_class=HTMLResponse)
 async def company_research_run_detail(
     request: Request,
@@ -720,6 +758,18 @@ async def company_research_run_detail(
     selected_metric_key = None
     if order_by.startswith("metric:"):
         selected_metric_key = order_by.split(":", 1)[1]
+
+    exec_redirect_query = urlencode(
+        {
+            k: v
+            for k, v in {
+                "order_by": order_by,
+                "exec_discovered_by": exec_discovered_by,
+                "exec_verification_status": exec_verification_status,
+            }.items()
+            if v not in {None, ""}
+        }
+    )
     
     return templates.TemplateResponse(
         "company_research_run_detail.html",
@@ -748,6 +798,7 @@ async def company_research_run_detail(
                 "discovered_by": exec_discovered_by,
                 "verification_status": exec_verification_status,
             },
+            "exec_redirect_query": exec_redirect_query,
             "success_message": success_message,
             "error_message": error_message,
             "events": [

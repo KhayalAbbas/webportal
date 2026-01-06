@@ -36,6 +36,7 @@ from app.schemas.company_research import (
     ExecutiveProspectRead,
     CompanyProspectUpdateManual,
     CompanyProspectReviewUpdate,
+    ExecutiveVerificationUpdate,
     CompanyProspectEvidenceCreate,
     CompanyProspectEvidenceRead,
     CompanyProspectMetricCreate,
@@ -754,6 +755,80 @@ async def export_executives_csv(
     stream = io.BytesIO(output.getvalue().encode("utf-8"))
     headers = {"Content-Disposition": f"attachment; filename=run_{run_id}_executives.csv"}
     return StreamingResponse(stream, media_type="text/csv", headers=headers)
+
+
+@router.patch("/executives/{executive_id}/verification-status", response_model=ExecutiveProspectRead)
+async def update_executive_verification_status(
+    executive_id: UUID,
+    data: ExecutiveVerificationUpdate,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Promote executive verification status with audit logging (no downgrades)."""
+
+    service = CompanyResearchService(db)
+
+    try:
+        executive = await service.update_executive_verification_status(
+            tenant_id=current_user.tenant_id,
+            executive_id=executive_id,
+            verification_status=data.verification_status,
+            actor=current_user.email or current_user.username or "system",
+        )
+    except ValueError as exc:  # noqa: BLE001
+        message = str(exc)
+        if message == "invalid_verification_status":
+            raise HTTPException(status_code=400, detail="Invalid verification_status")
+        if message == "downgrade_not_allowed":
+            raise HTTPException(status_code=409, detail="Downgrades not allowed")
+        raise
+
+    if not executive:
+        raise HTTPException(status_code=404, detail="Executive prospect not found")
+
+    # Re-fetch with evidence pointers to satisfy response model
+    payload = None
+    exec_rows = await service.list_executive_prospects_with_evidence(
+        tenant_id=current_user.tenant_id,
+        run_id=executive.company_research_run_id,
+        company_prospect_id=executive.company_prospect_id,
+    )
+    for row in exec_rows:
+        if row.get("id") == executive_id:
+            payload = row
+            break
+
+    await db.commit()
+
+    if payload:
+        return ExecutiveProspectRead.model_validate(payload)
+
+    # Fallback to minimal response if evidence lookup failed
+    return ExecutiveProspectRead.model_validate(
+        {
+            "id": executive.id,
+            "run_id": executive.company_research_run_id,
+            "company_prospect_id": executive.company_prospect_id,
+            "company_name": getattr(executive, "company_prospect", None).name_normalized if getattr(executive, "company_prospect", None) else "",
+            "canonical_company_id": None,
+            "discovered_by": executive.discovered_by,
+            "provenance": executive.discovered_by,
+            "verification_status": executive.verification_status,
+            "name": executive.name_raw,
+            "name_normalized": executive.name_normalized,
+            "title": executive.title,
+            "profile_url": executive.profile_url,
+            "linkedin_url": executive.linkedin_url,
+            "email": executive.email,
+            "location": executive.location,
+            "confidence": float(executive.confidence or 0.0),
+            "status": executive.status,
+            "source_label": executive.source_label,
+            "source_document_id": executive.source_document_id,
+            "evidence_source_document_ids": [],
+            "evidence": [],
+        }
+    )
 
 
 @router.post("/runs/{run_id}/retry", response_model=CompanyResearchJobRead)

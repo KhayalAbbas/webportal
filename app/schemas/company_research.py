@@ -193,6 +193,12 @@ class CompanyProspectReviewUpdate(BaseModel):
     review_status: str = Field(..., max_length=50)
 
 
+class ExecutiveVerificationUpdate(BaseModel):
+    """Schema for updating an executive verification status."""
+
+    verification_status: str = Field(..., max_length=50)
+
+
 # ============================================================================
 # Company Prospect Evidence Schemas
 # ============================================================================

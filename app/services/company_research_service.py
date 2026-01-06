@@ -62,6 +62,12 @@ class CompanyResearchService:
     """Service layer for company research operations."""
 
     REVIEW_STATUSES = {"new", "accepted", "hold", "rejected"}
+    EXEC_VERIFICATION_STATUSES = {"unverified", "partial", "verified"}
+    EXEC_VERIFICATION_ORDER = {
+        "unverified": 0,
+        "partial": 1,
+        "verified": 2,
+    }
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -506,6 +512,60 @@ class CompanyResearchService:
         await self.db.flush()
         await self.db.refresh(prospect)
         return prospect
+
+    async def update_executive_verification_status(
+        self,
+        tenant_id: str,
+        executive_id: UUID,
+        verification_status: str,
+        actor: Optional[str] = None,
+    ) -> Optional[ExecutiveProspect]:
+        """Update executive verification status with audit logging and no downgrades."""
+
+        if verification_status not in self.EXEC_VERIFICATION_STATUSES:
+            raise ValueError("invalid_verification_status")
+
+        executive = await self.repo.get_executive_prospect(tenant_id, executive_id)
+        if not executive:
+            return None
+
+        current_status = getattr(executive, "verification_status", "unverified")
+        if self.EXEC_VERIFICATION_ORDER.get(verification_status, 0) < self.EXEC_VERIFICATION_ORDER.get(current_status, 0):
+            raise ValueError("downgrade_not_allowed")
+
+        if current_status == verification_status:
+            return executive
+
+        executive.verification_status = verification_status
+
+        evidence_source_ids: list[str] = []
+        for ev in getattr(executive, "evidence", []) or []:
+            if ev.source_document_id:
+                evidence_source_ids.append(str(ev.source_document_id))
+        evidence_source_ids = list(dict.fromkeys(evidence_source_ids))
+
+        role_id = None
+        if getattr(executive, "company_prospect", None):
+            role_id = getattr(executive.company_prospect, "role_mandate_id", None)
+
+        self.db.add(
+            ActivityLog(
+                tenant_id=tenant_id,
+                role_id=role_id,
+                type="EXEC_VERIFICATION_STATUS",
+                message=(
+                    f"executive_id={executive_id} run_id={executive.company_research_run_id} "
+                    f"verification_status {current_status}->{verification_status} "
+                    f"evidence_source_documents={','.join(evidence_source_ids) or 'none'} "
+                    f"evidence_count={len(getattr(executive, 'evidence', []) or [])}"
+                ),
+                created_by=actor or "system",
+            )
+        )
+
+        await self.db.flush()
+        await self.db.refresh(executive)
+        return executive
     
     async def count_prospects_for_run(
         self,
