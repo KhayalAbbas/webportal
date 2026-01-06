@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.repositories.company_research_repo import CompanyResearchRepository
+from app.repositories.enrichment_assignment_repository import EnrichmentAssignmentRepository
 from app.models.company_research import (
     CompanyResearchRun,
     CompanyProspect,
@@ -50,6 +51,7 @@ from app.schemas.company_research import (
     SourceDocumentCreate,
     SourceDocumentUpdate,
     ResearchEventCreate,
+    ProspectSignalEvidence,
 )
 from app.utils.url_canonicalizer import canonicalize_url
 
@@ -60,6 +62,7 @@ class CompanyResearchService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = CompanyResearchRepository(db)
+        self.assignment_repo = EnrichmentAssignmentRepository(db)
     
     # ========================================================================
     # Company Research Run Operations
@@ -463,6 +466,151 @@ class CompanyResearchService:
         limit: int = 100,
     ) -> List[CompanyResearchEvent]:
         return await self.repo.list_research_events_for_run(tenant_id, run_id, limit)
+
+    # ====================================================================
+    # Explainable Prospect Ranking (Stage 7.3)
+    # ====================================================================
+
+    async def rank_prospects_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        status: Optional[str] = None,
+        min_relevance_score: Optional[float] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[dict]:
+        """Deterministically rank prospects with evidence-backed signals."""
+
+        prospects = await self.repo.list_all_company_prospects_for_run(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            status=status,
+            min_relevance_score=min_relevance_score,
+        )
+
+        prospect_ids = [p.id for p in prospects]
+        link_records = await self.repo.list_canonical_links_for_prospects(
+            tenant_id=tenant_id,
+            prospect_ids=prospect_ids,
+            run_id=run_id,
+        )
+
+        links_by_prospect: Dict[UUID, List] = defaultdict(list)
+        for link in link_records:
+            links_by_prospect[link.company_entity_id].append(link)
+
+        canonical_ids = []
+        for prospect in prospects:
+            if prospect.normalized_company_id:
+                canonical_ids.append(prospect.normalized_company_id)
+            for link in links_by_prospect.get(prospect.id, []):
+                canonical_ids.append(link.canonical_company_id)
+
+        assignment_records = await self.assignment_repo.list_for_company_ids(
+            tenant_id=tenant_id,
+            canonical_ids=list({cid for cid in canonical_ids if cid}),
+        )
+
+        assignments_by_company: Dict[UUID, List] = defaultdict(list)
+        for assignment in assignment_records:
+            assignments_by_company[assignment.target_canonical_id].append(assignment)
+
+        ranked: List[dict] = []
+        for prospect in prospects:
+            primary_link = links_by_prospect.get(prospect.id, [None])[0]
+            canonical_id = prospect.normalized_company_id or (primary_link.canonical_company_id if primary_link else None)
+
+            components: Dict[str, float] = {}
+            score = float(prospect.relevance_score or 0.0)
+            components["ai_relevance"] = score
+
+            evidence_component = float(prospect.evidence_score or 0.0) * 0.2
+            if evidence_component:
+                components["evidence_score"] = evidence_component
+                score += evidence_component
+
+            why_included: List[ProspectSignalEvidence] = []
+
+            if canonical_id:
+                for assignment in assignments_by_company.get(canonical_id, []):
+                    bonus = 0.0
+                    field_key = assignment.field_key
+                    value = assignment.value_json
+                    confidence = float(assignment.confidence or 0.0)
+
+                    if field_key == "hq_country" and prospect.hq_country:
+                        normalized_value = assignment.value_normalized or str(value)
+                        if normalized_value and str(prospect.hq_country).lower() == str(normalized_value).lower():
+                            bonus = confidence * 0.2
+                            components["hq_country_match"] = components.get("hq_country_match", 0.0) + bonus
+
+                    elif field_key == "ownership_signal":
+                        bonus = confidence * 0.1
+                        components["ownership_signal"] = components.get("ownership_signal", 0.0) + bonus
+
+                    elif field_key == "industry_keywords":
+                        keywords: List[str] = []
+                        if isinstance(value, list):
+                            keywords = [str(v).lower() for v in value]
+                        elif isinstance(value, str):
+                            keywords = [value.lower()]
+
+                        sector_text = f"{prospect.sector or ''} {prospect.subsector or ''}".lower()
+                        matched = any(kw and kw in sector_text for kw in keywords)
+
+                        bonus = confidence * (0.15 if matched else 0.05)
+                        key = "industry_keywords_match" if matched else "industry_keywords_presence"
+                        components[key] = components.get(key, 0.0) + bonus
+
+                    if bonus:
+                        score += bonus
+                        why_included.append(
+                            ProspectSignalEvidence(
+                                field_key=field_key,
+                                value=value,
+                                value_normalized=assignment.value_normalized,
+                                confidence=confidence,
+                                source_document_id=assignment.source_document_id,
+                            )
+                        )
+
+            ranked.append(
+                {
+                    "id": prospect.id,
+                    "name_normalized": prospect.name_normalized,
+                    "normalized_company_id": canonical_id,
+                    "website_url": prospect.website_url,
+                    "hq_country": prospect.hq_country,
+                    "sector": prospect.sector,
+                    "subsector": prospect.subsector,
+                    "relevance_score": float(prospect.relevance_score or 0.0),
+                    "evidence_score": float(prospect.evidence_score or 0.0),
+                    "is_pinned": prospect.is_pinned,
+                    "manual_priority": prospect.manual_priority,
+                    "computed_score": score,
+                    "score_components": components,
+                    "why_included": why_included,
+                    "_tie_breaker_name": prospect.name_normalized.lower(),
+                }
+            )
+
+        ranked_sorted = sorted(
+            ranked,
+            key=lambda item: (
+                not item["is_pinned"],
+                item["manual_priority"] is None,
+                item["manual_priority"] if item["manual_priority"] is not None else 0,
+                -item["computed_score"],
+                -item["evidence_score"],
+                item["_tie_breaker_name"],
+            ),
+        )
+
+        sliced = ranked_sorted[offset : offset + limit]
+        for item in sliced:
+            item.pop("_tie_breaker_name", None)
+        return sliced
 
     # ====================================================================
     # Job Queue Operations

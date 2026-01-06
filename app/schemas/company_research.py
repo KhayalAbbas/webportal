@@ -338,6 +338,39 @@ class CompanyProspectWithEvidence(BaseModel):
     evidence: List[CompanyProspectEvidenceWithSource] = []
 
 
+class ProspectSignalEvidence(BaseModel):
+    """Why-included evidence derived from enrichment assignments."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    field_key: str
+    value: Any
+    value_normalized: Optional[str] = None
+    confidence: float
+    source_document_id: UUID
+
+
+class CompanyProspectRanking(BaseModel):
+    """Deterministic ranking response with explainability."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name_normalized: str
+    normalized_company_id: Optional[UUID] = None
+    website_url: Optional[str] = None
+    hq_country: Optional[str] = None
+    sector: str
+    subsector: Optional[str] = None
+    relevance_score: float
+    evidence_score: float
+    is_pinned: bool
+    manual_priority: Optional[int] = None
+    computed_score: float
+    score_components: Dict[str, float]
+    why_included: List[ProspectSignalEvidence] = []
+
+
 class CompanyResearchRunSummary(BaseModel):
     """Summary schema for research run with prospect count."""
     

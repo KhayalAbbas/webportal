@@ -297,6 +297,28 @@ class CompanyResearchRepository:
         
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+    async def list_all_company_prospects_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        status: Optional[str] = None,
+        min_relevance_score: Optional[float] = None,
+    ) -> List[CompanyProspect]:
+        """Fetch all prospects for a run without pagination for deterministic ranking."""
+        query = select(CompanyProspect).where(
+            CompanyProspect.tenant_id == tenant_id,
+            CompanyProspect.company_research_run_id == run_id,
+        )
+
+        if status:
+            query = query.where(CompanyProspect.status == status)
+        if min_relevance_score is not None:
+            query = query.where(CompanyProspect.relevance_score >= min_relevance_score)
+
+        query = query.order_by(CompanyProspect.created_at.asc())
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
     
     async def list_prospects_for_run_with_evidence(
         self,
@@ -1226,6 +1248,37 @@ class CompanyResearchRepository:
         if company_entity_id:
             query = query.where(CanonicalCompanyLink.company_entity_id == company_entity_id)
         query = query.order_by(CanonicalCompanyLink.created_at.asc())
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def list_canonical_links_for_prospects(
+        self,
+        tenant_id: str,
+        prospect_ids: List[UUID],
+        run_id: Optional[UUID] = None,
+    ) -> List[CanonicalCompanyLink]:
+        """Fetch canonical company links for a batch of prospect IDs."""
+        if not prospect_ids:
+            return []
+
+        query = select(CanonicalCompanyLink).where(
+            CanonicalCompanyLink.tenant_id == tenant_id,
+            CanonicalCompanyLink.company_entity_id.in_(prospect_ids),
+        )
+
+        if run_id:
+            query = query.where(
+                or_(
+                    CanonicalCompanyLink.evidence_company_research_run_id == run_id,
+                    CanonicalCompanyLink.evidence_company_research_run_id.is_(None),
+                )
+            )
+
+        query = query.order_by(
+            CanonicalCompanyLink.company_entity_id.asc(),
+            CanonicalCompanyLink.created_at.asc(),
+        )
+
         result = await self.db.execute(query)
         return list(result.scalars().all())
 

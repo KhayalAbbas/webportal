@@ -29,6 +29,7 @@ from app.schemas.company_research import (
     CompanyProspectRead,
     CompanyProspectListItem,
     CompanyProspectWithEvidence,
+    CompanyProspectRanking,
     CompanyProspectUpdateManual,
     CompanyProspectEvidenceCreate,
     CompanyProspectEvidenceRead,
@@ -800,6 +801,36 @@ async def list_prospects_for_run_with_evidence(
     )
     
     return [CompanyProspectWithEvidence.model_validate(p) for p in prospects]
+
+
+@router.get("/runs/{run_id}/prospects-ranked", response_model=List[CompanyProspectRanking])
+async def rank_prospects_for_run(
+    run_id: UUID,
+    status: Optional[str] = Query(None, description="Filter by status (new, approved, rejected, duplicate, converted)"),
+    min_relevance_score: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum AI relevance score"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return deterministic, evidence-backed prospect rankings with explainability."""
+
+    service = CompanyResearchService(db)
+
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    ranked = await service.rank_prospects_for_run(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        status=status,
+        min_relevance_score=min_relevance_score,
+        limit=limit,
+        offset=offset,
+    )
+
+    return [CompanyProspectRanking.model_validate(item) for item in ranked]
 
 
 @router.patch("/runs/{run_id}", response_model=CompanyResearchRunRead)

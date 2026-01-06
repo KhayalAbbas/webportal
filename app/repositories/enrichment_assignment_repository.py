@@ -77,3 +77,24 @@ class EnrichmentAssignmentRepository:
         )
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+    async def list_for_company_ids(
+        self,
+        tenant_id: str,
+        canonical_ids: List[UUID],
+    ) -> List[EnrichmentAssignment]:
+        """Batch fetch enrichment assignments for canonical companies."""
+        if not canonical_ids:
+            return []
+
+        query = (
+            select(EnrichmentAssignment)
+            .where(
+                EnrichmentAssignment.tenant_id == tenant_id,
+                EnrichmentAssignment.target_entity_type == "company",
+                EnrichmentAssignment.target_canonical_id.in_(canonical_ids),
+            )
+            .order_by(EnrichmentAssignment.target_canonical_id.asc(), EnrichmentAssignment.created_at.asc())
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
