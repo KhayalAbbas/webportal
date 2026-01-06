@@ -6,4 +6,4 @@
 - [x] UI executives section with company selector + export links
 - [x] Proof script executed, PASS, artifacts captured
 - [x] OpenAPI after + excerpt saved
-- [ ] Git evidence + sign-off (commit/tag/push)
+- [x] Git evidence + sign-off (commit/tag/push)
