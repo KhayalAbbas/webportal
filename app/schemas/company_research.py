@@ -116,6 +116,7 @@ class CompanyProspectCreate(BaseModel):
     discovered_by: Optional[str] = Field(default="internal", max_length=50)
     verification_status: Optional[str] = Field(default="unverified", max_length=50)
     exec_search_enabled: Optional[bool] = Field(default=False)
+    review_status: Optional[str] = Field(default="new", max_length=50)
 
 
 class CompanyProspectUpdateManual(BaseModel):
@@ -128,6 +129,7 @@ class CompanyProspectUpdateManual(BaseModel):
     discovered_by: Optional[str] = Field(default=None, max_length=50)
     verification_status: Optional[str] = Field(default=None, max_length=50)
     exec_search_enabled: Optional[bool] = None
+    review_status: Optional[str] = Field(default=None, max_length=50)
 
 
 class CompanyProspectUpdate(BaseModel):
@@ -182,6 +184,13 @@ class CompanyProspectRead(TenantScopedRead):
     discovered_by: str
     verification_status: str
     exec_search_enabled: bool
+    review_status: str
+
+
+class CompanyProspectReviewUpdate(BaseModel):
+    """Schema for updating a prospect's review gate status."""
+
+    review_status: str = Field(..., max_length=50)
 
 
 # ============================================================================
@@ -310,6 +319,10 @@ class CompanyProspectListItem(BaseModel):
     manual_priority: Optional[int] = None
     is_pinned: bool
     status: str
+    review_status: str
+    discovered_by: str
+    verification_status: str
+    exec_search_enabled: bool
     created_at: datetime
     updated_at: datetime
 
@@ -366,6 +379,10 @@ class CompanyProspectRanking(BaseModel):
     evidence_score: float
     is_pinned: bool
     manual_priority: Optional[int] = None
+    review_status: str
+    discovered_by: str
+    verification_status: str
+    exec_search_enabled: bool
     computed_score: float
     score_components: Dict[str, float]
     why_included: List[ProspectSignalEvidence] = []

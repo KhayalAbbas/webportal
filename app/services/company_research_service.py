@@ -32,6 +32,7 @@ from app.models.company_research import (
     ExecutiveProspectEvidence,
 )
 from app.models.ai_enrichment_record import AIEnrichmentRecord
+from app.models.activity_log import ActivityLog
 from app.services.ai_proposal_service import AIProposalService
 from app.services.entity_resolution_service import EntityResolutionService
 from app.services.canonical_people_service import CanonicalPeopleService
@@ -58,6 +59,8 @@ from app.utils.url_canonicalizer import canonicalize_url
 
 class CompanyResearchService:
     """Service layer for company research operations."""
+
+    REVIEW_STATUSES = {"new", "accepted", "hold", "rejected"}
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -382,6 +385,10 @@ class CompanyResearchService:
         run_id: UUID,
         status: Optional[str] = None,
         min_relevance_score: Optional[float] = None,
+        review_status: Optional[str] = None,
+        verification_status: Optional[str] = None,
+        discovered_by: Optional[str] = None,
+        exec_search_enabled: Optional[bool] = None,
         order_by: str = "ai",
         limit: int = 50,
         offset: int = 0,
@@ -403,6 +410,10 @@ class CompanyResearchService:
             run_id=run_id,
             status=status,
             min_relevance_score=min_relevance_score,
+            review_status=review_status,
+            verification_status=verification_status,
+            discovered_by=discovered_by,
+            exec_search_enabled=exec_search_enabled,
             order_by=order_by,
             limit=limit,
             offset=offset,
@@ -414,6 +425,10 @@ class CompanyResearchService:
         run_id: UUID,
         status: Optional[str] = None,
         min_relevance_score: Optional[float] = None,
+        review_status: Optional[str] = None,
+        verification_status: Optional[str] = None,
+        discovered_by: Optional[str] = None,
+        exec_search_enabled: Optional[bool] = None,
         order_by: str = "ai",
         limit: int = 50,
         offset: int = 0,
@@ -428,6 +443,10 @@ class CompanyResearchService:
             run_id=run_id,
             status=status,
             min_relevance_score=min_relevance_score,
+            review_status=review_status,
+            verification_status=verification_status,
+            discovered_by=discovered_by,
+            exec_search_enabled=exec_search_enabled,
             order_by=order_by,
             limit=limit,
             offset=offset,
@@ -450,6 +469,42 @@ class CompanyResearchService:
             prospect_id=prospect_id,
             data=data,
         )
+
+    async def update_prospect_review_status(
+        self,
+        tenant_id: str,
+        prospect_id: UUID,
+        review_status: str,
+        actor: Optional[str] = None,
+    ) -> Optional[CompanyProspect]:
+        """Update review_status with deterministic audit logging."""
+
+        if review_status not in self.REVIEW_STATUSES:
+            raise ValueError("invalid_review_status")
+
+        prospect = await self.repo.get_company_prospect(tenant_id, prospect_id)
+        if not prospect:
+            return None
+
+        old_status = getattr(prospect, "review_status", "new")
+        if old_status == review_status:
+            return prospect
+
+        prospect.review_status = review_status
+
+        self.db.add(
+            ActivityLog(
+                tenant_id=tenant_id,
+                role_id=prospect.role_mandate_id,
+                type="PROSPECT_REVIEW_STATUS",
+                message=f"prospect_id={prospect_id} run_id={prospect.company_research_run_id} review_status {old_status}->{review_status}",
+                created_by=actor or "system",
+            )
+        )
+
+        await self.db.flush()
+        await self.db.refresh(prospect)
+        return prospect
     
     async def count_prospects_for_run(
         self,
@@ -588,6 +643,10 @@ class CompanyResearchService:
                     "evidence_score": float(prospect.evidence_score or 0.0),
                     "is_pinned": prospect.is_pinned,
                     "manual_priority": prospect.manual_priority,
+                    "review_status": getattr(prospect, "review_status", "new"),
+                    "discovered_by": getattr(prospect, "discovered_by", "internal"),
+                    "verification_status": getattr(prospect, "verification_status", "unverified"),
+                    "exec_search_enabled": getattr(prospect, "exec_search_enabled", False),
                     "computed_score": score,
                     "score_components": components,
                     "why_included": why_included,

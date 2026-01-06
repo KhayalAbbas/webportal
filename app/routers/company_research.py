@@ -34,6 +34,7 @@ from app.schemas.company_research import (
     CompanyProspectWithEvidence,
     CompanyProspectRanking,
     CompanyProspectUpdateManual,
+    CompanyProspectReviewUpdate,
     CompanyProspectEvidenceCreate,
     CompanyProspectEvidenceRead,
     CompanyProspectMetricCreate,
@@ -58,6 +59,10 @@ def _apply_rank_filters(
     has_hq: bool = False,
     has_ownership: bool = False,
     has_industry: bool = False,
+    review_status: Optional[str] = None,
+    verification_status: Optional[str] = None,
+    discovered_by: Optional[str] = None,
+    exec_search_enabled: Optional[bool] = None,
 ) -> List[CompanyProspectRanking]:
     """Filter ranked prospects without altering ordering."""
 
@@ -74,6 +79,14 @@ def _apply_rank_filters(
         if has_ownership and not _has_signal(signals, "ownership_signal"):
             continue
         if has_industry and not _has_signal(signals, "industry_keywords"):
+            continue
+        if review_status and getattr(item, "review_status", None) != review_status:
+            continue
+        if verification_status and getattr(item, "verification_status", None) != verification_status:
+            continue
+        if discovered_by and getattr(item, "discovered_by", None) != discovered_by:
+            continue
+        if exec_search_enabled is not None and getattr(item, "exec_search_enabled", None) != exec_search_enabled:
             continue
         filtered.append(item)
 
@@ -92,6 +105,10 @@ async def _get_filtered_rankings(
     has_hq: bool,
     has_ownership: bool,
     has_industry: bool,
+    review_status: Optional[str],
+    verification_status: Optional[str],
+    discovered_by: Optional[str],
+    exec_search_enabled: Optional[bool],
 ) -> List[CompanyProspectRanking]:
     run = await service.get_research_run(tenant_id, run_id)
     if not run:
@@ -107,7 +124,17 @@ async def _get_filtered_rankings(
     )
 
     ranked = [CompanyProspectRanking.model_validate(item) for item in ranked_raw]
-    return _apply_rank_filters(ranked, min_score, has_hq, has_ownership, has_industry)
+    return _apply_rank_filters(
+        ranked,
+        min_score,
+        has_hq,
+        has_ownership,
+        has_industry,
+        review_status,
+        verification_status,
+        discovered_by,
+        exec_search_enabled,
+    )
 
 router = APIRouter(prefix="/company-research", tags=["company-research"])
 
@@ -788,6 +815,10 @@ async def list_prospects_for_run(
     run_id: UUID,
     status: Optional[str] = Query(None, description="Filter by status (new, approved, rejected, duplicate, converted)"),
     min_relevance_score: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum AI relevance score"),
+    review_status: Optional[str] = Query(None, description="Filter by review status (new, accepted, hold, rejected)"),
+    verification_status: Optional[str] = Query(None, description="Filter by verification status"),
+    discovered_by: Optional[str] = Query(None, description="Filter by discovery provenance"),
+    exec_search_enabled: Optional[bool] = Query(None, description="Filter by exec_search_enabled flag"),
     order_by: str = Query("ai", description="Ordering mode: 'ai' (relevance) or 'manual' (user priority)"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -815,6 +846,10 @@ async def list_prospects_for_run(
         run_id=run_id,
         status=status,
         min_relevance_score=min_relevance_score,
+        review_status=review_status,
+        verification_status=verification_status,
+        discovered_by=discovered_by,
+        exec_search_enabled=exec_search_enabled,
         order_by=order_by,
         limit=limit,
         offset=offset,
@@ -828,6 +863,10 @@ async def list_prospects_for_run_with_evidence(
     run_id: UUID,
     status: Optional[str] = Query(None, description="Filter by status (new, approved, rejected, duplicate, converted)"),
     min_relevance_score: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum AI relevance score"),
+    review_status: Optional[str] = Query(None, description="Filter by review status (new, accepted, hold, rejected)"),
+    verification_status: Optional[str] = Query(None, description="Filter by verification status"),
+    discovered_by: Optional[str] = Query(None, description="Filter by discovery provenance"),
+    exec_search_enabled: Optional[bool] = Query(None, description="Filter by exec_search_enabled flag"),
     order_by: str = Query("ai", description="Ordering mode: 'ai' (relevance) or 'manual' (user priority)"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -856,6 +895,10 @@ async def list_prospects_for_run_with_evidence(
         run_id=run_id,
         status=status,
         min_relevance_score=min_relevance_score,
+        review_status=review_status,
+        verification_status=verification_status,
+        discovered_by=discovered_by,
+        exec_search_enabled=exec_search_enabled,
         order_by=order_by,
         limit=limit,
         offset=offset,
@@ -869,6 +912,10 @@ async def rank_prospects_for_run(
     run_id: UUID,
     status: Optional[str] = Query(None, description="Filter by status (new, approved, rejected, duplicate, converted)"),
     min_relevance_score: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum AI relevance score"),
+    review_status: Optional[str] = Query(None, description="Filter by review status (new, accepted, hold, rejected)"),
+    verification_status: Optional[str] = Query(None, description="Filter by verification status"),
+    discovered_by: Optional[str] = Query(None, description="Filter by discovery provenance"),
+    exec_search_enabled: Optional[bool] = Query(None, description="Filter by exec_search_enabled flag"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(verify_user_tenant_access),
@@ -890,8 +937,19 @@ async def rank_prospects_for_run(
         limit=limit,
         offset=offset,
     )
-
-    return [CompanyProspectRanking.model_validate(item) for item in ranked]
+    ranked_items = [CompanyProspectRanking.model_validate(item) for item in ranked]
+    filtered = _apply_rank_filters(
+        ranked_items,
+        min_score=None,
+        has_hq=False,
+        has_ownership=False,
+        has_industry=False,
+        review_status=review_status,
+        verification_status=verification_status,
+        discovered_by=discovered_by,
+        exec_search_enabled=exec_search_enabled,
+    )
+    return filtered
 
 
 @router.get("/runs/{run_id}/prospects-ranked.json", response_model=List[CompanyProspectRanking])
@@ -903,6 +961,10 @@ async def export_ranked_prospects_json(
     has_hq: bool = Query(False, description="Require HQ country signal"),
     has_ownership: bool = Query(False, description="Require ownership signal"),
     has_industry: bool = Query(False, description="Require industry keywords signal"),
+    review_status: Optional[str] = Query(None, description="Filter by review status (new, accepted, hold, rejected)"),
+    verification_status: Optional[str] = Query(None, description="Filter by verification status"),
+    discovered_by: Optional[str] = Query(None, description="Filter by discovery provenance"),
+    exec_search_enabled: Optional[bool] = Query(None, description="Filter by exec_search_enabled flag"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(verify_user_tenant_access),
@@ -923,6 +985,10 @@ async def export_ranked_prospects_json(
         has_hq=has_hq,
         has_ownership=has_ownership,
         has_industry=has_industry,
+        review_status=review_status,
+        verification_status=verification_status,
+        discovered_by=discovered_by,
+        exec_search_enabled=exec_search_enabled,
     )
 
     return ranked
@@ -937,6 +1003,10 @@ async def export_ranked_prospects_csv(
     has_hq: bool = Query(False, description="Require HQ country signal"),
     has_ownership: bool = Query(False, description="Require ownership signal"),
     has_industry: bool = Query(False, description="Require industry keywords signal"),
+    review_status: Optional[str] = Query(None, description="Filter by review status (new, accepted, hold, rejected)"),
+    verification_status: Optional[str] = Query(None, description="Filter by verification status"),
+    discovered_by: Optional[str] = Query(None, description="Filter by discovery provenance"),
+    exec_search_enabled: Optional[bool] = Query(None, description="Filter by exec_search_enabled flag"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(verify_user_tenant_access),
@@ -957,6 +1027,10 @@ async def export_ranked_prospects_csv(
         has_hq=has_hq,
         has_ownership=has_ownership,
         has_industry=has_industry,
+        review_status=review_status,
+        verification_status=verification_status,
+        discovered_by=discovered_by,
+        exec_search_enabled=exec_search_enabled,
     )
 
     output = io.StringIO()
@@ -966,6 +1040,10 @@ async def export_ranked_prospects_csv(
             "rank",
             "company_name",
             "score_total",
+            "review_status",
+            "verification_status",
+            "discovered_by",
+            "exec_search_enabled",
             "hq_country",
             "ownership_signal",
             "industry_keywords",
@@ -997,6 +1075,10 @@ async def export_ranked_prospects_csv(
                 idx,
                 item.name_normalized,
                 f"{float(item.computed_score):.6f}",
+                getattr(item, "review_status", ""),
+                getattr(item, "verification_status", ""),
+                getattr(item, "discovered_by", ""),
+                str(getattr(item, "exec_search_enabled", False)),
                 item.hq_country or "",
                 ownership,
                 industry,
@@ -1110,6 +1192,34 @@ async def update_prospect_manual_fields(
     if not prospect:
         raise HTTPException(status_code=404, detail="Company prospect not found")
     
+    await db.commit()
+    return CompanyProspectRead.model_validate(prospect)
+
+
+@router.patch("/prospects/{prospect_id}/review-status", response_model=CompanyProspectRead)
+async def update_prospect_review_status(
+    prospect_id: UUID,
+    data: CompanyProspectReviewUpdate,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update review gate status for a company prospect with audit logging."""
+
+    service = CompanyResearchService(db)
+
+    try:
+        prospect = await service.update_prospect_review_status(
+            tenant_id=current_user.tenant_id,
+            prospect_id=prospect_id,
+            review_status=data.review_status,
+            actor=current_user.email or current_user.username or "system",
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid review_status")
+
+    if not prospect:
+        raise HTTPException(status_code=404, detail="Company prospect not found")
+
     await db.commit()
     return CompanyProspectRead.model_validate(prospect)
 

@@ -40,6 +40,10 @@ def _filter_rankings(
     has_hq: bool = False,
     has_ownership: bool = False,
     has_industry: bool = False,
+    review_status: Optional[str] = None,
+    verification_status: Optional[str] = None,
+    discovered_by: Optional[str] = None,
+    exec_search_enabled: Optional[bool] = None,
 ) -> list[CompanyProspectRanking]:
     """Apply deterministic filters without changing order."""
 
@@ -56,6 +60,14 @@ def _filter_rankings(
         if has_ownership and not _has_signal(signals, "ownership_signal"):
             continue
         if has_industry and not _has_signal(signals, "industry_keywords"):
+            continue
+        if review_status and getattr(item, "review_status", None) != review_status:
+            continue
+        if verification_status and getattr(item, "verification_status", None) != verification_status:
+            continue
+        if discovered_by and getattr(item, "discovered_by", None) != discovered_by:
+            continue
+        if exec_search_enabled is not None and getattr(item, "exec_search_enabled", None) != exec_search_enabled:
             continue
         filtered.append(item)
 
@@ -294,6 +306,10 @@ async def company_research_ranked_ui(
     has_hq: bool = Query(False),
     has_ownership: bool = Query(False),
     has_industry: bool = Query(False),
+    review_status: Optional[str] = Query(None),
+    verification_status: Optional[str] = Query(None),
+    discovered_by: Optional[str] = Query(None),
+    exec_search_enabled: Optional[bool] = Query(None),
 ):
     """Consultant-ready ranked prospects view with explainability."""
 
@@ -325,13 +341,27 @@ async def company_research_ranked_ui(
         offset=0,
     )
     ranked = [CompanyProspectRanking.model_validate(item) for item in ranked_raw]
-    ranked_filtered = _filter_rankings(ranked, min_score, has_hq, has_ownership, has_industry)
+    ranked_filtered = _filter_rankings(
+        ranked,
+        min_score,
+        has_hq,
+        has_ownership,
+        has_industry,
+        review_status,
+        verification_status,
+        discovered_by,
+        exec_search_enabled,
+    )
 
     filter_state = {
         "min_score": min_score,
         "has_hq": has_hq,
         "has_ownership": has_ownership,
         "has_industry": has_industry,
+        "review_status": review_status,
+        "verification_status": verification_status,
+        "discovered_by": discovered_by,
+        "exec_search_enabled": exec_search_enabled,
     }
 
     return templates.TemplateResponse(
@@ -347,6 +377,38 @@ async def company_research_ranked_ui(
             "filters": filter_state,
         },
     )
+
+@router.post("/ui/company-research/prospects/{prospect_id}/review-status")
+async def update_prospect_review_status_ui(
+    prospect_id: UUID,
+    run_id: UUID = Form(...),
+    review_status: str = Form(...),
+    redirect_query: Optional[str] = Form(""),
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    session: AsyncSession = Depends(get_db),
+):
+    """Handle review gate updates from the ranked UI."""
+
+    service = CompanyResearchService(session)
+    try:
+        prospect = await service.update_prospect_review_status(
+            tenant_id=current_user.tenant_id,
+            prospect_id=prospect_id,
+            review_status=review_status,
+            actor=current_user.email or current_user.username or "system",
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid review_status")
+
+    if not prospect:
+        raise HTTPException(status_code=404, detail="Company prospect not found")
+
+    await session.commit()
+
+    base_url = f"/ui/company-research/runs/{run_id}/prospects-ranked"
+    if redirect_query:
+        return RedirectResponse(url=f"{base_url}?{redirect_query}", status_code=303)
+    return RedirectResponse(url=base_url, status_code=303)
 
 
 @router.get("/ui/company-research/runs/{run_id}", response_class=HTMLResponse)

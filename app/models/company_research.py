@@ -338,6 +338,13 @@ class CompanyProspect(TenantScopedModel):
         default="unverified",
     )  # unverified|partial|verified
 
+    review_status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="new",
+        server_default="new",
+    )  # new|accepted|hold|rejected
+
     exec_search_enabled: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -408,6 +415,12 @@ class CompanyProspect(TenantScopedModel):
         Index("ix_company_prospects_role_mandate_id", "role_mandate_id"),
         Index("ix_company_prospects_run_id", "company_research_run_id"),
         Index("ix_company_prospects_status", "status"),
+        Index(
+            "ix_company_prospects_review_status",
+            "tenant_id",
+            "company_research_run_id",
+            "review_status",
+        ),
         Index("ix_company_prospects_name_normalized", "name_normalized"),
         Index("ix_company_prospects_relevance_score", "relevance_score"),
         Index("ix_company_prospects_manual_priority", "manual_priority"),

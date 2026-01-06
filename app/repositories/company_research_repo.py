@@ -212,6 +212,10 @@ class CompanyResearchRepository:
         run_id: UUID,
         status: Optional[str] = None,
         min_relevance_score: Optional[float] = None,
+        review_status: Optional[str] = None,
+        verification_status: Optional[str] = None,
+        discovered_by: Optional[str] = None,
+        exec_search_enabled: Optional[bool] = None,
         order_by: str = "ai",  # "ai", "manual", "assets", "revenue"
         limit: int = 50,
         offset: int = 0,
@@ -242,6 +246,18 @@ class CompanyResearchRepository:
         
         if min_relevance_score is not None:
             query = query.where(CompanyProspect.relevance_score >= min_relevance_score)
+
+        if review_status:
+            query = query.where(CompanyProspect.review_status == review_status)
+
+        if verification_status:
+            query = query.where(CompanyProspect.verification_status == verification_status)
+
+        if discovered_by:
+            query = query.where(CompanyProspect.discovered_by == discovered_by)
+
+        if exec_search_enabled is not None:
+            query = query.where(CompanyProspect.exec_search_enabled == exec_search_enabled)
         
         # Apply ordering
         if order_by == "manual":
@@ -326,6 +342,10 @@ class CompanyResearchRepository:
         run_id: UUID,
         status: Optional[str] = None,
         min_relevance_score: Optional[float] = None,
+        review_status: Optional[str] = None,
+        verification_status: Optional[str] = None,
+        discovered_by: Optional[str] = None,
+        exec_search_enabled: Optional[bool] = None,
         order_by: str = "ai",
         limit: int = 50,
         offset: int = 0,
@@ -351,6 +371,18 @@ class CompanyResearchRepository:
         
         if min_relevance_score is not None:
             query = query.where(CompanyProspect.relevance_score >= min_relevance_score)
+
+        if review_status:
+            query = query.where(CompanyProspect.review_status == review_status)
+
+        if verification_status:
+            query = query.where(CompanyProspect.verification_status == verification_status)
+
+        if discovered_by:
+            query = query.where(CompanyProspect.discovered_by == discovered_by)
+
+        if exec_search_enabled is not None:
+            query = query.where(CompanyProspect.exec_search_enabled == exec_search_enabled)
         
         # Apply ordering (same logic as the regular method)
         if order_by == "manual":

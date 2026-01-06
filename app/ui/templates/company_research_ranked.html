@@ -26,6 +26,41 @@
         <label><input type="checkbox" name="has_industry" value="true" {% if filters.has_industry %}checked{% endif %}> Industry keywords</label>
     </div>
     <div>
+        <label for="review_status" style="font-weight: 600;">Review status</label><br>
+        <select name="review_status" id="review_status" style="padding: 6px; min-width: 140px;">
+            <option value="">Any</option>
+            {% for opt in ['new','accepted','hold','rejected'] %}
+            <option value="{{ opt }}" {% if filters.review_status == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="verification_status" style="font-weight: 600;">Verification</label><br>
+        <select name="verification_status" id="verification_status" style="padding: 6px; min-width: 140px;">
+            <option value="">Any</option>
+            {% for opt in ['unverified','partial','verified'] %}
+            <option value="{{ opt }}" {% if filters.verification_status == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="discovered_by" style="font-weight: 600;">Discovered by</label><br>
+        <select name="discovered_by" id="discovered_by" style="padding: 6px; min-width: 150px;">
+            <option value="">Any</option>
+            {% for opt in ['internal','grok','external_llm','both','manual'] %}
+            <option value="{{ opt }}" {% if filters.discovered_by == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="exec_search_enabled" style="font-weight: 600;">Exec search</label><br>
+        <select name="exec_search_enabled" id="exec_search_enabled" style="padding: 6px; min-width: 120px;">
+            <option value="">Any</option>
+            <option value="true" {% if filters.exec_search_enabled is sameas true %}selected{% endif %}>Enabled</option>
+            <option value="false" {% if filters.exec_search_enabled is sameas false %}selected{% endif %}>Disabled</option>
+        </select>
+    </div>
+    <div>
         <button type="submit" class="btn btn-primary">Apply Filters</button>
         <a href="/ui/company-research/runs/{{ run.id }}/prospects-ranked" class="btn btn-secondary" style="margin-left: 6px;">Reset</a>
     </div>
@@ -40,11 +75,16 @@
             <th style="text-align: left; padding: 8px; width: 60px;">Rank</th>
             <th style="text-align: left; padding: 8px;">Company</th>
             <th style="text-align: left; padding: 8px; width: 90px;">Score</th>
+            <th style="text-align: left; padding: 8px; width: 120px;">Review</th>
+            <th style="text-align: left; padding: 8px; width: 130px;">Verification</th>
+            <th style="text-align: left; padding: 8px; width: 140px;">Discovered by</th>
+            <th style="text-align: left; padding: 8px; width: 120px;">Exec search</th>
             <th style="text-align: left; padding: 8px; width: 100px;">HQ Country</th>
             <th style="text-align: left; padding: 8px; width: 140px;">Ownership</th>
             <th style="text-align: left; padding: 8px; width: 220px;">Industry Keywords</th>
             <th style="text-align: left; padding: 8px; width: 110px;">Evidence Count</th>
             <th style="text-align: left; padding: 8px;">Why included</th>
+            <th style="text-align: left; padding: 8px; width: 200px;">Review actions</th>
         </tr>
     </thead>
     <tbody>
@@ -65,6 +105,10 @@
             <td style="padding: 8px; font-weight: 600;">{{ loop.index }}</td>
             <td style="padding: 8px; font-weight: 600;">{{ prospect.name_normalized }}</td>
             <td style="padding: 8px;">{{ '%.3f'|format(prospect.computed_score) }}</td>
+            <td style="padding: 8px;">{{ prospect.review_status }}</td>
+            <td style="padding: 8px;">{{ prospect.verification_status }}</td>
+            <td style="padding: 8px;">{{ prospect.discovered_by }}</td>
+            <td style="padding: 8px;">{{ prospect.exec_search_enabled }}</td>
             <td style="padding: 8px;">{{ prospect.hq_country or '-' }}</td>
             <td style="padding: 8px;">{{ ownership or '-' }}</td>
             <td style="padding: 8px;">{{ industry or '-' }}</td>
@@ -86,6 +130,18 @@
                 {% else %}
                 <span style="color: #777;">No signals</span>
                 {% endif %}
+            </td>
+            <td style="padding: 8px;">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    {% for target,status_label in [('accepted','Accept'),('hold','Hold'),('rejected','Reject')] %}
+                    <form method="post" action="/ui/company-research/prospects/{{ prospect.id }}/review-status" style="margin: 0;">
+                        <input type="hidden" name="run_id" value="{{ run.id }}">
+                        <input type="hidden" name="review_status" value="{{ target }}">
+                        <input type="hidden" name="redirect_query" value="{{ request.query_params|urlencode }}">
+                        <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">{{ status_label }}</button>
+                    </form>
+                    {% endfor %}
+                </div>
             </td>
         </tr>
         {% endfor %}
