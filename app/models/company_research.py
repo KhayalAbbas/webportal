@@ -639,6 +639,62 @@ class ExecutiveProspectEvidence(TenantScopedModel):
     )
 
 
+class ExecutiveMergeDecision(TenantScopedModel):
+    """Auditable merge/suppression decision between executive prospects."""
+
+    __tablename__ = "executive_merge_decisions"
+
+    company_research_run_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    company_prospect_id: Mapped[Optional[UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_prospects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    canonical_company_id: Mapped[Optional[UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("canonical_company.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    left_executive_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("executive_prospects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    right_executive_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("executive_prospects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    decision_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidence_source_document_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    evidence_enrichment_ids: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    created_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "company_research_run_id",
+            "left_executive_id",
+            "right_executive_id",
+            name="uq_executive_merge_decisions_pair",
+        ),
+        Index("ix_executive_merge_decisions_run", "tenant_id", "company_research_run_id"),
+    )
+
+
 class ResolvedEntity(TenantScopedModel):
     """Run-scoped canonical entity for deterministic resolution."""
 

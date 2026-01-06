@@ -34,6 +34,9 @@ from app.schemas.company_research import (
     CompanyProspectWithEvidence,
     CompanyProspectRanking,
     ExecutiveProspectRead,
+    ExecutiveCompareResponse,
+    ExecutiveMergeDecisionRequest,
+    ExecutiveMergeDecisionRead,
     CompanyProspectUpdateManual,
     CompanyProspectReviewUpdate,
     ExecutiveVerificationUpdate,
@@ -658,6 +661,28 @@ async def list_executive_prospects(
     return [ExecutiveProspectRead.model_validate(row) for row in exec_rows]
 
 
+@router.get("/runs/{run_id}/executives-compare", response_model=ExecutiveCompareResponse)
+async def compare_executives(
+    run_id: UUID,
+    canonical_company_id: Optional[UUID] = Query(None, description="Filter compare view by canonical company"),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Compare internal vs external executives for a run/company with evidence pointers."""
+
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    payload = await service.compare_executives(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        canonical_company_id=canonical_company_id,
+    )
+    return ExecutiveCompareResponse.model_validate(payload)
+
+
 @router.get("/runs/{run_id}/executives.json", response_model=List[ExecutiveProspectRead])
 async def export_executives_json(
     run_id: UUID,
@@ -827,6 +852,66 @@ async def update_executive_verification_status(
             "source_document_id": executive.source_document_id,
             "evidence_source_document_ids": [],
             "evidence": [],
+        }
+    )
+
+
+@router.post("/runs/{run_id}/executives-merge-decision", response_model=ExecutiveMergeDecisionRead)
+async def apply_executive_merge_decision(
+    run_id: UUID,
+    data: ExecutiveMergeDecisionRequest,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply evidence-first merge/suppression decision between two executives."""
+
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    try:
+        decision, created = await service.apply_executive_merge_decision(
+            tenant_id=current_user.tenant_id,
+            run_id=run_id,
+            decision_type=data.decision_type,
+            left_executive_id=data.left_executive_id,
+            right_executive_id=data.right_executive_id,
+            note=data.note,
+            evidence_source_document_ids=data.evidence_source_document_ids,
+            evidence_enrichment_ids=data.evidence_enrichment_ids,
+            actor=current_user.email or current_user.username or "system",
+        )
+    except ValueError as exc:  # noqa: BLE001
+        msg = str(exc)
+        if msg == "invalid_decision_type":
+            raise HTTPException(status_code=400, detail="Invalid decision_type")
+        if msg == "executive_not_found":
+            raise HTTPException(status_code=404, detail="Executive prospect not found")
+        if msg == "run_mismatch":
+            raise HTTPException(status_code=400, detail="Executives not in run")
+        if msg == "decision_conflict":
+            raise HTTPException(status_code=409, detail="Decision already recorded with different type")
+        raise
+
+    await db.commit()
+
+    return ExecutiveMergeDecisionRead.model_validate(
+        {
+            "id": decision.id,
+            "tenant_id": decision.tenant_id,
+            "company_research_run_id": decision.company_research_run_id,
+            "company_prospect_id": decision.company_prospect_id,
+            "canonical_company_id": decision.canonical_company_id,
+            "left_executive_id": decision.left_executive_id,
+            "right_executive_id": decision.right_executive_id,
+            "decision_type": decision.decision_type,
+            "note": decision.note,
+            "evidence_source_document_ids": decision.evidence_source_document_ids,
+            "evidence_enrichment_ids": decision.evidence_enrichment_ids,
+            "created_at": decision.created_at,
+            "updated_at": decision.updated_at,
+            "created_by": decision.created_by,
         }
     )
 

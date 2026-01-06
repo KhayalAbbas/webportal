@@ -270,10 +270,13 @@
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
             <h3 class="section-title" style="font-size: 15px; margin: 0;">Executive Prospects ({{ executive_total_count }})</h3>
             <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" id="exec-compare-btn" class="btn btn-primary" onclick="loadExecCompare()">Compare internal vs external</button>
                 <a class="btn btn-secondary" href="/company-research/runs/{{ run.id }}/executives.json">Export executives JSON</a>
                 <a class="btn btn-secondary" href="/company-research/runs/{{ run.id }}/executives.csv">Export executives CSV</a>
             </div>
         </div>
+
+        <div id="exec-compare-panel" style="display: none; margin-bottom: 12px; padding: 10px; border: 1px solid #e5e5e5; border-radius: 4px; background: #f9fafb;"></div>
 
         <form id="exec-filter-form" method="get" action="/ui/company-research/runs/{{ run.id }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px;">
             <input type="hidden" name="order_by" value="{{ order_by }}" />
@@ -842,6 +845,141 @@ async function runInternalExecDiscovery() {
         }
     } catch (err) {
         resultEl.textContent = 'Request failed: ' + err;
+    }
+}
+
+function renderLeaf(leaf) {
+    if (!leaf) return '<div style="color:#888;">-</div>';
+    const evidence = leaf.evidence || {};
+    const pointers = [];
+    if (evidence.request_source_document_id) pointers.push('req:' + evidence.request_source_document_id);
+    if (evidence.response_source_document_id) pointers.push('resp:' + evidence.response_source_document_id);
+    if ((evidence.evidence_source_document_ids || []).length > 0) pointers.push('evidence:' + evidence.evidence_source_document_ids.join(','));
+    if (evidence.enrichment_record_id) pointers.push('enrichment:' + evidence.enrichment_record_id);
+    return `
+        <div style="font-weight:600;">${leaf.name || '-'}${leaf.title ? ' · ' + leaf.title : ''}</div>
+        <div style="font-size:12px; color:#555;">${leaf.provenance || leaf.engine || '-'} · ${leaf.verification_status || '-'}</div>
+        <div style="font-size:11px; color:#444;">${pointers.join(' | ') || '-'}</div>
+    `;
+}
+
+function renderSection(title, items) {
+    const rows = (items || []).map(item => {
+        return `<div style="padding:6px 0; border-bottom:1px solid #eee;">${renderLeaf(item)}</div>`;
+    }).join('') || '<div style="color:#666;">None</div>';
+    return `
+        <div style="flex:1; min-width:240px;">
+            <div style="font-weight:700; margin-bottom:4px;">${title}</div>
+            <div>${rows}</div>
+        </div>
+    `;
+}
+
+function renderCandidateRow(match) {
+    const internal = match.internal;
+    const external = match.external;
+    const actions = [];
+    if (internal && external) {
+        actions.push(`<button class="btn btn-primary" style="padding:4px 8px; font-size:12px;" onclick="submitExecDecision('mark_same','${internal.id}','${external.id}')">Mark same</button>`);
+        actions.push(`<button class="btn btn-secondary" style="padding:4px 8px; font-size:12px;" onclick="submitExecDecision('keep_separate','${internal.id}','${external.id}')">Keep separate</button>`);
+    }
+    const decisionLabel = match.decision ? `<div style="font-size:12px; color:#0d6efd;">decision: ${match.decision}</div>` : '';
+    const noteLabel = match.note ? `<div style="font-size:11px; color:#444;">note: ${match.note}</div>` : '';
+    return `
+        <tr>
+            <td style="padding:6px; vertical-align:top;">${renderLeaf(internal)}</td>
+            <td style="padding:6px; vertical-align:top;">${renderLeaf(external)}</td>
+            <td style="padding:6px; vertical-align:top; white-space: nowrap; display:flex; gap:6px; flex-wrap:wrap;">${actions.join('')}</td>
+            <td style="padding:6px; vertical-align:top;">${decisionLabel}${noteLabel}</td>
+        </tr>
+    `;
+}
+
+function renderCompare(data) {
+    const panel = document.getElementById('exec-compare-panel');
+    if (!panel) return;
+    const matched = data.matched_or_both || [];
+    const internalOnly = data.internal_only || [];
+    const externalOnly = data.external_only || [];
+    const candidates = data.candidate_matches || [];
+
+    const matchedRows = matched.map(item => {
+        return `<div style="padding:6px 0; border-bottom:1px solid #eee;">
+            <div style="font-weight:700;">${item.name || '-'}${item.title ? ' · ' + item.title : ''}</div>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:4px;">
+                <div style="flex:1; min-width:220px;">${renderLeaf(item.internal)}</div>
+                <div style="flex:1; min-width:220px;">${renderLeaf(item.external)}</div>
+            </div>
+            <div style="font-size:12px; color:#0d6efd;">decision: ${item.decision || 'auto_both'}${item.note ? ' · ' + item.note : ''}</div>
+        </div>`;
+    }).join('') || '<div style="color:#666;">None</div>';
+
+    const candidateTable = candidates.length === 0 ? '<div style="color:#666;">No candidates</div>' : `
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+                <tr style="background:#f0f2f5;">
+                    <th style="text-align:left; padding:6px;">Internal</th>
+                    <th style="text-align:left; padding:6px;">External</th>
+                    <th style="text-align:left; padding:6px;">Actions</th>
+                    <th style="text-align:left; padding:6px;">Decision</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${candidates.map(renderCandidateRow).join('')}
+            </tbody>
+        </table>`;
+
+    panel.innerHTML = `
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+            ${renderSection('Matched / Both', matched.map(m => ({...m.internal, ...m, engine: 'both'})))}
+            ${renderSection('Internal-only', internalOnly)}
+            ${renderSection('External-only', externalOnly)}
+        </div>
+        <div style="margin-top:8px;">
+            <div style="font-weight:700; margin-bottom:4px;">Candidate Matches</div>
+            ${candidateTable}
+        </div>
+    `;
+    panel.style.display = 'block';
+}
+
+async function loadExecCompare() {
+    const panel = document.getElementById('exec-compare-panel');
+    if (!panel) return;
+    panel.style.display = 'block';
+    panel.innerHTML = '<div style="color:#666;">Loading compare view...</div>';
+    try {
+        const resp = await fetch('/company-research/runs/{{ run.id }}/executives-compare');
+        const json = await resp.json();
+        renderCompare(json);
+    } catch (err) {
+        panel.innerHTML = '<div style="color:#c00;">Failed to load compare view: ' + err + '</div>';
+    }
+}
+
+async function submitExecDecision(decisionType, leftId, rightId) {
+    const panel = document.getElementById('exec-compare-panel');
+    if (panel) panel.innerHTML = '<div style="color:#666;">Submitting decision...</div>';
+    try {
+        const resp = await fetch('/company-research/runs/{{ run.id }}/executives-merge-decision', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                decision_type: decisionType,
+                left_executive_id: leftId,
+                right_executive_id: rightId,
+                note: '',
+                evidence_source_document_ids: [],
+                evidence_enrichment_ids: []
+            })
+        });
+        if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(text || ('HTTP ' + resp.status));
+        }
+        await loadExecCompare();
+    } catch (err) {
+        if (panel) panel.innerHTML = '<div style="color:#c00;">Decision failed: ' + err + '</div>';
     }
 }
 

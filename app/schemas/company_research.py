@@ -4,7 +4,7 @@ Company Research Pydantic schemas.
 Schemas for company discovery and agentic sourcing engine API.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
@@ -440,6 +440,83 @@ class ExecutiveProspectRead(BaseModel):
     source_document_id: Optional[UUID] = None
     evidence_source_document_ids: List[UUID] = Field(default_factory=list)
     evidence: List[ExecutiveEvidenceRead] = Field(default_factory=list)
+
+
+class ExecutiveEngineEvidence(BaseModel):
+    """Engine-scoped evidence pointers for comparison."""
+
+    request_source_document_id: Optional[UUID] = None
+    response_source_document_id: Optional[UUID] = None
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+    enrichment_record_id: Optional[UUID] = None
+
+
+class ExecutiveCompareLeaf(BaseModel):
+    """Single-engine executive payload for comparison lists."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    company_prospect_id: UUID
+    canonical_company_id: Optional[UUID] = None
+    name: str
+    title: Optional[str] = None
+    provenance: Optional[str] = None
+    discovered_by: Optional[str] = None
+    source_label: Optional[str] = None
+    verification_status: Optional[str] = None
+    engine: str
+    evidence: ExecutiveEngineEvidence
+
+
+class ExecutiveCompareMatch(BaseModel):
+    """Matched/candidate pair combining internal and external views."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    company_prospect_id: UUID
+    canonical_company_id: Optional[UUID] = None
+    name: str
+    title: Optional[str] = None
+    internal: Optional[ExecutiveCompareLeaf] = None
+    external: Optional[ExecutiveCompareLeaf] = None
+    decision: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ExecutiveCompareResponse(BaseModel):
+    """Comparison response listing matches and gaps."""
+
+    matched_or_both: List[ExecutiveCompareMatch] = Field(default_factory=list)
+    internal_only: List[ExecutiveCompareLeaf] = Field(default_factory=list)
+    external_only: List[ExecutiveCompareLeaf] = Field(default_factory=list)
+    candidate_matches: List[ExecutiveCompareMatch] = Field(default_factory=list)
+
+
+class ExecutiveMergeDecisionRequest(BaseModel):
+    """Payload for merge decision API."""
+
+    decision_type: Literal["mark_same", "keep_separate"]
+    left_executive_id: UUID
+    right_executive_id: UUID
+    note: Optional[str] = None
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+    evidence_enrichment_ids: List[UUID] = Field(default_factory=list)
+
+
+class ExecutiveMergeDecisionRead(TenantScopedRead):
+    """Merge decision audit payload."""
+
+    company_research_run_id: UUID
+    company_prospect_id: Optional[UUID] = None
+    canonical_company_id: Optional[UUID] = None
+    left_executive_id: UUID
+    right_executive_id: UUID
+    decision_type: str
+    note: Optional[str] = None
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+    evidence_enrichment_ids: List[UUID] = Field(default_factory=list)
+    created_by: Optional[str] = None
 
 
 class CompanyResearchRunSummary(BaseModel):

@@ -27,6 +27,7 @@ from app.models.company_research import (
     RobotsPolicyCache,
     ExecutiveProspect,
     ExecutiveProspectEvidence,
+    ExecutiveMergeDecision,
     ResolvedEntity,
     EntityMergeLink,
     CanonicalPerson,
@@ -36,6 +37,7 @@ from app.models.company_research import (
     CanonicalCompanyDomain,
     CanonicalCompanyLink,
 )
+from app.models.ai_enrichment_record import AIEnrichmentRecord
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
     CompanyResearchRunUpdate,
@@ -667,6 +669,145 @@ class CompanyResearchRepository:
             .order_by(ExecutiveProspectEvidence.created_at.asc())
         )
         result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def get_merge_decision(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        left_executive_id: UUID,
+        right_executive_id: UUID,
+    ) -> Optional[ExecutiveMergeDecision]:
+        left_id, right_id = sorted([left_executive_id, right_executive_id], key=str)
+        result = await self.db.execute(
+            select(ExecutiveMergeDecision).where(
+                ExecutiveMergeDecision.tenant_id == tenant_id,
+                ExecutiveMergeDecision.company_research_run_id == run_id,
+                ExecutiveMergeDecision.left_executive_id == left_id,
+                ExecutiveMergeDecision.right_executive_id == right_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def upsert_merge_decision(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        *,
+        company_prospect_id: Optional[UUID],
+        canonical_company_id: Optional[UUID],
+        left_executive_id: UUID,
+        right_executive_id: UUID,
+        decision_type: str,
+        note: Optional[str],
+        evidence_source_document_ids: list[UUID] | None,
+        evidence_enrichment_ids: list[UUID] | None,
+        created_by: Optional[str],
+    ) -> tuple[ExecutiveMergeDecision, bool]:
+        left_id, right_id = sorted([left_executive_id, right_executive_id], key=str)
+        evidence_docs = sorted({str(eid) for eid in evidence_source_document_ids or []})
+        evidence_enrich = sorted({str(eid) for eid in evidence_enrichment_ids or []})
+
+        existing = await self.get_merge_decision(tenant_id, run_id, left_id, right_id)
+        if existing:
+            if existing.decision_type != decision_type:
+                raise ValueError("decision_conflict")
+
+            merged_docs = sorted({*(existing.evidence_source_document_ids or []), *evidence_docs}, key=str)
+            merged_enrich = sorted({*(existing.evidence_enrichment_ids or []), *evidence_enrich}, key=str)
+            existing.evidence_source_document_ids = merged_docs
+            existing.evidence_enrichment_ids = merged_enrich
+            if note:
+                existing.note = note
+            if created_by:
+                existing.created_by = created_by
+            await self.db.flush()
+            await self.db.refresh(existing)
+            return existing, False
+
+        payload = {
+            "tenant_id": tenant_id,
+            "company_research_run_id": run_id,
+            "company_prospect_id": company_prospect_id,
+            "canonical_company_id": canonical_company_id,
+            "left_executive_id": left_id,
+            "right_executive_id": right_id,
+            "decision_type": decision_type,
+            "note": note,
+            "evidence_source_document_ids": evidence_docs,
+            "evidence_enrichment_ids": evidence_enrich,
+            "created_by": created_by,
+        }
+
+        stmt = (
+            insert(ExecutiveMergeDecision)
+            .values(**payload)
+            .on_conflict_do_nothing(index_elements=[
+                ExecutiveMergeDecision.tenant_id,
+                ExecutiveMergeDecision.company_research_run_id,
+                ExecutiveMergeDecision.left_executive_id,
+                ExecutiveMergeDecision.right_executive_id,
+            ])
+            .returning(ExecutiveMergeDecision)
+        )
+        result = await self.db.execute(stmt)
+        created = result.scalar_one_or_none()
+        if created:
+            await self.db.flush()
+            await self.db.refresh(created)
+            return created, True
+
+        existing = await self.get_merge_decision(tenant_id, run_id, left_id, right_id)
+        if existing:
+            return existing, False
+        raise RuntimeError("merge_decision_upsert_failed")
+
+    async def list_merge_decisions_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        canonical_company_id: Optional[UUID] = None,
+    ) -> List[ExecutiveMergeDecision]:
+        query = select(ExecutiveMergeDecision).where(
+            ExecutiveMergeDecision.tenant_id == tenant_id,
+            ExecutiveMergeDecision.company_research_run_id == run_id,
+        )
+        if canonical_company_id:
+            query = query.where(ExecutiveMergeDecision.canonical_company_id == canonical_company_id)
+
+        result = await self.db.execute(query.order_by(ExecutiveMergeDecision.created_at.asc()))
+        return list(result.scalars().all())
+
+    async def list_source_documents_by_ids(
+        self,
+        tenant_id: str,
+        source_ids: List[UUID],
+    ) -> List[ResearchSourceDocument]:
+        ids = list({sid for sid in source_ids if sid})
+        if not ids:
+            return []
+        result = await self.db.execute(
+            select(ResearchSourceDocument).where(
+                ResearchSourceDocument.tenant_id == tenant_id,
+                ResearchSourceDocument.id.in_(ids),
+            )
+        )
+        return list(result.scalars().all())
+
+    async def list_enrichment_records_for_sources(
+        self,
+        tenant_id: str,
+        source_ids: List[UUID],
+    ) -> List[AIEnrichmentRecord]:
+        ids = list({sid for sid in source_ids if sid})
+        if not ids:
+            return []
+        result = await self.db.execute(
+            select(AIEnrichmentRecord).where(
+                AIEnrichmentRecord.tenant_id == tenant_id,
+                AIEnrichmentRecord.source_document_id.in_(ids),
+            )
+        )
         return list(result.scalars().all())
     
     # ========================================================================

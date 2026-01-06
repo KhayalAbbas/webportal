@@ -12,6 +12,7 @@ import re
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
+from urllib.parse import urlparse, urlunparse
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -31,6 +32,7 @@ from app.models.company_research import (
     CompanyResearchRunStep,
     ExecutiveProspect,
     ExecutiveProspectEvidence,
+    ExecutiveMergeDecision,
 )
 from app.models.ai_enrichment_record import AIEnrichmentRecord
 from app.models.activity_log import ActivityLog
@@ -911,6 +913,283 @@ class CompanyResearchService:
             )
 
         return payload
+
+    async def compare_executives(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        canonical_company_id: Optional[UUID] = None,
+    ) -> dict:
+        exec_rows = await self.list_executive_prospects_with_evidence(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            canonical_company_id=canonical_company_id,
+        )
+
+        exec_map: dict[UUID, dict] = {row["id"]: row for row in exec_rows}
+        if not exec_rows:
+            return {
+                "matched_or_both": [],
+                "internal_only": [],
+                "external_only": [],
+                "candidate_matches": [],
+            }
+
+        response_source_ids: set[UUID] = set()
+        evidence_source_ids: set[UUID] = set()
+        for row in exec_rows:
+            if row.get("source_document_id"):
+                response_source_ids.add(row["source_document_id"])
+            for ev_id in row.get("evidence_source_document_ids") or []:
+                evidence_source_ids.add(ev_id)
+
+        all_source_ids = list(response_source_ids | evidence_source_ids)
+        sources = await self.repo.list_source_documents_by_ids(tenant_id, all_source_ids)
+        source_map = {src.id: src for src in sources}
+
+        enrichments = await self.repo.list_enrichment_records_for_sources(tenant_id, list(response_source_ids))
+        enrichment_map: dict[UUID, UUID] = {row.source_document_id: row.id for row in enrichments}
+
+        decisions = await self.repo.list_merge_decisions_for_run(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            canonical_company_id=canonical_company_id,
+        )
+        decision_map: dict[tuple[UUID, UUID], ExecutiveMergeDecision] = {}
+        for dec in decisions:
+            key = (dec.left_executive_id, dec.right_executive_id)
+            decision_map[key] = dec
+            decision_map[(dec.right_executive_id, dec.left_executive_id)] = dec
+
+        def _engine_block(exec_row: dict) -> dict:
+            resp_id = exec_row.get("source_document_id")
+            request_id = None
+            if resp_id and resp_id in source_map:
+                meta = source_map[resp_id].meta or {}
+                request_id = meta.get("request_source_id")
+            evidence_ids = [UUID(str(eid)) for eid in (exec_row.get("evidence_source_document_ids") or [])]
+            return {
+                "request_source_document_id": request_id,
+                "response_source_document_id": resp_id,
+                "evidence_source_document_ids": evidence_ids,
+                "enrichment_record_id": enrichment_map.get(resp_id),
+            }
+
+        def _leaf(exec_row: dict, engine_label: str) -> dict:
+            return {
+                "id": exec_row["id"],
+                "company_prospect_id": exec_row["company_prospect_id"],
+                "canonical_company_id": exec_row.get("canonical_company_id"),
+                "name": exec_row.get("name"),
+                "title": exec_row.get("title"),
+                "provenance": exec_row.get("provenance") or exec_row.get("discovered_by"),
+                "discovered_by": exec_row.get("discovered_by"),
+                "source_label": exec_row.get("source_label"),
+                "verification_status": exec_row.get("verification_status"),
+                "engine": engine_label,
+                "evidence": _engine_block(exec_row),
+            }
+
+        def _company_key(row: dict) -> str:
+            if row.get("canonical_company_id"):
+                return f"canon:{row['canonical_company_id']}"
+            return f"prospect:{row.get('company_prospect_id')}"
+
+        matched_or_both: list[dict] = []
+        internal_only: list[dict] = []
+        external_only: list[dict] = []
+        candidate_matches: list[dict] = []
+
+        used: set[UUID] = set()
+
+        both_rows = [row for row in exec_rows if (row.get("discovered_by") or row.get("provenance")) == "both"]
+        for row in both_rows:
+            used.add(row["id"])
+            matched_or_both.append(
+                {
+                    "company_prospect_id": row.get("company_prospect_id"),
+                    "canonical_company_id": row.get("canonical_company_id"),
+                    "name": row.get("name"),
+                    "title": row.get("title"),
+                    "internal": _leaf(row, "internal"),
+                    "external": _leaf(row, "external"),
+                    "decision": "both",
+                    "note": None,
+                }
+            )
+
+        # Apply explicit mark_same decisions
+        for dec in decisions:
+            if dec.decision_type != "mark_same":
+                continue
+            left_row = exec_map.get(dec.left_executive_id)
+            right_row = exec_map.get(dec.right_executive_id)
+            if not left_row or not right_row:
+                continue
+            used.update({dec.left_executive_id, dec.right_executive_id})
+
+            def _assign(row: dict) -> tuple[Optional[dict], Optional[dict]]:
+                provenance = (row.get("discovered_by") or row.get("source_label") or "").lower()
+                if provenance == "internal":
+                    return _leaf(row, "internal"), None
+                if provenance == "external":
+                    return None, _leaf(row, "external")
+                # default: fall back to external if not claimed
+                return None, _leaf(row, provenance or "external")
+
+            internal_leaf, external_leaf = _assign(left_row)
+            ext2_internal, ext2_external = _assign(right_row)
+            internal_leaf = internal_leaf or ext2_internal
+            external_leaf = external_leaf or ext2_external
+
+            matched_or_both.append(
+                {
+                    "company_prospect_id": left_row.get("company_prospect_id") or right_row.get("company_prospect_id"),
+                    "canonical_company_id": dec.canonical_company_id or left_row.get("canonical_company_id") or right_row.get("canonical_company_id"),
+                    "name": left_row.get("name") or right_row.get("name"),
+                    "title": left_row.get("title") or right_row.get("title"),
+                    "internal": internal_leaf,
+                    "external": external_leaf,
+                    "decision": dec.decision_type,
+                    "note": dec.note,
+                }
+            )
+
+        internal_rows = [row for row in exec_rows if row.get("discovered_by") == "internal" and row.get("id") not in used]
+        external_rows = [row for row in exec_rows if row.get("discovered_by") == "external" and row.get("id") not in used]
+
+        # Candidate matches (name/title exact within same company key)
+        for i_row in internal_rows:
+            for e_row in external_rows:
+                if _company_key(i_row) != _company_key(e_row):
+                    continue
+                name_match = (i_row.get("name_normalized") or "").lower() == (e_row.get("name_normalized") or "").lower()
+                title_match = (i_row.get("title") or "").strip().lower() == (e_row.get("title") or "").strip().lower()
+                if not name_match and not title_match:
+                    continue
+                dec = decision_map.get((i_row["id"], e_row["id"]))
+                if dec and dec.decision_type == "keep_separate":
+                    continue
+                candidate_matches.append(
+                    {
+                        "company_prospect_id": i_row.get("company_prospect_id"),
+                        "canonical_company_id": i_row.get("canonical_company_id") or e_row.get("canonical_company_id"),
+                        "name": i_row.get("name") or e_row.get("name"),
+                        "title": i_row.get("title") or e_row.get("title"),
+                        "internal": _leaf(i_row, "internal"),
+                        "external": _leaf(e_row, "external"),
+                        "decision": dec.decision_type if dec else None,
+                        "note": dec.note if dec else None,
+                    }
+                )
+
+        used_internal = {row.get("id") for row in internal_rows}
+        used_external = {row.get("id") for row in external_rows}
+        used_internal -= {match["internal"]["id"] for match in candidate_matches if match.get("internal")}
+        used_external -= {match["external"]["id"] for match in candidate_matches if match.get("external")}
+
+        for row in sorted([r for r in internal_rows if r.get("id") in used_internal], key=lambda r: (r.get("name_normalized") or "").lower(), ):
+            internal_only.append(_leaf(row, "internal"))
+        for row in sorted([r for r in external_rows if r.get("id") in used_external], key=lambda r: (r.get("name_normalized") or "").lower(), ):
+            external_only.append(_leaf(row, "external"))
+
+        matched_or_both_sorted = sorted(
+            matched_or_both,
+            key=lambda r: ((r.get("company_prospect_id") or ""), (r.get("name") or "").lower(), r.get("title") or ""),
+        )
+        candidate_sorted = sorted(
+            candidate_matches,
+            key=lambda r: ((r.get("name") or "").lower(), r.get("title") or ""),
+        )
+
+        return {
+            "matched_or_both": matched_or_both_sorted,
+            "internal_only": internal_only,
+            "external_only": external_only,
+            "candidate_matches": candidate_sorted,
+        }
+
+    async def apply_executive_merge_decision(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        *,
+        decision_type: str,
+        left_executive_id: UUID,
+        right_executive_id: UUID,
+        note: Optional[str],
+        evidence_source_document_ids: list[UUID] | None,
+        evidence_enrichment_ids: list[UUID] | None,
+        actor: Optional[str] = None,
+    ) -> tuple[ExecutiveMergeDecision, bool]:
+        if decision_type not in {"mark_same", "keep_separate"}:
+            raise ValueError("invalid_decision_type")
+
+        left = await self.repo.get_executive_prospect(tenant_id, left_executive_id)
+        right = await self.repo.get_executive_prospect(tenant_id, right_executive_id)
+        if not left or not right:
+            raise ValueError("executive_not_found")
+        if left.company_research_run_id != run_id or right.company_research_run_id != run_id:
+            raise ValueError("run_mismatch")
+
+        company_prospect_id = left.company_prospect_id if left.company_prospect_id == right.company_prospect_id else None
+        canonical_company_id = None
+        if company_prospect_id:
+            canonical_company_id = getattr(left.company_prospect, "normalized_company_id", None)
+        else:
+            canonical_company_id = getattr(left, "canonical_company_id", None) or getattr(right, "canonical_company_id", None)
+
+        decision, created = await self.repo.upsert_merge_decision(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            company_prospect_id=company_prospect_id,
+            canonical_company_id=canonical_company_id,
+            left_executive_id=left_executive_id,
+            right_executive_id=right_executive_id,
+            decision_type=decision_type,
+            note=note,
+            evidence_source_document_ids=evidence_source_document_ids,
+            evidence_enrichment_ids=evidence_enrichment_ids,
+            created_by=actor,
+        )
+
+        if decision_type == "mark_same":
+            merged_provenance = self._merge_provenance(
+                getattr(left, "discovered_by", None),
+                getattr(right, "discovered_by", None),
+            )
+            left.discovered_by = merged_provenance
+            right.discovered_by = merged_provenance
+            left.source_label = self._merge_provenance(getattr(left, "source_label", None), getattr(right, "source_label", None))
+            right.source_label = self._merge_provenance(getattr(right, "source_label", None), getattr(left, "source_label", None))
+
+            promoted = self._promote_verification(
+                getattr(left, "verification_status", "unverified"),
+                getattr(right, "verification_status", "unverified"),
+            )
+            left.verification_status = promoted
+            right.verification_status = promoted
+
+        if created:
+            evidence_docs = ",".join([str(eid) for eid in (decision.evidence_source_document_ids or [])]) or "none"
+            evidence_enrich = ",".join([str(eid) for eid in (decision.evidence_enrichment_ids or [])]) or "none"
+            self.db.add(
+                ActivityLog(
+                    tenant_id=tenant_id,
+                    role_id=getattr(left.company_prospect, "role_mandate_id", None) if getattr(left, "company_prospect", None) else None,
+                    type="EXEC_COMPARE_DECISION",
+                    message=(
+                        f"run_id={run_id} decision={decision_type} left={left_executive_id} right={right_executive_id} "
+                        f"company_prospect_id={company_prospect_id} canonical_company_id={canonical_company_id} "
+                        f"evidence_docs={evidence_docs} enrichment_ids={evidence_enrich}"
+                    ),
+                    created_by=actor or "system",
+                )
+            )
+
+        await self.db.flush()
+        await self.db.refresh(decision)
+        return decision, created
     
     # ========================================================================
     # Metric Operations
@@ -1046,9 +1325,17 @@ class CompanyResearchService:
 
     @staticmethod
     def _normalize_url_value(url: Optional[str]) -> Optional[str]:
+        """Normalize URLs by stripping whitespace and ensuring scheme present."""
         if not url:
             return None
-        return canonicalize_url(url)
+        cleaned = url.strip()
+        if not cleaned:
+            return None
+        parsed = urlparse(cleaned)
+        if not parsed.scheme:
+            parsed = parsed._replace(scheme="https")
+        normalized = parsed._replace(fragment="", query="")
+        return urlunparse(normalized)
 
     @staticmethod
     def _normalize_country_code(country: Optional[str]) -> Optional[str]:
@@ -1075,13 +1362,11 @@ class CompanyResearchService:
 
     @staticmethod
     def _normalize_person_name(name: Optional[str]) -> str:
-        """Normalize person names for matching."""
         if not name:
             return ""
-        normalized = name.lower().strip()
-        normalized = normalized.replace(".", " ").replace(",", " ")
-        normalized = " ".join(normalized.split())
-        return normalized
+        lowered = name.lower()
+        cleaned = re.sub(r"[^a-z0-9]+", " ", lowered)
+        return " ".join(cleaned.split())
 
     @staticmethod
     def _merge_discovered_by(existing: Optional[str], incoming: str) -> str:
@@ -1091,6 +1376,26 @@ class CompanyResearchService:
         if existing == incoming or existing == "both":
             return existing
         return "both"
+
+    @staticmethod
+    def _merge_provenance(existing: Optional[str], incoming: Optional[str]) -> Optional[str]:
+        if not incoming:
+            return existing
+        if not existing:
+            return incoming
+        if existing == incoming or existing == "both" or incoming == "both":
+            return "both" if existing == "both" or incoming == "both" else existing
+        return "both"
+
+    @staticmethod
+    def _promote_verification(current: Optional[str], incoming: Optional[str]) -> str:
+        order = ["unverified", "partial", "verified"]
+        cur = current or "unverified"
+        inc = incoming or cur
+        try:
+            return cur if order.index(cur) >= order.index(inc) else inc
+        except ValueError:
+            return cur
     
     async def add_source(
         self,
