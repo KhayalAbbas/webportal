@@ -1,0 +1,14 @@
+﻿## master...origin/master
+
+C:/Program Files/Git/bin/git.exe log -1 --decorate
+commit 41684a45e02a1d76929df19f043d3b45f41f6108 (HEAD -> master, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Tue Jan 6 19:54:03 2026 +0400
+
+    Phase 7.8: dual-engine exec discovery
+
+C:/Program Files/Git/bin/git.exe rev-parse HEAD
+41684a45e02a1d76929df19f043d3b45f41f6108
+
+TREE_CLEAN=True
+TAG_AT_HEAD=False

@@ -7,5 +7,5 @@
 [x] UI updated for engine selection and provenance/filtering
 [x] Deterministic proof script executed, artifacts captured, PASS
 [x] OpenAPI after captured (json + excerpt)
-[ ] Git evidence captured (status/diff/log/push/tag)
-[ ] Artifact checklist validated
+[x] Git evidence captured (status/diff/log/push/tag)
+[x] Artifact checklist validated
