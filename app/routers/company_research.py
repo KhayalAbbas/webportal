@@ -7,10 +7,13 @@ Phase 1: Backend structures, no external AI orchestration yet.
 
 import base64
 import binascii
+import csv
+import io
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
@@ -47,6 +50,64 @@ from app.schemas.company_research import (
     CanonicalCompanyListItem,
     CanonicalCompanyLinkRead,
 )
+
+
+def _apply_rank_filters(
+    items: List[CompanyProspectRanking],
+    min_score: Optional[float] = None,
+    has_hq: bool = False,
+    has_ownership: bool = False,
+    has_industry: bool = False,
+) -> List[CompanyProspectRanking]:
+    """Filter ranked prospects without altering ordering."""
+
+    def _has_signal(signals, key: str) -> bool:
+        return any(getattr(sig, "field_key", None) == key for sig in signals)
+
+    filtered: List[CompanyProspectRanking] = []
+    for item in items:
+        signals = list(item.why_included or [])
+        if min_score is not None and float(item.computed_score) < float(min_score):
+            continue
+        if has_hq and not item.hq_country:
+            continue
+        if has_ownership and not _has_signal(signals, "ownership_signal"):
+            continue
+        if has_industry and not _has_signal(signals, "industry_keywords"):
+            continue
+        filtered.append(item)
+
+    return filtered
+
+
+async def _get_filtered_rankings(
+    service: CompanyResearchService,
+    tenant_id: str,
+    run_id: UUID,
+    status: Optional[str],
+    min_relevance_score: Optional[float],
+    limit: int,
+    offset: int,
+    min_score: Optional[float],
+    has_hq: bool,
+    has_ownership: bool,
+    has_industry: bool,
+) -> List[CompanyProspectRanking]:
+    run = await service.get_research_run(tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    ranked_raw = await service.rank_prospects_for_run(
+        tenant_id=tenant_id,
+        run_id=run_id,
+        status=status,
+        min_relevance_score=min_relevance_score,
+        limit=limit,
+        offset=offset,
+    )
+
+    ranked = [CompanyProspectRanking.model_validate(item) for item in ranked_raw]
+    return _apply_rank_filters(ranked, min_score, has_hq, has_ownership, has_industry)
 
 router = APIRouter(prefix="/company-research", tags=["company-research"])
 
@@ -831,6 +892,126 @@ async def rank_prospects_for_run(
     )
 
     return [CompanyProspectRanking.model_validate(item) for item in ranked]
+
+
+@router.get("/runs/{run_id}/prospects-ranked.json", response_model=List[CompanyProspectRanking])
+async def export_ranked_prospects_json(
+    run_id: UUID,
+    status: Optional[str] = Query(None, description="Filter by status (new, approved, rejected, duplicate, converted)"),
+    min_relevance_score: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum AI relevance score"),
+    min_score: Optional[float] = Query(None, ge=0.0, le=2.0, description="Minimum computed score after ranking"),
+    has_hq: bool = Query(False, description="Require HQ country signal"),
+    has_ownership: bool = Query(False, description="Require ownership signal"),
+    has_industry: bool = Query(False, description="Require industry keywords signal"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export ranked prospects as JSON with optional explainability filters."""
+
+    service = CompanyResearchService(db)
+    ranked = await _get_filtered_rankings(
+        service,
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        status=status,
+        min_relevance_score=min_relevance_score,
+        limit=limit,
+        offset=offset,
+        min_score=min_score,
+        has_hq=has_hq,
+        has_ownership=has_ownership,
+        has_industry=has_industry,
+    )
+
+    return ranked
+
+
+@router.get("/runs/{run_id}/prospects-ranked.csv")
+async def export_ranked_prospects_csv(
+    run_id: UUID,
+    status: Optional[str] = Query(None, description="Filter by status (new, approved, rejected, duplicate, converted)"),
+    min_relevance_score: Optional[float] = Query(None, ge=0.0, le=1.0, description="Minimum AI relevance score"),
+    min_score: Optional[float] = Query(None, ge=0.0, le=2.0, description="Minimum computed score after ranking"),
+    has_hq: bool = Query(False, description="Require HQ country signal"),
+    has_ownership: bool = Query(False, description="Require ownership signal"),
+    has_industry: bool = Query(False, description="Require industry keywords signal"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export ranked prospects as CSV with explainability rollup."""
+
+    service = CompanyResearchService(db)
+    ranked = await _get_filtered_rankings(
+        service,
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        status=status,
+        min_relevance_score=min_relevance_score,
+        limit=limit,
+        offset=offset,
+        min_score=min_score,
+        has_hq=has_hq,
+        has_ownership=has_ownership,
+        has_industry=has_industry,
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "rank",
+            "company_name",
+            "score_total",
+            "hq_country",
+            "ownership_signal",
+            "industry_keywords",
+            "why_included",
+            "evidence_source_document_ids",
+        ]
+    )
+
+    for idx, item in enumerate(ranked, start=1):
+        ownership = ""
+        industry = ""
+        evidence_ids = set()
+        signal_parts = []
+
+        for signal in item.why_included or []:
+            evidence_ids.add(str(signal.source_document_id))
+            val = signal.value_normalized or signal.value
+            if signal.field_key == "ownership_signal":
+                ownership = str(val or "")
+            if signal.field_key == "industry_keywords":
+                if isinstance(signal.value, list):
+                    industry = ";".join(str(v) for v in signal.value)
+                else:
+                    industry = str(signal.value or "")
+            signal_parts.append(f"{signal.field_key}={val}")
+
+        writer.writerow(
+            [
+                idx,
+                item.name_normalized,
+                f"{float(item.computed_score):.6f}",
+                item.hq_country or "",
+                ownership,
+                industry,
+                "; ".join(signal_parts),
+                ";".join(sorted(evidence_ids)),
+            ]
+        )
+
+    payload = output.getvalue()
+    filename = f"prospects-ranked-{run_id}.csv"
+    return StreamingResponse(
+        iter([payload]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.patch("/runs/{run_id}", response_model=CompanyResearchRunRead)

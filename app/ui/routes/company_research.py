@@ -24,6 +24,7 @@ from app.schemas.company_research import (
     CompanyResearchRunCreate,
     CompanyProspectCreate,
     CompanyProspectUpdateManual,
+    CompanyProspectRanking,
     SourceDocumentCreate,
 )
 from app.schemas.ai_proposal import AIProposal
@@ -31,6 +32,34 @@ from app.schemas.ai_proposal import AIProposal
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/ui/templates")
+
+
+def _filter_rankings(
+    items: list[CompanyProspectRanking],
+    min_score: Optional[float] = None,
+    has_hq: bool = False,
+    has_ownership: bool = False,
+    has_industry: bool = False,
+) -> list[CompanyProspectRanking]:
+    """Apply deterministic filters without changing order."""
+
+    def _has_signal(signals, key: str) -> bool:
+        return any(getattr(sig, "field_key", None) == key for sig in signals)
+
+    filtered: list[CompanyProspectRanking] = []
+    for item in items:
+        signals = list(item.why_included or [])
+        if min_score is not None and float(item.computed_score) < float(min_score):
+            continue
+        if has_hq and not item.hq_country:
+            continue
+        if has_ownership and not _has_signal(signals, "ownership_signal"):
+            continue
+        if has_industry and not _has_signal(signals, "industry_keywords"):
+            continue
+        filtered.append(item)
+
+    return filtered
 
 
 @router.get("/ui/company-research", response_class=HTMLResponse)
@@ -252,6 +281,71 @@ async def cancel_research_run_ui(
     return RedirectResponse(
         url=f"/ui/company-research/runs/{run_id}?success_message=Cancellation requested",
         status_code=303,
+    )
+
+
+@router.get("/ui/company-research/runs/{run_id}/prospects-ranked", response_class=HTMLResponse)
+async def company_research_ranked_ui(
+    request: Request,
+    run_id: UUID,
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    session: AsyncSession = Depends(get_db),
+    min_score: Optional[float] = Query(None, ge=0.0, le=2.0),
+    has_hq: bool = Query(False),
+    has_ownership: bool = Query(False),
+    has_industry: bool = Query(False),
+):
+    """Consultant-ready ranked prospects view with explainability."""
+
+    service = CompanyResearchService(session)
+
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    role_query = (
+        select(Role, Company.name.label("company_name"))
+        .join(Company, Company.id == Role.company_id)
+        .where(Role.id == run.role_mandate_id, Role.tenant_id == current_user.tenant_id)
+    )
+    role_result = await session.execute(role_query)
+    role_row = role_result.first()
+    role_info = None
+    if role_row:
+        role_info = {
+            "id": str(role_row.Role.id),
+            "title": role_row.Role.title,
+            "company_name": role_row.company_name,
+        }
+
+    ranked_raw = await service.rank_prospects_for_run(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        limit=200,
+        offset=0,
+    )
+    ranked = [CompanyProspectRanking.model_validate(item) for item in ranked_raw]
+    ranked_filtered = _filter_rankings(ranked, min_score, has_hq, has_ownership, has_industry)
+
+    filter_state = {
+        "min_score": min_score,
+        "has_hq": has_hq,
+        "has_ownership": has_ownership,
+        "has_industry": has_industry,
+    }
+
+    return templates.TemplateResponse(
+        "company_research_ranked.html",
+        {
+            "request": request,
+            "current_user": current_user,
+            "active_page": "company_research",
+            "run": run,
+            "role_info": role_info,
+            "prospects": ranked_filtered,
+            "total_count": len(ranked_filtered),
+            "filters": filter_state,
+        },
     )
 
 
