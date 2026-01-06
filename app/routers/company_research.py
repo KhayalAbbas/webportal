@@ -549,7 +549,7 @@ async def run_executive_discovery(
     current_user: User = Depends(verify_user_tenant_access),
     db: AsyncSession = Depends(get_db),
 ):
-    """Start executive discovery for a run using external payloads."""
+    """Start executive discovery for a run using internal stub and/or external payloads."""
 
     service = CompanyResearchService(db)
     run = await service.get_research_run(current_user.tenant_id, run_id)
@@ -559,7 +559,17 @@ async def run_executive_discovery(
     if payload.mode not in {"internal", "external", "both"}:
         raise HTTPException(status_code=400, detail="Invalid mode")
 
+    eligible_companies = await service.list_executive_eligible_companies(current_user.tenant_id, run_id)
+    eligible_company_count = len(eligible_companies)
+
+    internal_result = None
     external_result = None
+
+    if payload.mode in {"internal", "both"}:
+        internal_result = await service.run_internal_executive_discovery(
+            tenant_id=current_user.tenant_id,
+            run_id=run_id,
+        )
 
     if payload.mode in {"external", "both"}:
         if not payload.payload:
@@ -583,9 +593,34 @@ async def run_executive_discovery(
             raise HTTPException(status_code=status_code, detail=message)
 
     await db.commit()
+
+    def _add_source_label(items: list[dict] | None, source: str) -> list[dict]:
+        return [{**item, "source": source} for item in (items or [])]
+
+    combined_summaries: list[dict] = []
+    if internal_result:
+        combined_summaries.extend(_add_source_label(internal_result.get("company_summaries"), "internal"))
+    if external_result:
+        combined_summaries.extend(_add_source_label(external_result.get("company_summaries"), "external"))
+
+    processed_company_count = 0
+    if internal_result:
+        processed_company_count = max(processed_company_count, int(internal_result.get("processed_company_count", 0)))
+    if external_result:
+        processed_company_count = max(processed_company_count, int(external_result.get("processed_company_count", 0)))
+
+    skipped = None
+    if payload.mode == "internal":
+        skipped = (internal_result or {}).get("skipped")
+
     return {
         "mode": payload.mode,
+        "eligible_company_count": eligible_company_count,
+        "processed_company_count": processed_company_count,
+        "company_summaries": combined_summaries,
+        "internal_result": internal_result,
         "external_result": external_result,
+        "skipped": skipped,
     }
 
 

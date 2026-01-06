@@ -8,9 +8,10 @@ Phase 1: Backend structures only, no external AI/crawling yet.
 import hashlib
 import json
 import os
+import re
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -1286,6 +1287,16 @@ class CompanyResearchService:
         canonical = self._canonical_json(parsed.canonical_dict())
         content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        eligible = await self.list_executive_eligible_companies(tenant_id, run_id)
+        eligible_map = {self._normalize_company_name(p.name_normalized or p.name_raw): p for p in eligible}
+        targeted_count = sum(
+            1 for company in parsed.companies if self._normalize_company_name(company.company_normalized or company.company_name)
+        )
+
         existing_source = await self.repo.find_source_by_hash(tenant_id, run_id, content_hash)
         if existing_source and existing_source.source_type == "llm_json":
             ingest_meta = {
@@ -1301,14 +1312,10 @@ class CompanyResearchService:
                 "reason": "duplicate_hash",
                 "source_id": str(existing_source.id),
                 "ingest_stats": ingest_meta,
+                "eligible_company_count": len(eligible),
+                "processed_company_count": targeted_count,
+                "company_summaries": [],
             }
-
-        run = await self.get_research_run(tenant_id, run_id)
-        if not run:
-            raise ValueError("run_not_found")
-
-        eligible = await self.list_executive_eligible_companies(tenant_id, run_id)
-        eligible_map = {self._normalize_company_name(p.name_normalized or p.name_raw): p for p in eligible}
 
         requested_companies: list[str] = []
         missing: list[str] = []
@@ -1399,6 +1406,8 @@ class CompanyResearchService:
             "companies_targeted": len(requested_companies),
         }
 
+        company_stats: dict[UUID, dict[str, object]] = {}
+
         evidence_seen: set[tuple[str, str, str]] = set()
 
         for company in parsed.companies:
@@ -1409,6 +1418,17 @@ class CompanyResearchService:
             if not prospect:
                 continue
 
+            company_entry = company_stats.setdefault(
+                prospect.id,
+                {
+                    "company_prospect_id": str(prospect.id),
+                    "company_name": prospect.name_normalized,
+                    "executives_new": 0,
+                    "executives_existing": 0,
+                    "evidence_created": 0,
+                },
+            )
+
             for exec_entry in company.executives or []:
                 exec_norm = self._normalize_person_name(exec_entry.name)
                 if not exec_norm:
@@ -1417,6 +1437,7 @@ class CompanyResearchService:
                 existing_exec = existing_exec_map.get(prospect.id, {}).get(exec_norm)
                 if existing_exec:
                     stats["executives_existing"] += 1
+                    company_entry["executives_existing"] += 1
                     target_exec = existing_exec
                 else:
                     target_exec = ExecutiveProspect(
@@ -1439,6 +1460,7 @@ class CompanyResearchService:
                     await self.db.flush()
                     existing_exec_map[prospect.id][exec_norm] = target_exec
                     stats["executives_new"] += 1
+                    company_entry["executives_new"] += 1
 
                 for ev in exec_entry.evidence or []:
                     dedupe_key = (str(target_exec.id), ev.url or "", ev.label or ev.kind or "executive_llm_json")
@@ -1459,6 +1481,7 @@ class CompanyResearchService:
                     )
                     self.db.add(evidence)
                     stats["evidence_created"] += 1
+                    company_entry["evidence_created"] += 1
 
                     url_norm = self._normalize_url_value(str(ev.url)) if ev.url else None
                     if url_norm and url_norm in url_norm_map:
@@ -1493,7 +1516,112 @@ class CompanyResearchService:
             "source_id": str(source.id),
             "enrichment_id": str(enrichment.id),
             "content_hash": content_hash,
+            "eligible_company_count": len(eligible),
+            "processed_company_count": len(requested_companies),
+            "company_summaries": list(company_stats.values()),
             **stats,
+        }
+
+    async def run_internal_executive_discovery(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        provider: str = "internal_stub",
+        model_name: str = "deterministic_stub_v1",
+    ) -> dict:
+        """Run deterministic internal executive discovery over eligible companies."""
+
+        eligible_unsorted = await self.list_executive_eligible_companies(tenant_id, run_id)
+        eligible = sorted(
+            eligible_unsorted,
+            key=lambda p: self._normalize_company_name(p.name_normalized or p.name_raw) or "",
+        )
+        if not eligible:
+            return {
+                "skipped": True,
+                "reason": "no_eligible_companies",
+                "eligible_company_count": 0,
+                "processed_company_count": 0,
+                "company_summaries": [],
+            }
+
+        companies_payload: list[dict[str, object]] = []
+        for prospect in eligible:
+            company_name = prospect.name_normalized or prospect.name_raw
+            company_norm = self._normalize_company_name(company_name)
+            slug = re.sub(r"[^a-z0-9]+", "-", company_norm.lower()).strip("-") or "company"
+            website = self._normalize_url_value(prospect.website_url or f"https://example.com/{slug}")
+            location = prospect.hq_city or "Unknown"
+
+            executives = [
+                {
+                    "name": f"{company_name} CEO",
+                    "title": "Chief Executive Officer",
+                    "profile_url": f"https://example.com/{slug}/ceo",
+                    "linkedin_url": f"https://www.linkedin.com/in/{slug}-ceo",
+                    "email": None,
+                    "location": location,
+                    "confidence": 0.9,
+                    "evidence": [
+                        {
+                            "url": website,
+                            "label": "Internal stub leadership page",
+                            "kind": "internal_stub",
+                            "snippet": f"Leadership listing for {company_name} CEO.",
+                        }
+                    ],
+                },
+                {
+                    "name": f"{company_name} CFO",
+                    "title": "Chief Financial Officer",
+                    "profile_url": f"https://example.com/{slug}/cfo",
+                    "linkedin_url": f"https://www.linkedin.com/in/{slug}-cfo",
+                    "email": None,
+                    "location": location,
+                    "confidence": 0.85,
+                    "evidence": [
+                        {
+                            "url": website,
+                            "label": "Internal stub leadership page",
+                            "kind": "internal_stub",
+                            "snippet": f"Finance lead reference for {company_name} CFO.",
+                        }
+                    ],
+                },
+            ]
+
+            companies_payload.append(
+                {
+                    "company_name": company_name,
+                    "company_normalized": company_norm,
+                    "company_website": website,
+                    "executives": executives,
+                }
+            )
+
+        payload = {
+            "schema_version": "executive_discovery_v1",
+            "provider": provider,
+            "model": model_name,
+            # Fixed timestamp keeps content_hash stable across replays for idempotency.
+            "generated_at": "1970-01-01T00:00:00+00:00",
+            "query": f"deterministic_internal_stub:{run_id}",
+            "companies": companies_payload,
+        }
+
+        ingest_result = await self.ingest_executive_llm_json_payload(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            payload=payload,
+            provider=provider,
+            model_name=model_name,
+            title="Internal Executive Discovery",
+        )
+
+        return {
+            **ingest_result,
+            "eligible_company_count": len(eligible),
+            "processed_company_count": len(companies_payload),
         }
     
     async def get_source(

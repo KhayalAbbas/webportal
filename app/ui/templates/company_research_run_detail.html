@@ -218,8 +218,12 @@
             {% endif %}
         </div>
         <div style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 12px; background: #f9fafb;">
-            <h3 style="margin-top: 0; font-size: 14px;">Run External Executive Payload</h3>
-            <p style="font-size: 12px; color: #555;">Paste the external <code>executive_discovery_v1</code> payload. This calls the API endpoint and respects gating + idempotency.</p>
+                        <h3 style="margin-top: 0; font-size: 14px;">Run Internal Executive Stub</h3>
+                        <p style="font-size: 12px; color: #555; margin-bottom: 8px;">Runs deterministic internal discovery for eligible companies ({{ eligible_exec_companies|length }} eligible). Uses the same API, gating, and idempotent hashing.</p>
+                        <button type="button" class="btn btn-secondary" onclick="runInternalExecDiscovery()">Run internal stub</button>
+
+                        <h3 style="margin-top: 16px; font-size: 14px;">Run External Executive Payload</h3>
+                        <p style="font-size: 12px; color: #555;">Paste the external <code>executive_discovery_v1</code> payload. This calls the API endpoint and respects gating + idempotency.</p>
             <textarea id="exec-payload" rows="8" style="width: 100%; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">{
   "schema_version": "executive_discovery_v1",
   "provider": "mock",
@@ -679,6 +683,28 @@ async function runExecDiscovery() {
                 title: parsed.title || 'Exec Discovery Payload',
                 payload: parsed
             })
+        });
+
+        const text = await response.text();
+        try {
+            resultEl.textContent = JSON.stringify(JSON.parse(text), null, 2);
+        } catch (err) {
+            resultEl.textContent = text;
+        }
+    } catch (err) {
+        resultEl.textContent = 'Request failed: ' + err;
+    }
+}
+
+async function runInternalExecDiscovery() {
+    const resultEl = document.getElementById('exec-result');
+    resultEl.textContent = 'Running internal deterministic discovery...';
+
+    try {
+        const response = await fetch('/company-research/runs/{{ run.id }}/executive-discovery/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ mode: 'internal' })
         });
 
         const text = await response.text();
