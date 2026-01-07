@@ -1,27 +1,23 @@
-﻿On branch master
-Your branch is up to date with 'origin/master'.
-
-Changes to be committed:
-  (use "git restore --staged <file>..." to unstage)
-	modified:   app/routers/company_research.py
-	modified:   app/schemas/company_research.py
-	modified:   app/services/company_research_service.py
-	new file:   scripts/proofs/_artifacts/phase_9_4_artifact_manifest.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_db_excerpt.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_discovery_notes.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_first_call.json
-	new file:   scripts/proofs/_artifacts/phase_9_4_git_diff_stat.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_git_log_before_commit.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_git_status_before_commit.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_openapi_after.json
-	new file:   scripts/proofs/_artifacts/phase_9_4_openapi_after_excerpt.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_openapi_before.json
-	new file:   scripts/proofs/_artifacts/phase_9_4_preflight.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_proof.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_proof_console.txt
-	new file:   scripts/proofs/_artifacts/phase_9_4_release_notes.md
+﻿[master c3b90a5] Phase 9.4: external LLM JSON company discovery ingest API + evidence-first storage + deterministic proof
+ 22 files changed, 58381 insertions(+), 1 deletion(-)
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_artifact_manifest.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_commit.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_db_excerpt.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_discovery_notes.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_first_call.json
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_git_diff_stat.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_git_log_before_commit.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_git_status_before_commit.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_openapi_after.json
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_openapi_after_excerpt.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_openapi_before.json
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_preflight.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_proof.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_proof_console.txt
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_release_notes.md
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_second_call.json
+ create mode 100644 scripts/proofs/_artifacts/phase_9_4_signoff_checklist.txt
+ create mode 100644 scripts/proofs/phase_9_4_external_llm_discovery_ingest_proof.py
+ create mode 100644 scripts/proofs/phase_9_4_preflight.py
 	new file:   scripts/proofs/_artifacts/phase_9_4_second_call.json
-	new file:   scripts/proofs/_artifacts/phase_9_4_signoff_checklist.txt
-	new file:   scripts/proofs/phase_9_4_external_llm_discovery_ingest_proof.py
-	new file:   scripts/proofs/phase_9_4_preflight.py
 

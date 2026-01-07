@@ -1,0 +1,10 @@
+Enumerating objects: 40, done.
+Counting objects: 100% (40/40), done.
+Delta compression using up to 16 threads
+Compressing objects: 100% (30/30), done.
+Writing objects: 100% (30/30), 75.62 KiB | 3.15 MiB/s, done.
+Total 30 (delta 16), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (16/16), completed with 10 local objects.
+To https://github.com/iuliantpg/ats.git
+   0dbf28c..c3b90a5  master -> master
+ * [new tag]         phase_9_4_signed_off -> phase_9_4_signed_off

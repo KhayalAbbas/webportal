@@ -6,4 +6,4 @@ Phase 9.4 sign-off checklist
 - Deterministic proof executed (2-pass idempotency) with DB excerpt + openapi after
 - OpenAPI after + excerpt captured: scripts/proofs/_artifacts/phase_9_4_openapi_after.json and ..._after_excerpt.txt
 - Release notes and artifact manifest generated
-- Pending: git status/diff/log before commit, commit, tag phase_9_4_signed_off, push, post-push clean check
+- Git status/diff/log captured pre-commit; commit/tag/push completed; post-push snapshot captured

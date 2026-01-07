@@ -1,0 +1,29 @@
+﻿commit c3b90a5a2b52a74cd84a593d9d38ed54af1f2974 (HEAD -> master, tag: phase_9_4_signed_off)
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 19:41:38 2026 +0400
+
+    Phase 9.4: external LLM JSON company discovery ingest API + evidence-first storage + deterministic proof
+
+ app/routers/company_research.py                    |    36 +
+ app/schemas/company_research.py                    |    36 +
+ app/services/company_research_service.py           |   156 +-
+ .../_artifacts/phase_9_4_artifact_manifest.txt     |    23 +
+ scripts/proofs/_artifacts/phase_9_4_commit.txt     |    27 +
+ scripts/proofs/_artifacts/phase_9_4_db_excerpt.txt |   127 +
+ .../_artifacts/phase_9_4_discovery_notes.txt       |    29 +
+ .../proofs/_artifacts/phase_9_4_first_call.json    |    14 +
+ .../proofs/_artifacts/phase_9_4_git_diff_stat.txt  |     4 +
+ .../_artifacts/phase_9_4_git_log_before_commit.txt |    29 +
+ .../phase_9_4_git_status_before_commit.txt         |     6 +
+ .../proofs/_artifacts/phase_9_4_openapi_after.json | 28534 +++++++++++++++++++
+ .../_artifacts/phase_9_4_openapi_after_excerpt.txt |   266 +
+ .../_artifacts/phase_9_4_openapi_before.json       | 28215 ++++++++++++++++++
+ scripts/proofs/_artifacts/phase_9_4_preflight.txt  |    15 +
+ scripts/proofs/_artifacts/phase_9_4_proof.txt      |   199 +
+ .../proofs/_artifacts/phase_9_4_proof_console.txt  |   199 +
+ .../proofs/_artifacts/phase_9_4_release_notes.md   |    20 +
+ .../proofs/_artifacts/phase_9_4_second_call.json   |    14 +
+ .../_artifacts/phase_9_4_signoff_checklist.txt     |     9 +
+ ...hase_9_4_external_llm_discovery_ingest_proof.py |   334 +
+ scripts/proofs/phase_9_4_preflight.py              |    90 +
+ 22 files changed, 58381 insertions(+), 1 deletion(-)
