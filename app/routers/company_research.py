@@ -62,6 +62,8 @@ from app.schemas.company_research import (
     CanonicalCompanyRead,
     CanonicalCompanyListItem,
     CanonicalCompanyLinkRead,
+    DiscoveryProviderRunPayload,
+    DiscoveryProviderRunResponse,
     RunPack,
 )
 from app.schemas.contact_enrichment import ContactEnrichmentRequest
@@ -563,6 +565,43 @@ async def add_llm_json_source(
     )
     await db.commit()
     return summary
+
+
+@router.post(
+    "/runs/{run_id}/discovery/providers/{provider_key}/run",
+    response_model=DiscoveryProviderRunResponse,
+)
+async def run_discovery_provider(
+    run_id: UUID,
+    provider_key: str,
+    payload: DiscoveryProviderRunPayload | None = None,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run a registered discovery provider and ingest results idempotently."""
+
+    service = CompanyResearchService(db)
+    try:
+        result = await service.run_discovery_provider(
+            tenant_id=current_user.tenant_id,
+            run_id=run_id,
+            provider_key=provider_key,
+            request_payload=(payload or DiscoveryProviderRunPayload()).request,
+        )
+    except ValueError as exc:  # noqa: BLE001
+        message = str(exc)
+        if message == "invalid_purpose":
+            raise HTTPException(status_code=400, detail=message)
+        if message == "unknown_provider":
+            raise HTTPException(status_code=400, detail="unknown_provider")
+        if message == "run_not_found":
+            raise HTTPException(status_code=404, detail="Research run not found")
+        if message in {"plan_locked", "run_locked"}:
+            raise HTTPException(status_code=409, detail="Sources are locked after run start")
+        raise
+
+    await db.commit()
+    return DiscoveryProviderRunResponse.model_validate(result)
 
 
 @router.get(

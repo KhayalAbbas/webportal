@@ -53,6 +53,7 @@ from app.services.ai_proposal_service import AIProposalService
 from app.services.entity_resolution_service import EntityResolutionService
 from app.services.canonical_people_service import CanonicalPeopleService
 from app.services.canonical_company_service import CanonicalCompanyService
+from app.services.discovery_provider import get_discovery_provider
 from app.schemas.ai_proposal import AIProposal
 from app.schemas.ai_enrichment import AIEnrichmentCreate
 from app.schemas.llm_discovery import LlmDiscoveryPayload
@@ -2646,7 +2647,7 @@ class CompanyResearchService:
             ),
         )
 
-        summary = await self._process_llm_source(
+        summary = await self._ingest_discovery_payload(
             tenant_id=tenant_id,
             run_id=run_id,
             source=source,
@@ -2654,11 +2655,98 @@ class CompanyResearchService:
             provider=provider,
             model_name=model_name,
             content_hash=content_hash,
-            canonical_json=canonical,
             purpose=purpose,
         )
 
         return summary
+
+    async def run_discovery_provider(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        provider_key: str,
+        request_payload: Optional[dict] = None,
+        purpose: str = "company_discovery",
+    ) -> dict:
+        """Run a registered discovery provider and ingest its output idempotently."""
+
+        if purpose != "company_discovery":
+            raise ValueError("invalid_purpose")
+
+        provider = get_discovery_provider(provider_key)
+        if not provider:
+            raise ValueError("unknown_provider")
+
+        # Enforce run existence and mutability before generating provider output
+        await self.ensure_sources_unlocked(tenant_id, run_id)
+
+        provider_result = provider.run(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            request=request_payload or {},
+        )
+
+        parsed = provider_result.payload
+        canonical_json = self._canonical_json(parsed.canonical_dict())
+        content_hash = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
+
+        existing_source = await self.repo.find_source_by_hash(tenant_id, run_id, content_hash)
+        if existing_source:
+            enrichment_query = await self.db.execute(
+                select(AIEnrichmentRecord).where(
+                    AIEnrichmentRecord.tenant_id == tenant_id,
+                    AIEnrichmentRecord.company_research_run_id == run_id,
+                    AIEnrichmentRecord.purpose == purpose,
+                    AIEnrichmentRecord.provider == provider_result.provider,
+                    AIEnrichmentRecord.content_hash == content_hash,
+                )
+            )
+            enrichment = enrichment_query.scalar_one_or_none()
+            ingest_meta = (existing_source.meta or {}).get("ingest_stats")
+            return {
+                "skipped": True,
+                "reason": "duplicate_hash",
+                "source_id": str(existing_source.id),
+                "enrichment_id": str(enrichment.id) if enrichment else (existing_source.meta or {}).get("enrichment_id"),
+                "ingest_stats": ingest_meta,
+                "provider_version": provider_result.version,
+                "content_hash": content_hash,
+            }
+
+        source_meta = {
+            "kind": "discovery_provider",
+            "provider": provider_result.provider,
+            "version": provider_result.version,
+            "model": provider_result.model,
+            "purpose": purpose,
+            "schema_version": parsed.schema_version,
+        }
+
+        source = await self.add_source(
+            tenant_id,
+            SourceDocumentCreate(
+                company_research_run_id=run_id,
+                source_type="discovery_provider",
+                title=f"Discovery provider: {provider_key}",
+                mime_type="application/json",
+                content_text=canonical_json,
+                content_hash=content_hash,
+                meta=source_meta,
+            ),
+        )
+
+        summary = await self._ingest_discovery_payload(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            source=source,
+            parsed_payload=parsed,
+            provider=provider_result.provider,
+            model_name=provider_result.model,
+            content_hash=content_hash,
+            purpose=purpose,
+        )
+
+        return {**summary, "provider_version": provider_result.version}
 
     async def process_llm_json_sources_for_run(
         self,
@@ -2709,7 +2797,7 @@ class CompanyResearchService:
                 parsed = LlmDiscoveryPayload(**payload_dict)
                 canonical = self._canonical_json(parsed.canonical_dict())
                 content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-                summary = await self._process_llm_source(
+                summary = await self._ingest_discovery_payload(
                     tenant_id=tenant_id,
                     run_id=run_id,
                     source=src,
@@ -2717,7 +2805,6 @@ class CompanyResearchService:
                     provider=(src.meta or {}).get("provider") or payload_dict.get("provider") or "mock",
                     model_name=(src.meta or {}).get("model") or payload_dict.get("model"),
                     content_hash=content_hash,
-                    canonical_json=canonical,
                     purpose=(src.meta or {}).get("purpose") or payload_dict.get("purpose") or "company_discovery",
                 )
                 processed.append(summary)
@@ -2732,7 +2819,7 @@ class CompanyResearchService:
             "created_from_fixture": created_from_fixture,
         }
 
-    async def _process_llm_source(
+    async def _ingest_discovery_payload(
         self,
         tenant_id: str,
         run_id: UUID,
@@ -2741,7 +2828,6 @@ class CompanyResearchService:
         provider: str,
         model_name: Optional[str],
         content_hash: str,
-        canonical_json: str,
         purpose: str,
     ) -> dict:
         run = await self.get_research_run(tenant_id, run_id)
@@ -2756,7 +2842,7 @@ class CompanyResearchService:
             if s.url
         }
 
-        discovery_label = provider if provider in {"internal", "manual", "grok", "both"} else "grok"
+        discovery_label = provider or "grok"
 
         prospect_result = await self.db.execute(
             select(CompanyProspect).where(

@@ -206,6 +206,34 @@ class ExecutiveReviewUpdate(BaseModel):
 
 
 # ============================================================================
+# Discovery Provider Schemas (Phase 9.1)
+# ============================================================================
+
+
+class DiscoveryProviderRunPayload(BaseModel):
+    """Request payload for running a discovery provider."""
+
+    request: Optional[Dict[str, Any]] = None
+
+
+class DiscoveryProviderRunResponse(BaseModel):
+    """Response payload summarizing provider ingestion."""
+
+    source_id: Optional[UUID] = None
+    enrichment_id: Optional[UUID] = None
+    content_hash: Optional[str] = None
+    provider_version: Optional[str] = None
+    companies_new: Optional[int] = None
+    companies_existing: Optional[int] = None
+    evidence_created: Optional[int] = None
+    urls_created: Optional[int] = None
+    urls_existing: Optional[int] = None
+    skipped: Optional[bool] = None
+    reason: Optional[str] = None
+    ingest_stats: Optional[Dict[str, Any]] = None
+
+
+# ============================================================================
 # Company Prospect Evidence Schemas
 # ============================================================================
 
