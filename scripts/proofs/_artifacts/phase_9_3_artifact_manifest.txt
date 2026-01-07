@@ -1,0 +1,27 @@
+Phase 9.3 Artifact Manifest
+
+Artifacts
+- scripts/proofs/_artifacts/phase_9_3_preflight.txt
+- scripts/proofs/_artifacts/phase_9_3_openapi_before.json
+- scripts/proofs/_artifacts/phase_9_3_discovery_notes.txt
+- scripts/proofs/_artifacts/phase_9_3_openapi_after.json
+- scripts/proofs/_artifacts/phase_9_3_openapi_after_excerpt.txt
+- scripts/proofs/_artifacts/phase_9_3_proof.txt
+- scripts/proofs/_artifacts/phase_9_3_proof_console.txt
+- scripts/proofs/_artifacts/phase_9_3_first_call.json
+- scripts/proofs/_artifacts/phase_9_3_second_call.json
+- scripts/proofs/_artifacts/phase_9_3_db_excerpt.txt
+- scripts/proofs/_artifacts/phase_9_3_release_notes.md
+- scripts/proofs/_artifacts/phase_9_3_signoff_checklist.txt
+- scripts/proofs/_artifacts/phase_9_3_git_status_before_commit.txt
+- scripts/proofs/_artifacts/phase_9_3_git_diff_stat.txt
+- scripts/proofs/_artifacts/phase_9_3_git_log_before_commit.txt
+- scripts/proofs/_artifacts/phase_9_3_commit.txt
+- scripts/proofs/_artifacts/phase_9_3_tag.txt
+- scripts/proofs/_artifacts/phase_9_3_push.txt
+- scripts/proofs/_artifacts/phase_9_3_git_after.txt
+
+Fixture + Proof Harness
+- scripts/proofs/fixtures/phase_9_3_google_cse_fixture.json
+- scripts/proofs/phase_9_3_preflight.py
+- scripts/proofs/phase_9_3_google_search_provider_proof.py

@@ -7,5 +7,5 @@ Phase 9.3 Signoff Checklist
 [ x ] Proof PASS (2-pass idempotency) -> phase_9_3_proof.txt and console, first/second calls, DB excerpt
 [ x ] OpenAPI after captured -> phase_9_3_openapi_after.json + excerpt
 [ x ] Git evidence before commit captured
-[   ] Commit/tag/push completed
-[   ] Artifact manifest updated
+[ x ] Commit/tag/push completed
+[ x ] Artifact manifest updated
