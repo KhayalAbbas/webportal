@@ -1,0 +1,29 @@
+{
+  "body": {
+    "company_summaries": [],
+    "eligible_company_count": 1,
+    "external_result": {
+      "company_summaries": [],
+      "eligible_company_count": 1,
+      "enrichment_id": "eb55ac63-42a8-416c-b4da-b67a0d02e90a",
+      "ingest_stats": {
+        "companies_targeted": 0,
+        "evidence_created": 0,
+        "executives_existing": 0,
+        "executives_new": 0,
+        "urls_created": 0,
+        "urls_existing": 0
+      },
+      "processed_company_count": 1,
+      "reason": "duplicate_hash",
+      "request_source_id": "c74c93ce-f15d-43ec-8988-757e3969ec88",
+      "skipped": true,
+      "source_id": "f7ee9927-c04a-4243-b893-389b1507541a"
+    },
+    "internal_result": null,
+    "mode": "external",
+    "processed_company_count": 1,
+    "skipped": null
+  },
+  "status": 200
+}

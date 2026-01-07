@@ -237,7 +237,7 @@ class ExecutiveDiscoveryRunPayload(BaseModel):
 class ExecutiveEligibilityItem(BaseModel):
     id: UUID
     name_normalized: str
-    status: str
+    review_status: str
     exec_search_enabled: bool
 
 
@@ -661,7 +661,7 @@ async def list_executive_discovery_eligible(
         ExecutiveEligibilityItem(
             id=prospect.id,
             name_normalized=prospect.name_normalized,
-            status=prospect.status,
+            review_status=prospect.review_status,
             exec_search_enabled=prospect.exec_search_enabled,
         )
         for prospect in eligible
@@ -2053,6 +2053,7 @@ async def update_prospect_review_status(
             tenant_id=current_user.tenant_id,
             prospect_id=prospect_id,
             review_status=data.review_status,
+            exec_search_enabled=data.exec_search_enabled,
             actor=current_user.email or current_user.username or "system",
         )
     except ValueError:

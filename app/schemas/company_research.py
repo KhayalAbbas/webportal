@@ -191,6 +191,7 @@ class CompanyProspectReviewUpdate(BaseModel):
     """Schema for updating a prospect's review gate status."""
 
     review_status: str = Field(..., max_length=50)
+    exec_search_enabled: Optional[bool] = None
 
 
 class ExecutiveVerificationUpdate(BaseModel):

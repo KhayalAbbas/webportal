@@ -1,0 +1,5 @@
+OpenAPI discovery (phase 9.5)
+- Company prospects list for a run: /company-research/runs/{run_id}/prospects (GET) with filters: status, min_relevance_score, review_status, verification_status, discovered_by, exec_search_enabled, order_by, limit, offset
+- Prospect review update (PATCH): /company-research/prospects/{prospect_id}/review-status request body schema: CompanyProspectReviewUpdate (fields: review_status required, exec_search_enabled optional)
+- Executive eligibility endpoint: /company-research/runs/{run_id}/executive-discovery/eligible (GET) returns items with id, name_normalized, review_status, exec_search_enabled
+- Executive discovery trigger: /company-research/runs/{run_id}/executive-discovery/run (POST) supports mode internal|external|both and routes through gating

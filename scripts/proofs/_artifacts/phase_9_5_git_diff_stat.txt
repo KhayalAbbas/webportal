@@ -1,0 +1,6 @@
+﻿ app/routers/company_research.py                   |  5 ++-
+ app/schemas/company_research.py                   |  1 +
+ app/services/company_research_service.py          | 19 +++++++--
+ app/ui/routes/company_research.py                 |  4 +-
+ app/ui/templates/company_research_run_detail.html | 49 ++++++++++++++++++++++-
+ 5 files changed, 70 insertions(+), 8 deletions(-)

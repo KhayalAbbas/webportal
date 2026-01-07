@@ -527,6 +527,7 @@ class CompanyResearchService:
         tenant_id: str,
         prospect_id: UUID,
         review_status: str,
+        exec_search_enabled: Optional[bool] = None,
         actor: Optional[str] = None,
     ) -> Optional[CompanyProspect]:
         """Update review_status with deterministic audit logging."""
@@ -539,17 +540,29 @@ class CompanyResearchService:
             return None
 
         old_status = getattr(prospect, "review_status", "new")
-        if old_status == review_status:
+        exec_enabled_change = exec_search_enabled is not None and prospect.exec_search_enabled != exec_search_enabled
+
+        if old_status == review_status and not exec_enabled_change:
             return prospect
 
         prospect.review_status = review_status
+
+        # Disable exec search when the review gate is not accepted to keep eligibility consistent.
+        if review_status != "accepted":
+            prospect.exec_search_enabled = False
+        elif exec_search_enabled is not None:
+            prospect.exec_search_enabled = exec_search_enabled
 
         self.db.add(
             ActivityLog(
                 tenant_id=tenant_id,
                 role_id=prospect.role_mandate_id,
                 type="PROSPECT_REVIEW_STATUS",
-                message=f"prospect_id={prospect_id} run_id={prospect.company_research_run_id} review_status {old_status}->{review_status}",
+                message=(
+                    f"prospect_id={prospect_id} run_id={prospect.company_research_run_id} "
+                    f"review_status {old_status}->{review_status} "
+                    f"exec_search_enabled {prospect.exec_search_enabled}"
+                ),
                 created_by=actor or "system",
             )
         )
@@ -3258,7 +3271,7 @@ class CompanyResearchService:
                 CompanyProspect.tenant_id == tenant_id,
                 CompanyProspect.company_research_run_id == run_id,
                 CompanyProspect.exec_search_enabled.is_(True),
-                CompanyProspect.status == "accepted",
+                CompanyProspect.review_status == "accepted",
             )
         )
         return list(result.scalars().all())

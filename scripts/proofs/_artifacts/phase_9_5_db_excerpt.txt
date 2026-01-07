@@ -1,0 +1,44 @@
+Prospects (review_status, exec_search_enabled):
+{
+  "exec_search_enabled": true,
+  "id": "838c6fa3-db76-485b-b9ec-d5d51590776f",
+  "name_normalized": "atlas robotics",
+  "review_status": "accepted"
+}
+{
+  "exec_search_enabled": false,
+  "id": "85628bfd-3c78-4aa3-a78f-1af0f6af97f2",
+  "name_normalized": "helio labs",
+  "review_status": "hold"
+}
+ActivityLog PROSPECT_REVIEW_STATUS:
+{
+  "created_at": "2026-01-07 16:05:23.826149+00:00",
+  "message": "prospect_id=68935c61-3541-4d9a-b4ad-b5f642724bf1 run_id=6b245460-d398-4ff3-bedc-d453f3f5b9e0 review_status new->accepted exec_search_enabled True",
+  "type": "PROSPECT_REVIEW_STATUS"
+}
+{
+  "created_at": "2026-01-07 16:05:23.839774+00:00",
+  "message": "prospect_id=82b8f67e-6b8d-46b2-97c9-63cc914de930 run_id=6b245460-d398-4ff3-bedc-d453f3f5b9e0 review_status new->hold exec_search_enabled False",
+  "type": "PROSPECT_REVIEW_STATUS"
+}
+{
+  "created_at": "2026-01-07 16:05:23.926775+00:00",
+  "message": "prospect_id=82b8f67e-6b8d-46b2-97c9-63cc914de930 run_id=6b245460-d398-4ff3-bedc-d453f3f5b9e0 review_status hold->hold exec_search_enabled False",
+  "type": "PROSPECT_REVIEW_STATUS"
+}
+{
+  "created_at": "2026-01-07 16:05:53.723015+00:00",
+  "message": "prospect_id=838c6fa3-db76-485b-b9ec-d5d51590776f run_id=6605e344-6be6-4461-bb13-eb93bf2d5077 review_status new->accepted exec_search_enabled True",
+  "type": "PROSPECT_REVIEW_STATUS"
+}
+{
+  "created_at": "2026-01-07 16:05:53.735112+00:00",
+  "message": "prospect_id=85628bfd-3c78-4aa3-a78f-1af0f6af97f2 run_id=6605e344-6be6-4461-bb13-eb93bf2d5077 review_status new->hold exec_search_enabled False",
+  "type": "PROSPECT_REVIEW_STATUS"
+}
+{
+  "created_at": "2026-01-07 16:05:53.822444+00:00",
+  "message": "prospect_id=85628bfd-3c78-4aa3-a78f-1af0f6af97f2 run_id=6605e344-6be6-4461-bb13-eb93bf2d5077 review_status hold->hold exec_search_enabled False",
+  "type": "PROSPECT_REVIEW_STATUS"
+}

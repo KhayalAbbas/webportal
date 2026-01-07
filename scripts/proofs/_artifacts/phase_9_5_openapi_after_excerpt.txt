@@ -1,0 +1,138 @@
+PATCH /company-research/prospects/{prospect_id}/review-status
+request schema (resolved):
+{
+  "properties": {
+    "review_status": {
+      "type": "string",
+      "maxLength": 50,
+      "title": "Review Status"
+    },
+    "exec_search_enabled": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Exec Search Enabled"
+    }
+  },
+  "type": "object",
+  "required": [
+    "review_status"
+  ],
+  "title": "CompanyProspectReviewUpdate",
+  "description": "Schema for updating a prospect's review gate status."
+}
+GET /company-research/runs/{run_id}/executive-discovery/eligible
+response schema (resolved):
+{
+  "type": "array",
+  "items": {
+    "$ref": "#/components/schemas/ExecutiveEligibilityItem"
+  },
+  "title": "Response List Executive Discovery Eligible Company Research Runs  Run Id  Executive Discovery Eligible Get"
+}
+eligibility item (resolved):
+{
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+    },
+    "name_normalized": {
+      "type": "string",
+      "title": "Name Normalized"
+    },
+    "review_status": {
+      "type": "string",
+      "title": "Review Status"
+    },
+    "exec_search_enabled": {
+      "type": "boolean",
+      "title": "Exec Search Enabled"
+    }
+  },
+  "type": "object",
+  "required": [
+    "id",
+    "name_normalized",
+    "review_status",
+    "exec_search_enabled"
+  ],
+  "title": "ExecutiveEligibilityItem"
+}
+POST /company-research/runs/{run_id}/executive-discovery/run
+request schema (resolved):
+{
+  "properties": {
+    "mode": {
+      "type": "string",
+      "pattern": "^(internal|external|both)$",
+      "title": "Mode",
+      "default": "internal"
+    },
+    "engine": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^(internal|external)$"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Engine",
+      "default": "external"
+    },
+    "title": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Title"
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Provider"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model"
+    },
+    "payload": {
+      "anyOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Payload"
+    }
+  },
+  "type": "object",
+  "title": "ExecutiveDiscoveryRunPayload"
+}

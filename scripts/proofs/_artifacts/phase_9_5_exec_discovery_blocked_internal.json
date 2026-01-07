@@ -1,0 +1,18 @@
+{
+  "body": {
+    "company_summaries": [],
+    "eligible_company_count": 0,
+    "external_result": null,
+    "internal_result": {
+      "company_summaries": [],
+      "eligible_company_count": 0,
+      "processed_company_count": 0,
+      "reason": "no_eligible_companies",
+      "skipped": true
+    },
+    "mode": "internal",
+    "processed_company_count": 0,
+    "skipped": true
+  },
+  "status": 200
+}

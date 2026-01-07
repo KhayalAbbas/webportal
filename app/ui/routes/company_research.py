@@ -383,6 +383,7 @@ async def update_prospect_review_status_ui(
     prospect_id: UUID,
     run_id: UUID = Form(...),
     review_status: str = Form(...),
+    exec_search_enabled: Optional[str] = Form(None),
     redirect_query: Optional[str] = Form(""),
     current_user: UIUser = Depends(get_current_ui_user_and_tenant),
     session: AsyncSession = Depends(get_db),
@@ -395,6 +396,7 @@ async def update_prospect_review_status_ui(
             tenant_id=current_user.tenant_id,
             prospect_id=prospect_id,
             review_status=review_status,
+            exec_search_enabled=(exec_search_enabled == "true") if exec_search_enabled is not None else None,
             actor=current_user.email or current_user.username or "system",
         )
     except ValueError:
@@ -814,7 +816,7 @@ async def company_research_run_detail(
                 {
                     "id": str(prospect.id),
                     "name": prospect.name_normalized,
-                    "status": prospect.status,
+                    "review_status": prospect.review_status,
                     "exec_search_enabled": prospect.exec_search_enabled,
                 }
                 for prospect in eligible_exec_companies

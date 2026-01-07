@@ -1,0 +1,20 @@
+{
+  "body": {
+    "companies_existing": 0,
+    "companies_new": 2,
+    "content_hash": "0e9b4fa785cc38345d266fd449ea878cdee073dfc45838c0b320e86d65205601",
+    "enrichment_id": "65a42a5e-77fb-4855-8bd7-f10751b3f300",
+    "envelope_source_id": null,
+    "error": null,
+    "evidence_created": 6,
+    "ingest_stats": null,
+    "provider_version": "1",
+    "raw_source_id": "5cc66737-31db-44fa-9716-c8c0feec7064",
+    "reason": null,
+    "skipped": null,
+    "source_id": "3e754172-1ec4-4efb-9ed7-b535cf774d4a",
+    "urls_created": 4,
+    "urls_existing": 2
+  },
+  "status": 200
+}

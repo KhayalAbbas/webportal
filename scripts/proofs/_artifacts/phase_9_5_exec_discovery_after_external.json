@@ -1,0 +1,45 @@
+{
+  "body": {
+    "company_summaries": [
+      {
+        "company_name": "atlas robotics",
+        "company_prospect_id": "838c6fa3-db76-485b-b9ec-d5d51590776f",
+        "engine": "external",
+        "evidence_created": 1,
+        "executives_existing": 1,
+        "executives_new": 0,
+        "source": "external"
+      }
+    ],
+    "eligible_company_count": 1,
+    "external_result": {
+      "companies_targeted": 1,
+      "company_summaries": [
+        {
+          "company_name": "atlas robotics",
+          "company_prospect_id": "838c6fa3-db76-485b-b9ec-d5d51590776f",
+          "engine": "external",
+          "evidence_created": 1,
+          "executives_existing": 1,
+          "executives_new": 0
+        }
+      ],
+      "content_hash": "d6c71a6563af037ed979f08584564b146116352bb30e5459656844280b0b1365",
+      "eligible_company_count": 1,
+      "enrichment_id": "eb55ac63-42a8-416c-b4da-b67a0d02e90a",
+      "evidence_created": 1,
+      "executives_existing": 1,
+      "executives_new": 0,
+      "processed_company_count": 1,
+      "request_source_id": "c74c93ce-f15d-43ec-8988-757e3969ec88",
+      "source_id": "f7ee9927-c04a-4243-b893-389b1507541a",
+      "urls_created": 1,
+      "urls_existing": 0
+    },
+    "internal_result": null,
+    "mode": "external",
+    "processed_company_count": 1,
+    "skipped": null
+  },
+  "status": 200
+}

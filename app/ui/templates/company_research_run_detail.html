@@ -209,7 +209,7 @@
                 {% for c in eligible_exec_companies %}
                     <li style="margin-bottom: 6px;">
                         <strong>{{ c.name }}</strong>
-                        <span class="badge" style="margin-left: 6px; background: #e6f4ea; color: #1a7f37;">{{ c.status }}</span>
+                        <span class="badge" style="margin-left: 6px; background: #e6f4ea; color: #1a7f37;">{{ c.review_status }}</span>
                     </li>
                 {% endfor %}
                 </ul>
@@ -511,6 +511,7 @@
             <th style="width: 80px; text-align: center;">My Rank</th>
             <th style="width: 100px; text-align: center;">Evidence Count</th>
             <th style="width: 100px; text-align: center;">Status</th>
+            <th style="width: 180px; text-align: center;">Review &amp; Exec</th>
             <th style="width: 80px;">Actions</th>
         </tr>
     </thead>
@@ -590,6 +591,50 @@
                     <option value="duplicate" {% if prospect.status == 'duplicate' %}selected{% endif %}>Duplicate</option>
                 </select>
             </td>
+
+            <!-- Review Gate + Exec Search Controls -->
+            <td style="text-align: center; font-size: 12px;">
+                {% set review_badge_color = '#6c757d' %}
+                {% if prospect.review_status == 'accepted' %}
+                    {% set review_badge_color = '#198754' %}
+                {% elif prospect.review_status == 'hold' %}
+                    {% set review_badge_color = '#f0ad4e' %}
+                {% elif prospect.review_status == 'rejected' %}
+                    {% set review_badge_color = '#dc3545' %}
+                {% endif %}
+                <div style="margin-bottom: 4px;">
+                    <span class="badge" style="background: {{ review_badge_color }}; color: white; padding: 4px 8px;">{{ prospect.review_status or 'new' }}</span>
+                </div>
+                <div style="font-size: 11px; color: #333; margin-bottom: 6px;">Exec search: {{ 'On' if prospect.exec_search_enabled else 'Off' }}</div>
+                <div style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;">
+                    <form method="post" action="/ui/company-research/prospects/{{ prospect.id }}/review-status" style="margin: 0;">
+                        <input type="hidden" name="run_id" value="{{ run.id }}" />
+                        <input type="hidden" name="review_status" value="accepted" />
+                        <input type="hidden" name="exec_search_enabled" value="true" />
+                        <button type="submit" class="btn btn-primary" style="padding: 4px 8px; font-size: 11px;">Accept</button>
+                    </form>
+                    <form method="post" action="/ui/company-research/prospects/{{ prospect.id }}/review-status" style="margin: 0;">
+                        <input type="hidden" name="run_id" value="{{ run.id }}" />
+                        <input type="hidden" name="review_status" value="hold" />
+                        <input type="hidden" name="exec_search_enabled" value="false" />
+                        <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;">Hold</button>
+                    </form>
+                    <form method="post" action="/ui/company-research/prospects/{{ prospect.id }}/review-status" style="margin: 0;">
+                        <input type="hidden" name="run_id" value="{{ run.id }}" />
+                        <input type="hidden" name="review_status" value="rejected" />
+                        <input type="hidden" name="exec_search_enabled" value="false" />
+                        <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 11px;">Reject</button>
+                    </form>
+                    {% if prospect.review_status == 'accepted' %}
+                    <form method="post" action="/ui/company-research/prospects/{{ prospect.id }}/review-status" style="margin: 0;">
+                        <input type="hidden" name="run_id" value="{{ run.id }}" />
+                        <input type="hidden" name="review_status" value="accepted" />
+                        <input type="hidden" name="exec_search_enabled" value="{{ 'false' if prospect.exec_search_enabled else 'true' }}" />
+                        <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;">Exec {{ 'Off' if prospect.exec_search_enabled else 'On' }}</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </td>
             
             <!-- Actions -->
             <td>
@@ -601,7 +646,7 @@
         
         <!-- Evidence Details Row (Initially Hidden) -->
         <tr id="evidence-{{ prospect.id }}" style="display: none; background: #f8f9fa;">
-            <td colspan="{% if selected_metric_key %}9{% else %}8{% endif %}" style="padding: 15px;">
+            <td colspan="{% if selected_metric_key %}10{% else %}9{% endif %}" style="padding: 15px;">
                 <div style="border-left: 3px solid #007bff; padding-left: 15px;">
                     <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #007bff;">Evidence Details</h4>
                     {% if prospect.evidence_details %}

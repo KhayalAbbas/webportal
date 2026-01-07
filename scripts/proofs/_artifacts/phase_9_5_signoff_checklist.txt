@@ -1,0 +1,8 @@
+Phase 9.5 Signoff Checklist
+- Eligibility before accept/enable empty and exec discovery blocked/skipped
+- After accept+enable eligibility contains only accepted+enabled prospects
+- Hold/reject forces exec_search_enabled=false
+- Second pass idempotent (no drift on rerun)
+- OpenAPI before/after captured
+- DB excerpt captured
+- All artifacts stored under scripts/proofs/_artifacts/
