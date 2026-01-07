@@ -578,6 +578,10 @@ class CompanyResearchRepository:
     ) -> List[ExecutiveProspect]:
         result = await self.db.execute(
             select(ExecutiveProspect)
+            .options(
+                selectinload(ExecutiveProspect.evidence),
+                selectinload(ExecutiveProspect.company_prospect),
+            )
             .where(
                 ExecutiveProspect.tenant_id == tenant_id,
                 ExecutiveProspect.company_research_run_id == run_id,

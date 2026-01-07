@@ -1287,8 +1287,10 @@ async def create_executive_pipeline(
         )
     except ValueError as exc:  # noqa: BLE001
         msg = str(exc)
-        if msg == "review_status_not_accepted":
+        if msg in {"review_status_not_accepted", "canonical_not_accepted"}:
             raise_app_error(409, "EXEC_NOT_ACCEPTED", "Executive must be accepted before ATS promotion")
+        if msg == "canonical_not_found":
+            raise_app_error(404, "CANONICAL_NOT_FOUND", "Canonical executive not found for promotion")
         if msg == "prospect_missing":
             raise_app_error(404, "PROSPECT_NOT_FOUND", "Company prospect not found for executive")
         if msg == "role_missing":

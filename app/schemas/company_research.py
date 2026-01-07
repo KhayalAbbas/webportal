@@ -608,9 +608,37 @@ class ExecutivePipelineCreate(BaseModel):
     role_id: Optional[UUID] = None
 
 
+class ExecutivePipelineResult(BaseModel):
+    """Per-executive pipeline promotion outcome with canonical metadata."""
+
+    requested_executive_id: UUID
+    canonical_executive_id: UUID
+    candidate_id: UUID
+    contact_id: Optional[UUID] = None
+    assignment_id: UUID
+    role_id: UUID
+    pipeline_stage_id: Optional[UUID] = None
+    pipeline_stage_name: Optional[str] = None
+    assignment_status: Optional[str] = None
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+    research_event_id: UUID
+    source_document_id: UUID
+    review_status: str
+    idempotent: bool = False
+    resolution_sources: List[str] = Field(default_factory=list)
+    component_size: int = 1
+    resolved_to_canonical: bool = False
+    outcome: Literal["created", "reused"]
+    reuse_reason: Optional[str] = None
+    component_executive_ids: List[UUID] = Field(default_factory=list)
+
+
 class ExecutivePipelineCreateResponse(BaseModel):
     """Response payload summarizing pipeline objects created from an executive prospect."""
 
+    promoted_count: int = 0
+    reused_count: int = 0
+    results: List[ExecutivePipelineResult] = Field(default_factory=list)
     candidate_id: UUID
     contact_id: Optional[UUID] = None
     assignment_id: UUID

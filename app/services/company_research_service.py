@@ -75,8 +75,9 @@ from app.schemas.company_research import (
     PackMergeDecision,
     PackAuditEvent,
     PackAuditSummary,
-    ResearchEventCreate,
+    ResearchEventCreate as RunResearchEventCreate,
 )
+from app.schemas.research_event import ResearchEventCreate as EventResearchEventCreate
 from app.schemas.source_document import SourceDocumentCreate as ResearchEventSourceDocumentCreate
 from app.schemas.candidate import CandidateCreate
 from app.schemas.contact import ContactCreate
@@ -691,6 +692,77 @@ class CompanyResearchService:
 
         return None, None
 
+    def _canonical_exec_sort_key(self, exec_row: ExecutiveProspect) -> tuple[datetime, str]:
+        created = exec_row.created_at or datetime.max.replace(tzinfo=timezone.utc)
+        return created, str(exec_row.id)
+
+    def _walk_exec_component(
+        self,
+        start_id: UUID,
+        neighbors: dict[UUID, list[tuple[UUID, str]]],
+    ) -> tuple[list[UUID], set[str]]:
+        stack = [start_id]
+        visited: set[UUID] = set()
+        component: list[UUID] = []
+        sources: set[str] = set()
+
+        while stack:
+            node = stack.pop()
+            if node in visited:
+                continue
+            visited.add(node)
+            component.append(node)
+            for neighbor, source in neighbors.get(node, []):
+                sources.add(source)
+                if neighbor not in visited:
+                    stack.append(neighbor)
+
+        return component, sources
+
+    async def _build_exec_canonical_maps(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> tuple[dict[UUID, UUID], dict[UUID, list[UUID]], dict[UUID, set[str]], dict[UUID, ExecutiveProspect]]:
+        exec_rows = await self.repo.list_executive_prospects_for_run(tenant_id, run_id)
+        exec_map: dict[UUID, ExecutiveProspect] = {row.id: row for row in exec_rows}
+
+        neighbors: dict[UUID, list[tuple[UUID, str]]] = defaultdict(list)
+
+        entity_links = await self.repo.list_entity_merge_links_for_run(
+            tenant_id,
+            run_id,
+            entity_type="executive",
+        )
+        for link in entity_links:
+            neighbors[link.canonical_entity_id].append((link.duplicate_entity_id, "entity_resolution"))
+            neighbors[link.duplicate_entity_id].append((link.canonical_entity_id, "entity_resolution"))
+
+        decisions = await self.repo.list_merge_decisions_for_run(tenant_id, run_id)
+        for dec in decisions:
+            if dec.decision_type != "mark_same":
+                continue
+            neighbors[dec.left_executive_id].append((dec.right_executive_id, "merge_decision"))
+            neighbors[dec.right_executive_id].append((dec.left_executive_id, "merge_decision"))
+
+        canonical_map: dict[UUID, UUID] = {}
+        component_map: dict[UUID, list[UUID]] = {}
+        source_map: dict[UUID, set[str]] = {}
+        visited: set[UUID] = set()
+
+        for exec_id in exec_map.keys():
+            if exec_id in visited:
+                continue
+            component, sources = self._walk_exec_component(exec_id, neighbors)
+            visited.update(component)
+            canonical_id = min(component, key=lambda eid: self._canonical_exec_sort_key(exec_map[eid]))
+            for member in component:
+                canonical_map[member] = canonical_id
+                component_map[member] = component
+                source_map[member] = sources or ({"self"} if canonical_id == member else set())
+
+        return canonical_map, component_map, source_map, exec_map
+
     async def create_executive_pipeline(
         self,
         tenant_id: str,
@@ -704,12 +776,31 @@ class CompanyResearchService:
     ) -> Optional[dict]:
         """Create ATS candidate/contact/assignment from an accepted executive prospect with audit/evidence."""
 
-        executive = await self.repo.get_executive_prospect(tenant_id, executive_id)
+        requested_exec_id = executive_id
+        executive = await self.repo.get_executive_prospect(tenant_id, requested_exec_id)
         if not executive:
             return None
 
+        canonical_map, component_map, source_map, exec_map = await self._build_exec_canonical_maps(
+            tenant_id,
+            executive.company_research_run_id,
+        )
+
+        canonical_exec_id = canonical_map.get(executive.id, executive.id)
+        component_ids = component_map.get(executive.id, [executive.id])
+        resolution_sources = source_map.get(executive.id, {"self"})
+        if not resolution_sources:
+            resolution_sources = {"self"}
+        resolved_to_canonical = canonical_exec_id != executive.id
+
+        canonical_exec = exec_map.get(canonical_exec_id)
+        if not canonical_exec:
+            raise ValueError("canonical_not_found")
+
+        executive = canonical_exec
+
         if getattr(executive, "review_status", "new") != "accepted":
-            raise ValueError("review_status_not_accepted")
+            raise ValueError("canonical_not_accepted")
 
         prospect = getattr(executive, "company_prospect", None)
         if not prospect:
@@ -738,6 +829,18 @@ class CompanyResearchService:
         contact_repo = ContactRepository(self.db)
         assignment_repo = CandidateAssignmentRepository(self.db)
 
+        component_execs = [exec_map[eid] for eid in component_ids if eid in exec_map]
+        existing_candidate_id = next((e.candidate_id for e in component_execs if getattr(e, "candidate_id", None)), None)
+        existing_contact_id = next((e.contact_id for e in component_execs if getattr(e, "contact_id", None)), None)
+        existing_assignment_id = next((e.candidate_assignment_id for e in component_execs if getattr(e, "candidate_assignment_id", None)), None)
+
+        if existing_candidate_id and not getattr(executive, "candidate_id", None):
+            executive.candidate_id = existing_candidate_id
+        if existing_contact_id and not getattr(executive, "contact_id", None):
+            executive.contact_id = existing_contact_id
+        if existing_assignment_id and not getattr(executive, "candidate_assignment_id", None):
+            executive.candidate_assignment_id = existing_assignment_id
+
         evidence_ids: list[UUID] = []
         if executive.source_document_id:
             evidence_ids.append(executive.source_document_id)
@@ -746,7 +849,7 @@ class CompanyResearchService:
                 evidence_ids.append(ev.source_document_id)
         evidence_ids = list(dict.fromkeys(evidence_ids))
 
-        # Idempotency path: reuse existing pipeline artifacts tied to this executive.
+        component_exec_id_text = [str(eid) for eid in component_ids]
         payload_exec_id = ResearchEvent.raw_payload["executive_id"].astext
         existing_event_row = await self.db.execute(
             select(ResearchEvent, SourceDocument.id)
@@ -755,7 +858,7 @@ class CompanyResearchService:
                 ResearchEvent.tenant_id == tenant_uuid,
                 ResearchEvent.source_type == "executive_review",
                 ResearchEvent.entity_type == "CANDIDATE",
-                payload_exec_id == str(executive_id),
+                payload_exec_id.in_(component_exec_id_text),
             )
             .order_by(ResearchEvent.created_at.asc(), SourceDocument.created_at.asc())
         )
@@ -764,6 +867,11 @@ class CompanyResearchService:
         if existing:
             research_event, source_document_id = existing
             payload = research_event.raw_payload or {}
+
+            prior_requested_id = payload.get("requested_executive_id")
+            reuse_reason = "existing_pipeline_event"
+            if prior_requested_id and str(prior_requested_id) != str(requested_exec_id):
+                reuse_reason = "component_member_reuse"
 
             candidate_id = research_event.entity_id
             contact_id_text = payload.get("contact_id")
@@ -805,7 +913,6 @@ class CompanyResearchService:
             if pipeline_stage_uuid:
                 stage_lookup_id, stage_lookup_name = await self._resolve_pipeline_stage(tenant_uuid, pipeline_stage_uuid)
 
-            # Persist back-links for idempotency if missing
             if candidate_id and not getattr(executive, "candidate_id", None):
                 executive.candidate_id = candidate_id
             if contact_uuid and not getattr(executive, "contact_id", None):
@@ -814,7 +921,9 @@ class CompanyResearchService:
                 executive.candidate_assignment_id = assignment.id
             await self.db.flush()
 
-            return {
+            result_entry = {
+                "requested_executive_id": requested_exec_id,
+                "canonical_executive_id": executive.id,
                 "candidate_id": candidate_id,
                 "contact_id": contact_uuid,
                 "assignment_id": assignment.id if assignment else assignment_uuid,
@@ -827,12 +936,38 @@ class CompanyResearchService:
                 "source_document_id": source_document_id,
                 "review_status": getattr(executive, "review_status", "new"),
                 "idempotent": True,
+                "resolution_sources": sorted(resolution_sources),
+                "component_size": len(component_ids),
+                "component_executive_ids": component_ids,
+                "resolved_to_canonical": resolved_to_canonical,
+                "outcome": "reused",
+                "reuse_reason": reuse_reason,
+            }
+
+            return {
+                "promoted_count": 0,
+                "reused_count": 1,
+                "results": [result_entry],
+                "candidate_id": result_entry["candidate_id"],
+                "contact_id": result_entry["contact_id"],
+                "assignment_id": result_entry["assignment_id"],
+                "role_id": result_entry["role_id"],
+                "pipeline_stage_id": result_entry["pipeline_stage_id"],
+                "pipeline_stage_name": result_entry["pipeline_stage_name"],
+                "assignment_status": result_entry["assignment_status"],
+                "evidence_source_document_ids": result_entry["evidence_source_document_ids"],
+                "research_event_id": result_entry["research_event_id"],
+                "source_document_id": result_entry["source_document_id"],
+                "review_status": result_entry["review_status"],
+                "idempotent": True,
             }
 
         # Creation path
         candidate = None
         if getattr(executive, "candidate_id", None):
             candidate = await candidate_repo.get_by_id(tenant_id, executive.candidate_id)
+        elif existing_candidate_id:
+            candidate = await candidate_repo.get_by_id(tenant_id, existing_candidate_id)
 
         if not candidate:
             candidate = await candidate_repo.create(
@@ -852,6 +987,8 @@ class CompanyResearchService:
         contact = None
         if getattr(executive, "contact_id", None):
             contact = await contact_repo.get_by_id(tenant_id, executive.contact_id)
+        elif existing_contact_id:
+            contact = await contact_repo.get_by_id(tenant_id, existing_contact_id)
         elif company_id:
             contact = await contact_repo.create(
                 tenant_id,
@@ -863,7 +1000,7 @@ class CompanyResearchService:
                     email=executive.email,
                     role_title=executive.title,
                     notes=(
-                        f"Created from executive prospect {executive_id} "
+                        f"Created from executive prospect {executive.id} "
                         f"for run {executive.company_research_run_id}"
                     ),
                 ),
@@ -872,6 +1009,8 @@ class CompanyResearchService:
         assignment = None
         if getattr(executive, "candidate_assignment_id", None):
             assignment = await assignment_repo.get_by_id(tenant_id, executive.candidate_assignment_id)
+        elif existing_assignment_id:
+            assignment = await assignment_repo.get_by_id(tenant_id, existing_assignment_id)
 
         if not assignment:
             assignment = await assignment_repo.get_by_candidate_and_role(
@@ -907,14 +1046,16 @@ class CompanyResearchService:
         research_event_repo = ResearchEventRepository(self.db)
         research_event = await research_event_repo.create(
             tenant_uuid,
-            ResearchEventCreate(
+            EventResearchEventCreate(
                 tenant_id=tenant_uuid,
                 source_type="executive_review",
                 source_url=executive.profile_url or executive.linkedin_url,
                 entity_type="CANDIDATE",
                 entity_id=candidate.id,
                 raw_payload={
-                    "executive_id": str(executive_id),
+                    "requested_executive_id": str(requested_exec_id),
+                    "executive_id": str(executive.id),
+                    "canonical_executive_id": str(executive.id),
                     "company_prospect_id": str(executive.company_prospect_id),
                     "company_research_run_id": str(executive.company_research_run_id),
                     "role_mandate_id": str(resolved_role_id) if resolved_role_id else None,
@@ -928,6 +1069,8 @@ class CompanyResearchService:
                     "provenance": getattr(executive, "discovered_by", None),
                     "evidence_source_document_ids": [str(eid) for eid in evidence_ids],
                     "source_document_id": str(executive.source_document_id) if executive.source_document_id else None,
+                    "component_executive_ids": component_exec_id_text,
+                    "resolution_sources": sorted(resolution_sources),
                 },
             ),
         )
@@ -945,12 +1088,15 @@ class CompanyResearchService:
                 url=executive.profile_url or executive.linkedin_url,
                 text_content=json.dumps(
                     {
-                        "executive_id": str(executive_id),
+                        "requested_executive_id": str(requested_exec_id),
+                        "executive_id": str(executive.id),
                         "candidate_id": str(candidate.id),
                         "assignment_id": str(assignment.id),
                         "evidence_source_document_ids": [str(eid) for eid in evidence_ids],
                         "pipeline_stage_id": str(stage_lookup_id) if stage_lookup_id else None,
                         "pipeline_stage_name": stage_lookup_name,
+                        "component_executive_ids": component_exec_id_text,
+                        "resolution_sources": sorted(resolution_sources),
                     },
                     sort_keys=True,
                 ),
@@ -964,6 +1110,7 @@ class CompanyResearchService:
                     "executive_evidence_source_document_ids": [str(eid) for eid in evidence_ids],
                     "pipeline_stage_id": str(stage_lookup_id) if stage_lookup_id else None,
                     "pipeline_stage_name": stage_lookup_name,
+                    "resolution_sources": sorted(resolution_sources),
                 },
             ),
         )
@@ -971,6 +1118,17 @@ class CompanyResearchService:
         executive.candidate_id = candidate.id
         executive.contact_id = getattr(contact, "id", None)
         executive.candidate_assignment_id = assignment.id
+
+        for member_id in component_ids:
+            member_exec = exec_map.get(member_id)
+            if not member_exec:
+                continue
+            if not getattr(member_exec, "candidate_id", None):
+                member_exec.candidate_id = candidate.id
+            if contact and not getattr(member_exec, "contact_id", None):
+                member_exec.contact_id = contact.id
+            if not getattr(member_exec, "candidate_assignment_id", None):
+                member_exec.candidate_assignment_id = assignment.id
 
         evidence_text = "|".join(str(eid) for eid in evidence_ids)
 
@@ -982,7 +1140,7 @@ class CompanyResearchService:
                 contact_id=getattr(contact, "id", None),
                 type="EXECUTIVE_PIPELINE_CREATE",
                 message=(
-                    f"executive_id={executive_id} candidate_id={candidate.id} "
+                    f"executive_id={executive.id} candidate_id={candidate.id} "
                     f"assignment_id={assignment.id} role_id={resolved_role_id} stage_id={stage_lookup_id} "
                     f"stage_name={stage_lookup_name or ''} evidence_ids={evidence_text}"
                 ),
@@ -1008,7 +1166,9 @@ class CompanyResearchService:
 
         await self.db.flush()
 
-        return {
+        result_entry = {
+            "requested_executive_id": requested_exec_id,
+            "canonical_executive_id": executive.id,
             "candidate_id": candidate.id,
             "contact_id": getattr(contact, "id", None),
             "assignment_id": assignment.id,
@@ -1020,6 +1180,30 @@ class CompanyResearchService:
             "research_event_id": research_event.id,
             "source_document_id": source_document.id,
             "review_status": getattr(executive, "review_status", "new"),
+            "idempotent": False,
+            "resolution_sources": sorted(resolution_sources),
+            "component_size": len(component_ids),
+            "resolved_to_canonical": resolved_to_canonical,
+            "outcome": "created",
+            "reuse_reason": None,
+            "component_executive_ids": component_ids,
+        }
+
+        return {
+            "promoted_count": 1,
+            "reused_count": 0,
+            "results": [result_entry],
+            "candidate_id": result_entry["candidate_id"],
+            "contact_id": result_entry["contact_id"],
+            "assignment_id": result_entry["assignment_id"],
+            "role_id": result_entry["role_id"],
+            "pipeline_stage_id": result_entry["pipeline_stage_id"],
+            "pipeline_stage_name": result_entry["pipeline_stage_name"],
+            "assignment_status": result_entry["assignment_status"],
+            "evidence_source_document_ids": result_entry["evidence_source_document_ids"],
+            "research_event_id": result_entry["research_event_id"],
+            "source_document_id": result_entry["source_document_id"],
+            "review_status": result_entry["review_status"],
             "idempotent": False,
         }
     
@@ -3894,7 +4078,7 @@ class CompanyResearchService:
         except Exception as exc:  # noqa: BLE001
             await self.repo.create_research_event(
                 tenant_id=tenant_id,
-                data=ResearchEventCreate(
+                data=RunResearchEventCreate(
                     company_research_run_id=run_id,
                     event_type="entity_resolution",
                     status="failed",
@@ -3938,7 +4122,7 @@ class CompanyResearchService:
 
         await self.repo.create_research_event(
             tenant_id=tenant_id,
-            data=ResearchEventCreate(
+            data=RunResearchEventCreate(
                 company_research_run_id=run_id,
                 event_type="entity_resolution",
                 status=status,
@@ -3995,7 +4179,7 @@ class CompanyResearchService:
 
         await self.repo.create_research_event(
             tenant_id=tenant_id,
-            data=ResearchEventCreate(
+            data=RunResearchEventCreate(
                 company_research_run_id=run_id,
                 event_type="canonical_people_resolution",
                 status="ok",
@@ -4062,7 +4246,7 @@ class CompanyResearchService:
 
         await self.repo.create_research_event(
             tenant_id=tenant_id,
-            data=ResearchEventCreate(
+            data=RunResearchEventCreate(
                 company_research_run_id=run_id,
                 event_type="canonical_company_resolution",
                 status="ok",
