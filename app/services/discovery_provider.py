@@ -6,12 +6,23 @@ Defines a registry of discovery providers, including deterministic and seed list
 
 import csv
 import json
+import os
+import time
 from dataclasses import dataclass
 from io import StringIO
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
-from app.schemas.company_research import SeedListProviderRequest, SeedListItem, SeedListEvidence
+import httpx
+
+from app.core.config import settings
+from app.schemas.company_research import (
+    GoogleSearchProviderRequest,
+    SeedListProviderRequest,
+    SeedListItem,
+    SeedListEvidence,
+)
 from app.schemas.llm_discovery import LlmDiscoveryPayload, LlmCompany, LlmEvidence, LlmRunContext
 from app.utils.url_canonicalizer import canonicalize_url
 
@@ -20,12 +31,14 @@ from app.utils.url_canonicalizer import canonicalize_url
 class DiscoveryProviderResult:
     """Structured result returned by a discovery provider."""
 
-    payload: LlmDiscoveryPayload
+    payload: Optional[LlmDiscoveryPayload]
     provider: str
     model: Optional[str] = None
     version: str = "1"
     raw_input_text: Optional[str] = None
     raw_input_meta: Optional[dict[str, Any]] = None
+    envelope: Optional[dict[str, Any]] = None
+    error: Optional[dict[str, Any]] = None
 
 
 class DiscoveryProvider:
@@ -263,6 +276,240 @@ class SeedListProvider(DiscoveryProvider):
         )
 
 
+class GoogleSearchProvider(DiscoveryProvider):
+    """Google Custom Search JSON API backed discovery provider."""
+
+    key = "google_search"
+    version = "1"
+    endpoint = "https://www.googleapis.com/customsearch/v1"
+
+    def __init__(self, *, fetcher: Optional[Callable[[str, dict[str, Any]], tuple[int, dict, dict]]] = None, sleeper: Optional[Callable[[float], None]] = None):
+        self.fetcher = fetcher or self._http_fetch
+        self.sleeper = sleeper or time.sleep
+
+    def _normalize_params(self, request: GoogleSearchProviderRequest | dict[str, Any] | None) -> GoogleSearchProviderRequest:
+        return GoogleSearchProviderRequest.model_validate(request or {})
+
+    def _canonical_params(self, request_obj: GoogleSearchProviderRequest) -> dict[str, Any]:
+        num_results = request_obj.num_results or 3
+        num_results = max(1, min(num_results, 10))
+        params: dict[str, Any] = {"query": request_obj.query, "num_results": num_results}
+        if request_obj.country:
+            params["country"] = request_obj.country
+        if request_obj.language:
+            params["language"] = request_obj.language
+        if request_obj.site_filter:
+            params["site_filter"] = request_obj.site_filter
+        return params
+
+    def _build_query_params(self, canonical_params: dict[str, Any], api_key: str, cx: str) -> dict[str, Any]:
+        params = {
+            "q": canonical_params["query"],
+            "num": canonical_params["num_results"],
+            "key": api_key,
+            "cx": cx,
+        }
+        if canonical_params.get("country"):
+            params["gl"] = canonical_params["country"]
+        if canonical_params.get("language"):
+            params["lr"] = f"lang_{canonical_params['language']}"
+        if canonical_params.get("site_filter"):
+            params["siteSearch"] = canonical_params["site_filter"]
+        return params
+
+    def _load_fixture(self) -> Optional[dict]:
+        fixture_path = os.getenv("GOOGLE_CSE_FIXTURE_PATH")
+        if fixture_path and Path(fixture_path).exists():
+            with open(fixture_path, "r", encoding="utf-8") as handle:
+                return json.load(handle)
+        return None
+
+    def _http_fetch(self, url: str, params: dict[str, Any]) -> tuple[int, dict, dict[str, str]]:
+        resp = httpx.get(url, params=params, timeout=15.0)
+        try:
+            payload = resp.json()
+        except Exception:  # noqa: BLE001
+            payload = {"text": resp.text}
+        return resp.status_code, payload, dict(resp.headers)
+
+    def _fetch_with_retry(self, params: dict[str, Any]) -> tuple[int, dict, dict[str, str]]:
+        attempts = 3
+        last_status = 0
+        last_payload: dict = {}
+        last_headers: dict[str, str] = {}
+        for attempt in range(attempts):
+            status, payload, headers = self.fetcher(self.endpoint, params)
+            last_status, last_payload, last_headers = status, payload, headers
+            if status == 429 and attempt < attempts - 1:
+                retry_after = headers.get("Retry-After")
+                wait_seconds = float(retry_after) if retry_after else 1.0
+                self.sleeper(wait_seconds)
+                continue
+            break
+        return last_status, last_payload, last_headers
+
+    def _build_envelope(self, *, canonical_params: dict[str, Any], request_params: dict[str, Any], response_payload: dict, status_code: int, headers: dict[str, str], source: str) -> dict[str, Any]:
+        public_params = {k: v for k, v in request_params.items() if k not in {"key", "cx"}}
+        return {
+            "provider_key": self.key,
+            "normalized_params": canonical_params,
+            "request": {
+                "endpoint": self.endpoint,
+                "params": public_params,
+            },
+            "response": response_payload,
+            "response_status": status_code,
+            "response_headers": {k: headers[k] for k in sorted(headers.keys()) if k.lower() in {"retry-after", "content-type", "cache-control"}},
+            "source": source,
+        }
+
+    def _extract_company_fields(self, item: dict[str, Any]) -> tuple[str, Optional[str], Optional[str]]:
+        title = str(item.get("title") or item.get("link") or "Unnamed company").strip()
+        url = item.get("link") or item.get("formattedUrl")
+        description = item.get("snippet") or item.get("htmlSnippet")
+        if url:
+            url = str(url).strip()
+        return title, url, description
+
+    def _build_companies(self, payload: dict, canonical_params: dict[str, Any]) -> list[LlmCompany]:
+        items = payload.get("items") or []
+        max_items = canonical_params.get("num_results") or len(items)
+        selected = items[:max_items]
+        companies: list[LlmCompany] = []
+        for idx, item in enumerate(selected):
+            name, url, description = self._extract_company_fields(item)
+            if not url:
+                continue
+            confidence = max(0.6, 0.9 - (idx * 0.05))
+            evidence = LlmEvidence(
+                url=url,
+                label=name,
+                kind="homepage",
+                snippet=description,
+            )
+            companies.append(
+                LlmCompany(
+                    name=name,
+                    website_url=url,
+                    description=description,
+                    sector=None,
+                    subsector=None,
+                    hq_country=canonical_params.get("country"),
+                    hq_city=None,
+                    evidence=[evidence],
+                    confidence=confidence,
+                )
+            )
+        companies_sorted = sorted(companies, key=lambda c: c.name.lower())
+        return companies_sorted
+
+    def run(self, *, tenant_id: str, run_id: UUID, request: Optional[dict] = None) -> DiscoveryProviderResult:
+        try:
+            request_obj = self._normalize_params(request)
+        except Exception as exc:  # noqa: BLE001
+            return DiscoveryProviderResult(
+                payload=None,
+                provider=self.key,
+                model="google_cse_v1",
+                version=self.version,
+                error={"code": "invalid_request", "message": str(exc)},
+            )
+
+        canonical_params = self._canonical_params(request_obj)
+
+        api_key = settings.GOOGLE_CSE_API_KEY
+        cx = settings.GOOGLE_CSE_CX
+        if not api_key or not cx:
+            envelope = self._build_envelope(
+                canonical_params=canonical_params,
+                request_params=canonical_params,
+                response_payload={"error": "missing_config"},
+                status_code=400,
+                headers={},
+                source="config_missing",
+            )
+            return DiscoveryProviderResult(
+                payload=None,
+                provider=self.key,
+                model="google_cse_v1",
+                version=self.version,
+                envelope=envelope,
+                error={"code": "missing_config", "message": "GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX are required"},
+                raw_input_meta={"normalized_params": canonical_params},
+            )
+
+        fixture_payload = self._load_fixture()
+        source_kind = "fixture" if fixture_payload is not None else "api"
+
+        if fixture_payload is not None:
+            status_code = 200
+            response_payload = fixture_payload
+            headers: dict[str, str] = {}
+            request_params = self._build_query_params(canonical_params, api_key, cx)
+        else:
+            request_params = self._build_query_params(canonical_params, api_key, cx)
+            status_code, response_payload, headers = self._fetch_with_retry(request_params)
+
+        if status_code != 200:
+            envelope = self._build_envelope(
+                canonical_params=canonical_params,
+                request_params=request_params,
+                response_payload=response_payload,
+                status_code=status_code,
+                headers=headers,
+                source=source_kind,
+            )
+            message: str = "unexpected_error"
+            if isinstance(response_payload, dict):
+                if isinstance(response_payload.get("error"), dict):
+                    message = response_payload.get("error", {}).get("message") or "upstream_error"
+                else:
+                    message = str(response_payload.get("error") or "upstream_error")
+            return DiscoveryProviderResult(
+                payload=None,
+                provider=self.key,
+                model="google_cse_v1",
+                version=self.version,
+                envelope=envelope,
+                error={"code": "upstream_error", "message": message, "status_code": status_code},
+                raw_input_meta={"normalized_params": canonical_params},
+            )
+
+        companies = self._build_companies(response_payload, canonical_params)
+
+        run_context = LlmRunContext(
+            query=canonical_params.get("query"),
+            geo=[canonical_params["country"]] if canonical_params.get("country") else None,
+            notes=f"tenant:{tenant_id}|run:{run_id}",
+            industry=None,
+        )
+
+        payload = LlmDiscoveryPayload(
+            provider=self.key,
+            model="google_cse_v1",
+            run_context=run_context,
+            companies=companies,
+        )
+
+        envelope = self._build_envelope(
+            canonical_params=canonical_params,
+            request_params=request_params,
+            response_payload=response_payload,
+            status_code=status_code,
+            headers=headers,
+            source=source_kind,
+        )
+
+        return DiscoveryProviderResult(
+            payload=payload,
+            provider=self.key,
+            model="google_cse_v1",
+            version=self.version,
+            envelope=envelope,
+            raw_input_meta={"normalized_params": canonical_params},
+        )
+
+
 def get_discovery_provider(provider_key: str) -> Optional[DiscoveryProvider]:
     """Lookup a discovery provider by key."""
     return _PROVIDER_REGISTRY.get(provider_key)
@@ -276,4 +523,5 @@ def list_discovery_providers() -> Dict[str, str]:
 _PROVIDER_REGISTRY: Dict[str, DiscoveryProvider] = {
     DeterministicDiscoveryProvider.key: DeterministicDiscoveryProvider(),
     SeedListProvider.key: SeedListProvider(),
+    GoogleSearchProvider.key: GoogleSearchProvider(),
 }

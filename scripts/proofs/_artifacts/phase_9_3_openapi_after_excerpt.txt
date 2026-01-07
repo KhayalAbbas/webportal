@@ -1,0 +1,361 @@
+PATH EXCERPT
+{
+  "/company-research/runs/{run_id}/discovery/providers/{provider_key}/run": {
+    "post": {
+      "tags": [
+        "company-research"
+      ],
+      "summary": "Run Discovery Provider",
+      "description": "Run a registered discovery provider and ingest results idempotently.",
+      "operationId": "run_discovery_provider_company_research_runs__run_id__discovery_providers__provider_key__run_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "run_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Run Id"
+          }
+        },
+        {
+          "name": "provider_key",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "title": "Provider Key"
+          }
+        },
+        {
+          "name": "x-tenant-id",
+          "in": "header",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "title": "X-Tenant-Id"
+          }
+        }
+      ],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DiscoveryProviderRunPayload"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Payload"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoveryProviderRunResponse"
+              }
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+SCHEMAS
+{
+  "DiscoveryProviderRunPayload": {
+    "properties": {
+      "request": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SeedListProviderRequest"
+          },
+          {
+            "$ref": "#/components/schemas/GoogleSearchProviderRequest"
+          },
+          {
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Request"
+      }
+    },
+    "additionalProperties": true,
+    "type": "object",
+    "title": "DiscoveryProviderRunPayload",
+    "description": "Request payload for running a discovery provider."
+  },
+  "DiscoveryProviderRunResponse": {
+    "properties": {
+      "source_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Source Id"
+      },
+      "enrichment_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Enrichment Id"
+      },
+      "content_hash": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Content Hash"
+      },
+      "provider_version": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Provider Version"
+      },
+      "companies_new": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Companies New"
+      },
+      "companies_existing": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Companies Existing"
+      },
+      "evidence_created": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Evidence Created"
+      },
+      "urls_created": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Urls Created"
+      },
+      "urls_existing": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Urls Existing"
+      },
+      "skipped": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Skipped"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Reason"
+      },
+      "ingest_stats": {
+        "anyOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Ingest Stats"
+      },
+      "raw_source_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Raw Source Id"
+      },
+      "envelope_source_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Envelope Source Id"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Error"
+      }
+    },
+    "type": "object",
+    "title": "DiscoveryProviderRunResponse",
+    "description": "Response payload summarizing provider ingestion."
+  },
+  "GoogleSearchProviderRequest": {
+    "properties": {
+      "query": {
+        "type": "string",
+        "maxLength": 500,
+        "minLength": 1,
+        "title": "Query"
+      },
+      "country": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 5
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Country",
+        "description": "ISO country code for geolocation bias"
+      },
+      "language": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 10
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Language",
+        "description": "BCP47 language code for search preference"
+      },
+      "num_results": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Num Results",
+        "default": 3
+      },
+      "site_filter": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 255
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Site Filter"
+      }
+    },
+    "additionalProperties": true,
+    "type": "object",
+    "required": [
+      "query"
+    ],
+    "title": "GoogleSearchProviderRequest",
+    "description": "Request envelope for GoogleSearchProvider (Custom Search API)."
+  }
+}

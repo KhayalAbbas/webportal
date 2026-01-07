@@ -245,12 +245,24 @@ class SeedListProviderRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class GoogleSearchProviderRequest(BaseModel):
+    """Request envelope for GoogleSearchProvider (Custom Search API)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    query: str = Field(..., min_length=1, max_length=500)
+    country: Optional[str] = Field(default=None, max_length=5, description="ISO country code for geolocation bias")
+    language: Optional[str] = Field(default=None, max_length=10, description="BCP47 language code for search preference")
+    num_results: Optional[int] = Field(default=3, ge=1, le=10)
+    site_filter: Optional[str] = Field(default=None, max_length=255)
+
+
 class DiscoveryProviderRunPayload(BaseModel):
     """Request payload for running a discovery provider."""
 
     model_config = ConfigDict(extra="allow")
 
-    request: Optional[SeedListProviderRequest | Dict[str, Any]] = None
+    request: Optional[SeedListProviderRequest | GoogleSearchProviderRequest | Dict[str, Any]] = None
 
 
 class DiscoveryProviderRunResponse(BaseModel):
@@ -269,6 +281,8 @@ class DiscoveryProviderRunResponse(BaseModel):
     reason: Optional[str] = None
     ingest_stats: Optional[Dict[str, Any]] = None
     raw_source_id: Optional[UUID] = None
+    envelope_source_id: Optional[UUID] = None
+    error: Optional[Dict[str, Any]] = None
 
 
 # ============================================================================

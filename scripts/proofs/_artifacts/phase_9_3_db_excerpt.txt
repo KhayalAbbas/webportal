@@ -1,0 +1,119 @@
+{
+  "sources": [
+    {
+      "id": "7c048a06-bb53-4adf-a302-afa463859256",
+      "source_type": "discovery_provider",
+      "content_hash": "d60e00fbeaadb7edb16045c703a7258c802b97fece996a86a11a56f1e52cc4f7",
+      "url": null,
+      "status": "processed",
+      "meta": {
+        "kind": "discovery_provider",
+        "model": "google_cse_v1",
+        "purpose": "company_discovery",
+        "version": "1",
+        "provider": "google_search",
+        "ingest_stats": {
+          "urls_created": 2,
+          "companies_new": 2,
+          "urls_existing": 0,
+          "evidence_created": 2,
+          "companies_existing": 0
+        },
+        "enrichment_id": "f189e96b-424e-4297-84b3-f84ff4a4b438",
+        "raw_source_id": null,
+        "schema_version": "company_discovery_v1",
+        "envelope_source_id": "90154a8c-178c-4316-b192-e0b594710298"
+      }
+    },
+    {
+      "id": "90154a8c-178c-4316-b192-e0b594710298",
+      "source_type": "discovery_provider_envelope",
+      "content_hash": "f099192bc7b3ee3f660408bee338bbba4e1bb79f48627836c3e3fb4b294a1b5e",
+      "url": null,
+      "status": "processed",
+      "meta": {
+        "kind": "discovery_provider_envelope",
+        "purpose": "company_discovery",
+        "version": "1",
+        "provider": "google_search",
+        "ingest_stats": {
+          "stored_envelope": true
+        }
+      }
+    },
+    {
+      "id": "124b718e-8362-4338-b99a-3085b7251596",
+      "source_type": "url",
+      "content_hash": null,
+      "url": "https://www.heliolabs.example.com/",
+      "status": "queued",
+      "meta": {
+        "kind": "url",
+        "origin": "llm_json",
+        "evidence_kind": "homepage",
+        "llm_source_id": "7c048a06-bb53-4adf-a302-afa463859256",
+        "evidence_label": "Helio Labs - Grid Climate Analytics"
+      }
+    },
+    {
+      "id": "ceab47c7-7ab5-4ce0-88d9-8b4fc82948b7",
+      "source_type": "url",
+      "content_hash": null,
+      "url": "https://www.polarview.example.com/",
+      "status": "queued",
+      "meta": {
+        "kind": "url",
+        "origin": "llm_json",
+        "evidence_kind": "homepage",
+        "llm_source_id": "7c048a06-bb53-4adf-a302-afa463859256",
+        "evidence_label": "Polar View Insights | Arctic risk intelligence"
+      }
+    }
+  ],
+  "enrichments": [
+    {
+      "id": "f189e96b-424e-4297-84b3-f84ff4a4b438",
+      "provider": "google_search",
+      "purpose": "company_discovery",
+      "content_hash": "d60e00fbeaadb7edb16045c703a7258c802b97fece996a86a11a56f1e52cc4f7",
+      "input_scope_hash": "d60e00fbeaadb7edb16045c703a7258c802b97fece996a86a11a56f1e52cc4f7",
+      "source_document_id": "7c048a06-bb53-4adf-a302-afa463859256"
+    }
+  ],
+  "prospects": [
+    {
+      "id": "b41a9403-81dc-43e3-b9ac-8c28ae76542e",
+      "name": "helio labs - grid climate analytics",
+      "discovered_by": "google_search",
+      "verification_status": "unverified"
+    },
+    {
+      "id": "d4852fab-3dfd-441c-86e3-88452a43bc17",
+      "name": "polar view insights | arctic risk intelligence",
+      "discovered_by": "google_search",
+      "verification_status": "unverified"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "3d36dc79-9c87-4bd5-be87-39d57ab53c0a",
+      "company_prospect_id": "b41a9403-81dc-43e3-b9ac-8c28ae76542e",
+      "source_url": "https://www.heliolabs.example.com/",
+      "source_document_id": "7c048a06-bb53-4adf-a302-afa463859256",
+      "source_content_hash": "d60e00fbeaadb7edb16045c703a7258c802b97fece996a86a11a56f1e52cc4f7"
+    },
+    {
+      "id": "9f410d02-f057-41c2-8574-ff3fa554fb1b",
+      "company_prospect_id": "d4852fab-3dfd-441c-86e3-88452a43bc17",
+      "source_url": "https://www.polarview.example.com/",
+      "source_document_id": "7c048a06-bb53-4adf-a302-afa463859256",
+      "source_content_hash": "d60e00fbeaadb7edb16045c703a7258c802b97fece996a86a11a56f1e52cc4f7"
+    }
+  ],
+  "counts": {
+    "sources": 4,
+    "enrichments": 1,
+    "prospects": 2,
+    "evidence": 2
+  }
+}

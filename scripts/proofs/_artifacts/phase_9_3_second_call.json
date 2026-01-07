@@ -1,0 +1,26 @@
+{
+  "status": 200,
+  "body": {
+    "source_id": "7c048a06-bb53-4adf-a302-afa463859256",
+    "enrichment_id": "f189e96b-424e-4297-84b3-f84ff4a4b438",
+    "content_hash": "d60e00fbeaadb7edb16045c703a7258c802b97fece996a86a11a56f1e52cc4f7",
+    "provider_version": "1",
+    "companies_new": null,
+    "companies_existing": null,
+    "evidence_created": null,
+    "urls_created": null,
+    "urls_existing": null,
+    "skipped": true,
+    "reason": "duplicate_hash",
+    "ingest_stats": {
+      "urls_created": 2,
+      "companies_new": 2,
+      "urls_existing": 0,
+      "evidence_created": 2,
+      "companies_existing": 0
+    },
+    "raw_source_id": null,
+    "envelope_source_id": "90154a8c-178c-4316-b192-e0b594710298",
+    "error": null
+  }
+}

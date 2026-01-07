@@ -1,0 +1,53 @@
+{
+  "kind": "customsearch#search",
+  "url": {
+    "type": "application/json"
+  },
+  "queries": {
+    "request": [
+      {
+        "title": "Google Custom Search - climate analytics startups",
+        "totalResults": "2",
+        "searchTerms": "climate analytics startups",
+        "count": 2,
+        "startIndex": 1
+      }
+    ]
+  },
+  "items": [
+    {
+      "kind": "customsearch#result",
+      "title": "Helio Labs - Grid Climate Analytics",
+      "htmlTitle": "Helio Labs - Grid Climate Analytics",
+      "link": "https://www.heliolabs.example.com/",
+      "displayLink": "www.heliolabs.example.com",
+      "snippet": "Helio Labs provides grid-aware climate analytics for utilities and renewable operators.",
+      "pagemap": {
+        "organization": [
+          {
+            "name": "Helio Labs",
+            "url": "https://www.heliolabs.example.com/",
+            "foundingLocation": "Austin, US"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "customsearch#result",
+      "title": "Polar View Insights | Arctic risk intelligence",
+      "htmlTitle": "Polar View Insights | Arctic risk intelligence",
+      "link": "https://www.polarview.example.com/",
+      "displayLink": "www.polarview.example.com",
+      "snippet": "Polar View offers satellite-driven climate risk intelligence for shipping and energy operators.",
+      "pagemap": {
+        "organization": [
+          {
+            "name": "Polar View Insights",
+            "url": "https://www.polarview.example.com/",
+            "foundingLocation": "Reykjavik, IS"
+          }
+        ]
+      }
+    }
+  ]
+}

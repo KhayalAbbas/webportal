@@ -1,0 +1,26 @@
+Phase 9.3 discovery framework notes
+
+Provider registry + interface
+- Registry is in app/services/discovery_provider.py with get_discovery_provider() and _PROVIDER_REGISTRY containing DeterministicDiscoveryProvider and SeedListProvider.
+- DiscoveryProviderResult carries payload (LlmDiscoveryPayload), provider key, model, version, and optional raw input text/meta. Providers are synchronous run(tenant_id, run_id, request) implementations.
+
+Endpoint contract
+- API endpoint: POST /company-research/runs/{run_id}/discovery/providers/{provider_key}/run defined in app/routers/company_research.py. Response model is DiscoveryProviderRunResponse.
+- Request body schema DiscoveryProviderRunPayload allows optional request object (Pydantic union with SeedListProviderRequest or generic dict). Endpoint passes payload.request to service.run_discovery_provider.
+
+Ingestion + persistence path
+- Service entrypoint: CompanyResearchService.run_discovery_provider in app/services/company_research_service.py.
+- Guardrails: purpose must be company_discovery; ensure_sources_unlocked enforces run is mutable.
+- Raw input handling: if provider_result.raw_input_text is present, normalizes text, hashes it, dedupes via repo.find_source_by_hash, and stores SourceDocument (source_type=seed_input) with meta {kind: seed_input, provider, version, ...}; marks processed, sets ingest_stats {stored_raw: True}.
+- Provider payload hashing: canonical_json from LlmDiscoveryPayload.canonical_dict(), hashed with SHA256. If hash already present for run, returns skipped response {skipped: True, reason: duplicate_hash, source_id, enrichment_id (if any), ingest_stats, provider_version, content_hash, raw_source_id}.
+- New source creation: SourceDocumentCreate(source_type=discovery_provider, mime_type=application/json) with meta including {kind: discovery_provider, provider, version, model, purpose, schema_version, raw_source_id}. Content hash is the canonical payload hash.
+- Ingestion: _ingest_discovery_payload processes LlmDiscoveryPayload into prospects/evidence. It builds AIEnrichmentRecord (enrichment_type=COMPANY_DISCOVERY_JSON) with input_scope_hash=content_hash and reuses existing record when (tenant_id, run_id, purpose, provider, content_hash) matches.
+- Idempotency: repo.find_source_by_hash prevents duplicate sources; evidence dedupe key is (company_id, source_id, label/kind); URL candidates dedupe via normalized URL map.
+
+Payload + evidence types
+- LlmDiscoveryPayload (app/schemas/llm_discovery.py) contains provider, model, run_context, companies[]. Each LlmCompany includes evidence entries (LlmEvidence) with url/label/kind/snippet.
+- DiscoveryProviderRunResponse (app/schemas/company_research.py) surfaces ids/stats including raw_source_id and content_hash to the caller.
+
+Data landing targets
+- Prospects stored in CompanyProspect with discovered_by set to provider label; verification_status set to unverified; run role_mandate inherited.
+- Evidence stored as CompanyProspectEvidence with source_document_id pointing to the discovery source document; URLs also persisted as SourceDocument entries of type url with origin meta marking llm_json.

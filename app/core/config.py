@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     EXPORT_PACK_MAX_COMPANIES: int = 2000
     EXPORT_PACK_MAX_EXECUTIVES: int = 5000
     BULK_ENRICH_MAX_EXECUTIVES: int = 20
+
+    # External search providers (Phase 9.3)
+    GOOGLE_CSE_API_KEY: Optional[str] = None
+    GOOGLE_CSE_CX: Optional[str] = None
     
     class Config:
         # Load variables from .env file if it exists

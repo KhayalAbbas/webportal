@@ -2698,6 +2698,52 @@ class CompanyResearchService:
             request=provider_request,
         )
 
+        envelope_source = None
+        envelope_source_id = None
+        if provider_result.envelope:
+            envelope_canonical = self._canonical_json(provider_result.envelope)
+            envelope_hash = hashlib.sha256(envelope_canonical.encode("utf-8")).hexdigest()
+            existing_envelope = await self.repo.find_source_by_hash(tenant_id, run_id, envelope_hash)
+            if existing_envelope:
+                envelope_source = existing_envelope
+            else:
+                envelope_source = await self.add_source(
+                    tenant_id,
+                    SourceDocumentCreate(
+                        company_research_run_id=run_id,
+                        source_type="discovery_provider_envelope",
+                        title=f"Discovery envelope: {provider_key}",
+                        mime_type="application/json",
+                        content_text=envelope_canonical,
+                        content_hash=envelope_hash,
+                        meta={
+                            "kind": "discovery_provider_envelope",
+                            "provider": provider_result.provider,
+                            "version": provider_result.version,
+                            "purpose": purpose,
+                        },
+                    ),
+                )
+            envelope_source.status = "processed"
+            envelope_source.error_message = None
+            envelope_source.meta = {**(envelope_source.meta or {}), "ingest_stats": {"stored_envelope": True}}
+            await self.db.flush()
+            envelope_source_id = str(envelope_source.id)
+
+        if provider_result.error:
+            return {
+                "error": provider_result.error,
+                "provider_version": provider_result.version,
+                "envelope_source_id": envelope_source_id,
+            }
+
+        if not provider_result.payload:
+            return {
+                "error": {"code": "provider_payload_missing", "message": "Provider returned no payload"},
+                "provider_version": provider_result.version,
+                "envelope_source_id": envelope_source_id,
+            }
+
         raw_source = None
         raw_hash = None
         if provider_result.raw_input_text:
@@ -2757,6 +2803,7 @@ class CompanyResearchService:
                 "provider_version": provider_result.version,
                 "content_hash": content_hash,
                 "raw_source_id": raw_source_id,
+                "envelope_source_id": envelope_source_id or (existing_source.meta or {}).get("envelope_source_id"),
             }
 
         source_meta = {
@@ -2767,6 +2814,7 @@ class CompanyResearchService:
             "purpose": purpose,
             "schema_version": parsed.schema_version,
             "raw_source_id": raw_source_id,
+            "envelope_source_id": envelope_source_id,
         }
 
         source = await self.add_source(
@@ -2793,7 +2841,7 @@ class CompanyResearchService:
             purpose=purpose,
         )
 
-        return {**summary, "provider_version": provider_result.version, "raw_source_id": raw_source_id, "content_hash": content_hash}
+        return {**summary, "provider_version": provider_result.version, "raw_source_id": raw_source_id, "envelope_source_id": envelope_source_id, "content_hash": content_hash}
 
     async def process_llm_json_sources_for_run(
         self,

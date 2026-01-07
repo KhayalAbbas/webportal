@@ -1,0 +1,11 @@
+Phase 9.3 Signoff Checklist
+
+[ x ] Preflight completed (health, openapi before) -> phase_9_3_preflight.txt, phase_9_3_openapi_before.json
+[ x ] Discovery analysis captured -> phase_9_3_discovery_notes.txt
+[ x ] google_search provider implemented with envelope + config keys
+[ x ] Offline fixture wired; retry + error handling verified
+[ x ] Proof PASS (2-pass idempotency) -> phase_9_3_proof.txt and console, first/second calls, DB excerpt
+[ x ] OpenAPI after captured -> phase_9_3_openapi_after.json + excerpt
+[ x ] Git evidence before commit captured
+[   ] Commit/tag/push completed
+[   ] Artifact manifest updated

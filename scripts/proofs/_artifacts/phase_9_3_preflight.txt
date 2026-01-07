@@ -1,0 +1,15 @@
+health status=200 body={'api_ok': True, 'db_ok': True, 'alembic_head_ok': True, 'alembic_current': '2b04b1c3c0f3', 'alembic_head': '2b04b1c3c0f3'}
+openapi status=200 length=362937
+db ping: 1
+alembic current=2b04b1c3c0f3 head=2b04b1c3c0f3 heads=2b04b1c3c0f3
+git status -sb
+## master...origin/master
+?? scripts/proofs/phase_9_3_preflight.py
+
+.git log -1 --decorate
+commit 6c4a32780000d27e466cf222e0753480b9d0b60f (HEAD -> master, tag: phase_9_2_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 18:28:33 2026 +0400
+
+    Phase 9.2: SeedListProvider discovery + evidence-first seeding + auto Stage 4-5 + deterministic proof
+
