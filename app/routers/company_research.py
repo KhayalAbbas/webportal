@@ -60,6 +60,7 @@ from app.schemas.company_research import (
     CanonicalCompanyRead,
     CanonicalCompanyListItem,
     CanonicalCompanyLinkRead,
+    RunPack,
 )
 from app.schemas.contact_enrichment import ContactEnrichmentRequest
 from app.schemas.executive_contact_enrichment import (
@@ -1778,6 +1779,27 @@ async def export_ranked_executives_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.get("/runs/{run_id}/export-pack.zip", response_class=StreamingResponse)
+async def export_run_pack(
+    run_id: UUID,
+    include_html: bool = Query(False, description="Include an HTML print view in the archive"),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export a deterministic run pack (JSON + CSVs + optional HTML) as a ZIP."""
+
+    service = CompanyResearchService(db)
+    _pack, zip_bytes, _ = await service.build_run_export_pack(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        include_html=include_html,
+    )
+
+    filename = f"run_{run_id}_pack.zip"
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
+    return StreamingResponse(io.BytesIO(zip_bytes), media_type="application/zip", headers=headers)
 
 
 @router.patch("/runs/{run_id}", response_model=CompanyResearchRunRead)

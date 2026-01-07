@@ -578,6 +578,96 @@ class ExecutiveMergeDecisionRead(TenantScopedRead):
     created_by: Optional[str] = None
 
 
+# ============================================================================
+# Export Pack Schemas (Phase 8.1)
+# ============================================================================
+
+
+class PackCompany(BaseModel):
+    """Company block for export pack."""
+
+    company_prospect_id: UUID
+    canonical_company_id: Optional[UUID] = None
+    name: str
+    rank_position: int
+    rank_score: float
+    review_status: Optional[str] = None
+    verification_status: Optional[str] = None
+    discovered_by: Optional[str] = None
+    exec_search_enabled: Optional[bool] = None
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+    why_ranked_reason_codes: List[str] = Field(default_factory=list)
+
+
+class PackExecutive(BaseModel):
+    """Executive block for export pack."""
+
+    executive_id: UUID
+    company_prospect_id: UUID
+    display_name: str
+    title: Optional[str] = None
+    provenance: Optional[str] = None
+    verification_status: Optional[str] = None
+    review_status: Optional[str] = None
+    rank_position: Optional[int] = None
+    rank_score: Optional[float] = None
+    pipeline_status: Literal["created", "not_created", "unknown"] = "unknown"
+    candidate_id: Optional[UUID] = None
+    contact_id: Optional[UUID] = None
+    contact_enrichment_status: Optional[str] = None
+    contact_enrichment_source_document_id: Optional[UUID] = None
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+
+
+class PackMergeDecision(BaseModel):
+    """Merge decision rollup for export pack."""
+
+    decision_id: UUID
+    company_prospect_id: Optional[UUID] = None
+    canonical_company_id: Optional[UUID] = None
+    left_executive_id: UUID
+    right_executive_id: UUID
+    action: Literal["mark_same", "keep_separate"]
+    decided_by: Optional[str] = None
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+    evidence_enrichment_ids: List[UUID] = Field(default_factory=list)
+
+
+class PackAuditEvent(BaseModel):
+    """Slim audit event for pack summary."""
+
+    event_type: str
+    entity_id: Optional[UUID] = None
+    created_at: Optional[datetime] = None
+
+
+class PackAuditSummary(BaseModel):
+    """Audit summary counts and optional key events."""
+
+    companies_total: int
+    companies_accepted: int
+    companies_hold: int
+    companies_rejected: int
+    executives_total: int
+    exec_accepted: int
+    exec_hold: int
+    exec_rejected: int
+    pipeline_created_count: int
+    events: List[PackAuditEvent] = Field(default_factory=list)
+
+
+class RunPack(BaseModel):
+    """Top-level export pack for a research run."""
+
+    run_id: UUID
+    tenant_id: str
+    generated_at: Optional[datetime] = None
+    companies: List[PackCompany] = Field(default_factory=list)
+    executives_by_company: Dict[str, List[PackExecutive]] = Field(default_factory=dict)
+    merge_decisions: List[PackMergeDecision] = Field(default_factory=list)
+    audit_summary: PackAuditSummary
+
+
 class CompanyResearchRunSummary(BaseModel):
     """Summary schema for research run with prospect count."""
     

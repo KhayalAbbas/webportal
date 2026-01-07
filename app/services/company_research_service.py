@@ -5,12 +5,15 @@ Provides validation and orchestration for company discovery operations.
 Phase 1: Backend structures only, no external AI/crawling yet.
 """
 
+import csv
 import hashlib
+import io
 import json
 import os
 import re
+import zipfile
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone
 from urllib.parse import urlparse, urlunparse
 from uuid import UUID
@@ -62,6 +65,12 @@ from app.schemas.company_research import (
     SourceDocumentCreate,
     SourceDocumentUpdate,
     ProspectSignalEvidence,
+    RunPack,
+    PackCompany,
+    PackExecutive,
+    PackMergeDecision,
+    PackAuditEvent,
+    PackAuditSummary,
 )
 from app.schemas.research_event import ResearchEventCreate
 from app.schemas.source_document import SourceDocumentCreate as ResearchEventSourceDocumentCreate
@@ -1522,6 +1531,510 @@ class CompanyResearchService:
             "external_only": external_only,
             "candidate_matches": candidate_sorted,
         }
+
+    # ====================================================================
+    # Export Pack (Phase 8.1)
+    # ====================================================================
+
+    async def _company_evidence_map(self, tenant_id: str, prospect_ids: List[UUID]) -> Dict[UUID, List[UUID]]:
+        if not prospect_ids:
+            return {}
+
+        tenant_uuid = UUID(str(tenant_id))
+
+        result = await self.db.execute(
+            select(CompanyProspectEvidence)
+            .where(
+                CompanyProspectEvidence.tenant_id == tenant_uuid,
+                CompanyProspectEvidence.company_prospect_id.in_(prospect_ids),
+            )
+            .order_by(
+                CompanyProspectEvidence.company_prospect_id.asc(),
+                CompanyProspectEvidence.created_at.asc(),
+            )
+        )
+
+        evidence_map: Dict[UUID, List[UUID]] = defaultdict(list)
+        for ev in result.scalars().all():
+            if ev.source_document_id:
+                evidence_map[ev.company_prospect_id].append(ev.source_document_id)
+
+        return {pid: sorted({*ids}, key=lambda v: str(v)) for pid, ids in evidence_map.items()}
+
+    async def _latest_exec_contact_enrichment_map(self, tenant_id: str, exec_ids: List[UUID]) -> Dict[UUID, dict]:
+        if not exec_ids:
+            return {}
+
+        tenant_uuid = UUID(str(tenant_id))
+        result = await self.db.execute(
+            select(
+                AIEnrichmentRecord.target_id,
+                AIEnrichmentRecord.status,
+                AIEnrichmentRecord.source_document_id,
+                AIEnrichmentRecord.created_at,
+            )
+            .where(
+                AIEnrichmentRecord.tenant_id == tenant_uuid,
+                AIEnrichmentRecord.purpose == "executive_contact_enrichment",
+                AIEnrichmentRecord.target_type == "EXECUTIVE",
+                AIEnrichmentRecord.target_id.in_(exec_ids),
+            )
+            .order_by(
+                AIEnrichmentRecord.target_id.asc(),
+                AIEnrichmentRecord.created_at.desc(),
+            )
+        )
+
+        mapping: Dict[UUID, dict] = {}
+        for target_id, status, source_document_id, created_at in result.all():
+            if target_id in mapping:
+                continue
+            mapping[target_id] = {
+                "status": status,
+                "source_document_id": source_document_id,
+                "created_at": created_at,
+            }
+        return mapping
+
+    async def _pipeline_map(self, tenant_id: str, exec_ids: List[UUID]) -> Dict[UUID, dict]:
+        if not exec_ids:
+            return {}
+
+        tenant_uuid = UUID(str(tenant_id))
+        exec_strings = [str(eid) for eid in exec_ids]
+        payload_exec_id = ResearchEvent.raw_payload["executive_id"].astext
+
+        result = await self.db.execute(
+            select(
+                payload_exec_id,
+                ResearchEvent.entity_id,
+                ResearchEvent.raw_payload["contact_id"].astext,
+                ResearchEvent.raw_payload["assignment_id"].astext,
+                ResearchEvent.created_at,
+            )
+            .where(
+                ResearchEvent.tenant_id == tenant_uuid,
+                ResearchEvent.source_type == "executive_review",
+                ResearchEvent.entity_type == "CANDIDATE",
+                payload_exec_id.in_(exec_strings),
+            )
+            .order_by(ResearchEvent.created_at.desc())
+        )
+
+        mapping: Dict[UUID, dict] = {}
+        for exec_id_text, candidate_id, contact_id_text, assignment_id_text, created_at in result.all():
+            exec_uuid = UUID(str(exec_id_text))
+            if exec_uuid in mapping:
+                continue
+            contact_uuid = None
+            assignment_uuid = None
+            try:
+                contact_uuid = UUID(contact_id_text) if contact_id_text else None
+            except (ValueError, TypeError):
+                contact_uuid = None
+            try:
+                assignment_uuid = UUID(assignment_id_text) if assignment_id_text else None
+            except (ValueError, TypeError):
+                assignment_uuid = None
+            mapping[exec_uuid] = {
+                "candidate_id": candidate_id,
+                "contact_id": contact_uuid,
+                "assignment_id": assignment_uuid,
+                "created_at": created_at,
+            }
+        return mapping
+
+    def _build_pack_audit_summary(
+        self,
+        companies: List[PackCompany],
+        executives: List[PackExecutive],
+        pipeline_map: Dict[UUID, dict],
+    ) -> PackAuditSummary:
+        companies_total = len(companies)
+        companies_accepted = sum(1 for c in companies if (c.review_status or "").lower() == "accepted")
+        companies_hold = sum(1 for c in companies if (c.review_status or "").lower() == "hold")
+        companies_rejected = sum(1 for c in companies if (c.review_status or "").lower() == "rejected")
+
+        executives_total = len(executives)
+        exec_accepted = sum(1 for e in executives if (e.review_status or "").lower() == "accepted")
+        exec_hold = sum(1 for e in executives if (e.review_status or "").lower() == "hold")
+        exec_rejected = sum(1 for e in executives if (e.review_status or "").lower() == "rejected")
+
+        pipeline_created_count = len(pipeline_map)
+
+        return PackAuditSummary(
+            companies_total=companies_total,
+            companies_accepted=companies_accepted,
+            companies_hold=companies_hold,
+            companies_rejected=companies_rejected,
+            executives_total=executives_total,
+            exec_accepted=exec_accepted,
+            exec_hold=exec_hold,
+            exec_rejected=exec_rejected,
+            pipeline_created_count=pipeline_created_count,
+            events=[],
+        )
+
+    def _serialize_pack_csvs(self, pack: RunPack) -> Dict[str, bytes]:
+        files: Dict[str, bytes] = {}
+
+        company_rows = io.StringIO()
+        company_writer = csv.writer(company_rows)
+        company_writer.writerow(
+            [
+                "company_prospect_id",
+                "canonical_company_id",
+                "name",
+                "rank_position",
+                "rank_score",
+                "review_status",
+                "verification_status",
+                "discovered_by",
+                "exec_search_enabled",
+                "evidence_source_document_ids",
+                "why_ranked_reason_codes",
+            ]
+        )
+        for company in sorted(pack.companies, key=lambda c: (c.rank_position, str(c.company_prospect_id))):
+            company_writer.writerow(
+                [
+                    company.company_prospect_id,
+                    company.canonical_company_id,
+                    company.name,
+                    company.rank_position,
+                    f"{float(company.rank_score):.6f}",
+                    company.review_status,
+                    company.verification_status,
+                    company.discovered_by,
+                    company.exec_search_enabled,
+                    "|".join(str(eid) for eid in company.evidence_source_document_ids),
+                    ";".join(company.why_ranked_reason_codes),
+                ]
+            )
+        files["companies.csv"] = company_rows.getvalue().encode("utf-8")
+
+        exec_rows = io.StringIO()
+        exec_writer = csv.writer(exec_rows)
+        exec_writer.writerow(
+            [
+                "company_prospect_id",
+                "executive_id",
+                "display_name",
+                "title",
+                "provenance",
+                "verification_status",
+                "review_status",
+                "rank_position",
+                "rank_score",
+                "pipeline_status",
+                "candidate_id",
+                "contact_id",
+                "contact_enrichment_status",
+                "contact_enrichment_source_document_id",
+                "evidence_source_document_ids",
+            ]
+        )
+
+        exec_list: List[PackExecutive] = []
+        for _, execs in sorted(pack.executives_by_company.items(), key=lambda pair: pair[0]):
+            exec_list.extend(execs)
+
+        exec_sorted = sorted(
+            exec_list,
+            key=lambda e: (
+                e.company_prospect_id,
+                e.rank_position if e.rank_position is not None else 10 ** 9,
+                str(e.executive_id),
+            ),
+        )
+
+        for exec_item in exec_sorted:
+            exec_writer.writerow(
+                [
+                    exec_item.company_prospect_id,
+                    exec_item.executive_id,
+                    exec_item.display_name,
+                    exec_item.title or "",
+                    exec_item.provenance or "",
+                    exec_item.verification_status or "",
+                    exec_item.review_status or "",
+                    exec_item.rank_position,
+                    f"{float(exec_item.rank_score):.6f}" if exec_item.rank_score is not None else "",
+                    exec_item.pipeline_status,
+                    exec_item.candidate_id,
+                    exec_item.contact_id,
+                    exec_item.contact_enrichment_status or "",
+                    exec_item.contact_enrichment_source_document_id,
+                    "|".join(str(eid) for eid in exec_item.evidence_source_document_ids),
+                ]
+            )
+        files["executives.csv"] = exec_rows.getvalue().encode("utf-8")
+
+        merge_rows = io.StringIO()
+        merge_writer = csv.writer(merge_rows)
+        merge_writer.writerow(
+            [
+                "decision_id",
+                "company_prospect_id",
+                "canonical_company_id",
+                "left_executive_id",
+                "right_executive_id",
+                "action",
+                "decided_by",
+                "evidence_source_document_ids",
+                "evidence_enrichment_ids",
+            ]
+        )
+        for decision in sorted(pack.merge_decisions, key=lambda d: (str(d.company_prospect_id or ""), str(d.decision_id))):
+            merge_writer.writerow(
+                [
+                    decision.decision_id,
+                    decision.company_prospect_id,
+                    decision.canonical_company_id,
+                    decision.left_executive_id,
+                    decision.right_executive_id,
+                    decision.action,
+                    decision.decided_by,
+                    "|".join(str(eid) for eid in decision.evidence_source_document_ids),
+                    "|".join(str(eid) for eid in decision.evidence_enrichment_ids),
+                ]
+            )
+        files["merge_decisions.csv"] = merge_rows.getvalue().encode("utf-8")
+
+        audit_rows = io.StringIO()
+        audit_writer = csv.writer(audit_rows)
+        audit_writer.writerow(["metric", "value"])
+        audit = pack.audit_summary
+        audit_writer.writerow(["companies_total", audit.companies_total])
+        audit_writer.writerow(["companies_accepted", audit.companies_accepted])
+        audit_writer.writerow(["companies_hold", audit.companies_hold])
+        audit_writer.writerow(["companies_rejected", audit.companies_rejected])
+        audit_writer.writerow(["executives_total", audit.executives_total])
+        audit_writer.writerow(["exec_accepted", audit.exec_accepted])
+        audit_writer.writerow(["exec_hold", audit.exec_hold])
+        audit_writer.writerow(["exec_rejected", audit.exec_rejected])
+        audit_writer.writerow(["pipeline_created_count", audit.pipeline_created_count])
+        files["audit_summary.csv"] = audit_rows.getvalue().encode("utf-8")
+
+        return files
+
+    def _serialize_pack_html(self, pack: RunPack) -> bytes:
+        companies_sorted = sorted(pack.companies, key=lambda c: (c.rank_position, str(c.company_prospect_id)))
+
+        def esc(value: Any) -> str:
+            return str(value or "")
+
+        lines: List[str] = []
+        lines.append("<html><head><style>body{font-family:Arial,sans-serif;}table{border-collapse:collapse;width:100%;margin-bottom:16px;}th,td{border:1px solid #ccc;padding:6px;font-size:12px;}th{background:#f5f5f5;text-align:left;}h2{margin:12px 0 4px;}small{color:#666;}</style></head><body>")
+        lines.append(f"<h1>Export Pack for Run {pack.run_id}</h1>")
+        lines.append(f"<p>Tenant: {pack.tenant_id}</p>")
+
+        lines.append("<h2>Companies</h2>")
+        lines.append("<table><thead><tr><th>Rank</th><th>Name</th><th>Review</th><th>Verification</th><th>Evidence IDs</th></tr></thead><tbody>")
+        for company in companies_sorted:
+            lines.append(
+                "<tr>"
+                f"<td>{company.rank_position}</td>"
+                f"<td>{esc(company.name)}</td>"
+                f"<td>{esc(company.review_status)}</td>"
+                f"<td>{esc(company.verification_status)}</td>"
+                f"<td>{'|'.join(str(eid) for eid in company.evidence_source_document_ids)}</td>"
+                "</tr>"
+            )
+        lines.append("</tbody></table>")
+
+        lines.append("<h2>Executives</h2>")
+        for company in companies_sorted:
+            execs = pack.executives_by_company.get(str(company.company_prospect_id), [])
+            if not execs:
+                continue
+            lines.append(f"<h3>{esc(company.name)} (rank {company.rank_position})</h3>")
+            lines.append("<table><thead><tr><th>Rank</th><th>Name</th><th>Title</th><th>Review</th><th>Pipeline</th><th>Contact Enrichment</th></tr></thead><tbody>")
+            for exec_item in sorted(
+                execs,
+                key=lambda e: (
+                    e.rank_position if e.rank_position is not None else 10 ** 9,
+                    str(e.executive_id),
+                ),
+            ):
+                lines.append(
+                    "<tr>"
+                    f"<td>{esc(exec_item.rank_position)}</td>"
+                    f"<td>{esc(exec_item.display_name)}</td>"
+                    f"<td>{esc(exec_item.title)}</td>"
+                    f"<td>{esc(exec_item.review_status)}</td>"
+                    f"<td>{esc(exec_item.pipeline_status)}</td>"
+                    f"<td>{esc(exec_item.contact_enrichment_status)}</td>"
+                    "</tr>"
+                )
+            lines.append("</tbody></table>")
+
+        lines.append("</body></html>")
+        return "\n".join(lines).encode("utf-8")
+
+    async def build_run_export_pack(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        *,
+        include_html: bool = False,
+    ) -> Tuple[RunPack, bytes, Dict[str, bytes]]:
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("research_run_not_found")
+
+        prospect_count = await self.count_prospects_for_run(tenant_id, run_id)
+        exec_limit = 1000
+        company_limit = max(prospect_count, 50)
+
+        ranked_companies = await self.rank_prospects_for_run(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            status=None,
+            min_relevance_score=None,
+            limit=company_limit,
+            offset=0,
+        )
+
+        company_ids = [UUID(str(item.get("id"))) for item in ranked_companies]
+        evidence_map = await self._company_evidence_map(tenant_id, company_ids)
+
+        pack_companies: List[PackCompany] = []
+        for idx, company_item in enumerate(ranked_companies, start=1):
+            evidence_ids = evidence_map.get(UUID(str(company_item.get("id"))), [])
+            why_codes = []
+            for signal in company_item.get("why_included") or []:
+                code = getattr(signal, "field_key", None) or getattr(signal, "field_name", None)
+                if code:
+                    why_codes.append(str(code))
+
+            pack_companies.append(
+                PackCompany(
+                    company_prospect_id=UUID(str(company_item["id"])),
+                    canonical_company_id=company_item.get("normalized_company_id"),
+                    name=company_item.get("name_normalized") or company_item.get("name_raw") or "",
+                    rank_position=idx,
+                    rank_score=float(company_item.get("computed_score", 0.0)),
+                    review_status=company_item.get("review_status"),
+                    verification_status=company_item.get("verification_status"),
+                    discovered_by=company_item.get("discovered_by"),
+                    exec_search_enabled=company_item.get("exec_search_enabled"),
+                    evidence_source_document_ids=evidence_ids,
+                    why_ranked_reason_codes=sorted({code for code in why_codes}),
+                )
+            )
+
+        ranked_executives = await self.rank_executives_for_run(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            company_prospect_id=None,
+            provenance=None,
+            verification_status=None,
+            q=None,
+            limit=exec_limit,
+            offset=0,
+        )
+
+        exec_ids = [UUID(str(item["executive_id"])) for item in ranked_executives]
+        exec_rows = await self.list_executive_prospects_with_evidence(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            canonical_company_id=None,
+            company_prospect_id=None,
+            discovered_by=None,
+            verification_status=None,
+        )
+        exec_map: Dict[UUID, dict] = {UUID(str(row["id"])): row for row in exec_rows}
+
+        contact_map = await self._latest_exec_contact_enrichment_map(tenant_id, exec_ids)
+        pipeline_map = await self._pipeline_map(tenant_id, exec_ids)
+
+        executives_by_company: Dict[str, List[PackExecutive]] = defaultdict(list)
+        flat_execs: List[PackExecutive] = []
+
+        for exec_item in ranked_executives:
+            exec_id = UUID(str(exec_item["executive_id"]))
+            company_id = UUID(str(exec_item["company_prospect_id"]))
+            exec_row = exec_map.get(exec_id, {})
+            evidence_ids = exec_row.get("evidence_source_document_ids") or []
+            enrichment_info = contact_map.get(exec_id)
+            pipeline_info = pipeline_map.get(exec_id)
+
+            pack_exec = PackExecutive(
+                executive_id=exec_id,
+                company_prospect_id=company_id,
+                display_name=exec_item.get("display_name") or "",
+                title=exec_item.get("title"),
+                provenance=exec_item.get("provenance") or exec_row.get("provenance"),
+                verification_status=exec_item.get("verification_status") or exec_row.get("verification_status"),
+                review_status=exec_row.get("review_status"),
+                rank_position=exec_item.get("rank_position"),
+                rank_score=float(exec_item.get("rank_score", 0.0)),
+                pipeline_status="created" if pipeline_info else "not_created",
+                candidate_id=pipeline_info.get("candidate_id") if pipeline_info else None,
+                contact_id=pipeline_info.get("contact_id") if pipeline_info else None,
+                contact_enrichment_status=(enrichment_info or {}).get("status"),
+                contact_enrichment_source_document_id=(enrichment_info or {}).get("source_document_id"),
+                evidence_source_document_ids=sorted({UUID(str(eid)) for eid in evidence_ids if eid}, key=lambda v: str(v)),
+            )
+
+            executives_by_company[str(company_id)].append(pack_exec)
+            flat_execs.append(pack_exec)
+
+        decisions = await self.repo.list_merge_decisions_for_run(tenant_id, run_id)
+        pack_decisions: List[PackMergeDecision] = []
+        for dec in decisions:
+            pack_decisions.append(
+                PackMergeDecision(
+                    decision_id=dec.id,
+                    company_prospect_id=dec.company_prospect_id,
+                    canonical_company_id=dec.canonical_company_id,
+                    left_executive_id=dec.left_executive_id,
+                    right_executive_id=dec.right_executive_id,
+                    action=dec.decision_type,  # mark_same | keep_separate
+                    decided_by=dec.created_by,
+                    evidence_source_document_ids=sorted({UUID(str(e)) for e in (dec.evidence_source_document_ids or [])}, key=lambda v: str(v)),
+                    evidence_enrichment_ids=sorted({UUID(str(e)) for e in (dec.evidence_enrichment_ids or [])}, key=lambda v: str(v)),
+                )
+            )
+
+        audit_summary = self._build_pack_audit_summary(pack_companies, flat_execs, pipeline_map)
+
+        pack = RunPack(
+            run_id=run_id,
+            tenant_id=tenant_id,
+            generated_at=None,  # excluded from export for determinism
+            companies=pack_companies,
+            executives_by_company={key: value for key, value in sorted(executives_by_company.items(), key=lambda pair: pair[0])},
+            merge_decisions=sorted(pack_decisions, key=lambda d: (str(d.company_prospect_id or ""), str(d.decision_id))),
+            audit_summary=audit_summary,
+        )
+
+        pack_json_bytes = json.dumps(pack.model_dump(mode="json", exclude_none=True), sort_keys=True, indent=2).encode("utf-8")
+        files = self._serialize_pack_csvs(pack)
+        files["run_pack.json"] = pack_json_bytes
+
+        if include_html:
+            files["print_view.html"] = self._serialize_pack_html(pack)
+
+        readme = [
+            "Export pack contents:",
+            "- run_pack.json",
+            "- companies.csv",
+            "- executives.csv",
+            "- merge_decisions.csv",
+            "- audit_summary.csv",
+        ]
+        if include_html:
+            readme.append("- print_view.html")
+        files["README.txt"] = "\n".join(readme).encode("utf-8")
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for name in sorted(files.keys()):
+                zf.writestr(name, files[name])
+
+        return pack, zip_buffer.getvalue(), files
 
     async def apply_executive_merge_decision(
         self,
