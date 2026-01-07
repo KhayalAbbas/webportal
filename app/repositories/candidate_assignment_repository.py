@@ -136,3 +136,19 @@ class CandidateAssignmentRepository:
             .offset(offset)
         )
         return list(result.scalars().all())
+
+    async def get_by_candidate_and_role(
+        self,
+        tenant_id: str,
+        candidate_id: UUID,
+        role_id: UUID,
+    ) -> Optional[CandidateAssignment]:
+        """Get a single assignment for a candidate-role pair if it exists."""
+        result = await self.db.execute(
+            select(CandidateAssignment).where(
+                CandidateAssignment.tenant_id == tenant_id,
+                CandidateAssignment.candidate_id == candidate_id,
+                CandidateAssignment.role_id == role_id,
+            ).order_by(CandidateAssignment.created_at.asc())
+        )
+        return result.scalar_one_or_none()

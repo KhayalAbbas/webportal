@@ -1064,6 +1064,7 @@ async def create_executive_pipeline(
             executive_id=executive_id,
             assignment_status=payload.assignment_status,
             current_stage_id=payload.current_stage_id,
+            role_id=payload.role_id,
             notes=payload.notes,
             actor=current_user.email or current_user.username or "system",
         )

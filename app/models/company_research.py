@@ -34,6 +34,9 @@ if TYPE_CHECKING:
     from app.models.role import Role
     from app.models.user import User
     from app.models.company import Company
+    from app.models.candidate import Candidate
+    from app.models.contact import Contact
+    from app.models.candidate_assignment import CandidateAssignment
 
 
 class CompanyResearchRun(TenantScopedModel):
@@ -490,6 +493,24 @@ class ExecutiveProspect(TenantScopedModel):
         "CanonicalPersonLink",
         back_populates="executive_prospect",
         cascade="all, delete-orphan",
+    )
+
+    candidate_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("candidate.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    contact_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("contact.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    candidate_assignment_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("candidate_assignment.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     __table_args__ = (

@@ -488,6 +488,7 @@ class ExecutivePipelineCreate(BaseModel):
     assignment_status: Optional[str] = Field(default="sourced", max_length=100)
     current_stage_id: Optional[UUID] = None
     notes: Optional[str] = Field(default=None, max_length=2000)
+    role_id: Optional[UUID] = None
 
 
 class ExecutivePipelineCreateResponse(BaseModel):
@@ -496,6 +497,11 @@ class ExecutivePipelineCreateResponse(BaseModel):
     candidate_id: UUID
     contact_id: Optional[UUID] = None
     assignment_id: UUID
+    role_id: UUID
+    pipeline_stage_id: Optional[UUID] = None
+    pipeline_stage_name: Optional[str] = None
+    assignment_status: Optional[str] = None
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
     research_event_id: UUID
     source_document_id: UUID
     review_status: str
@@ -614,6 +620,11 @@ class PackExecutive(BaseModel):
     pipeline_status: Literal["created", "not_created", "unknown"] = "unknown"
     candidate_id: Optional[UUID] = None
     contact_id: Optional[UUID] = None
+    role_id: Optional[UUID] = None
+    assignment_id: Optional[UUID] = None
+    assignment_status: Optional[str] = None
+    pipeline_stage_id: Optional[UUID] = None
+    pipeline_stage_name: Optional[str] = None
     contact_enrichment_status: Optional[str] = None
     contact_enrichment_source_document_id: Optional[UUID] = None
     evidence_source_document_ids: List[UUID] = Field(default_factory=list)

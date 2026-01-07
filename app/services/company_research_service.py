@@ -30,6 +30,8 @@ from app.repositories.research_event_repository import ResearchEventRepository
 from app.repositories.source_document_repository import SourceDocumentRepository
 from app.models.research_event import ResearchEvent
 from app.models.source_document import SourceDocument
+from app.models.pipeline_stage import PipelineStage
+from app.models.candidate_assignment import CandidateAssignment
 from app.models.company_research import (
     CompanyResearchRun,
     CompanyProspect,
@@ -645,6 +647,29 @@ class CompanyResearchService:
         await self.db.refresh(executive)
         return executive
 
+    async def _resolve_pipeline_stage(
+        self,
+        tenant_uuid: UUID,
+        requested_stage_id: Optional[UUID],
+    ) -> tuple[Optional[UUID], Optional[str]]:
+        """Return (stage_id, stage_name) for the requested or default initial stage."""
+
+        query = select(PipelineStage).where(PipelineStage.tenant_id == tenant_uuid)
+        if requested_stage_id:
+            query = query.where(PipelineStage.id == requested_stage_id)
+
+        query = query.order_by(PipelineStage.order_index.asc(), PipelineStage.created_at.asc())
+        result = await self.db.execute(query)
+        stage = result.scalars().first()
+
+        if requested_stage_id and not stage:
+            raise ValueError("stage_not_found")
+
+        if stage:
+            return stage.id, stage.name
+
+        return None, None
+
     async def create_executive_pipeline(
         self,
         tenant_id: str,
@@ -652,6 +677,7 @@ class CompanyResearchService:
         *,
         assignment_status: Optional[str] = None,
         current_stage_id: Optional[UUID] = None,
+        role_id: Optional[UUID] = None,
         notes: Optional[str] = None,
         actor: Optional[str] = None,
     ) -> Optional[dict]:
@@ -668,11 +694,14 @@ class CompanyResearchService:
         if not prospect:
             raise ValueError("prospect_missing")
 
-        role_id = getattr(prospect, "role_mandate_id", None)
+        resolved_role_id = role_id or getattr(prospect, "role_mandate_id", None)
         company_id = getattr(prospect, "normalized_company_id", None)
         company_name = getattr(prospect, "name_normalized", None) or getattr(prospect, "name_raw", None)
 
-        if not role_id:
+        if role_id and resolved_role_id and resolved_role_id != role_id:
+            raise ValueError("role_mismatch")
+
+        if not resolved_role_id:
             raise ValueError("role_missing")
 
         first_name, last_name = self._split_name(
@@ -682,54 +711,126 @@ class CompanyResearchService:
         )
 
         tenant_uuid = UUID(str(tenant_id))
+        stage_id, stage_name = await self._resolve_pipeline_stage(tenant_uuid, current_stage_id)
 
-        # Idempotency: return existing pipeline artifacts if already created for this executive.
-        existing_event = await self.db.execute(
-            select(ResearchEvent).where(
+        candidate_repo = CandidateRepository(self.db)
+        contact_repo = ContactRepository(self.db)
+        assignment_repo = CandidateAssignmentRepository(self.db)
+
+        evidence_ids: list[UUID] = []
+        if executive.source_document_id:
+            evidence_ids.append(executive.source_document_id)
+        for ev in getattr(executive, "evidence", []) or []:
+            if ev.source_document_id:
+                evidence_ids.append(ev.source_document_id)
+        evidence_ids = list(dict.fromkeys(evidence_ids))
+
+        # Idempotency path: reuse existing pipeline artifacts tied to this executive.
+        payload_exec_id = ResearchEvent.raw_payload["executive_id"].astext
+        existing_event_row = await self.db.execute(
+            select(ResearchEvent, SourceDocument.id)
+            .outerjoin(SourceDocument, SourceDocument.research_event_id == ResearchEvent.id)
+            .where(
                 ResearchEvent.tenant_id == tenant_uuid,
                 ResearchEvent.source_type == "executive_review",
                 ResearchEvent.entity_type == "CANDIDATE",
-                ResearchEvent.raw_payload.contains({"executive_id": str(executive_id)}),
-            ).order_by(ResearchEvent.created_at.asc())
-        )
-        existing_event_row = existing_event.scalars().first()
-        if existing_event_row:
-            existing_source_id = await self.db.execute(
-                select(SourceDocument.id)
-                .where(SourceDocument.research_event_id == existing_event_row.id)
-                .order_by(SourceDocument.created_at.asc())
+                payload_exec_id == str(executive_id),
             )
+            .order_by(ResearchEvent.created_at.asc(), SourceDocument.created_at.asc())
+        )
 
-            source_document_id = existing_source_id.scalars().first()
-            payload = existing_event_row.raw_payload or {}
+        existing = existing_event_row.first()
+        if existing:
+            research_event, source_document_id = existing
+            payload = research_event.raw_payload or {}
+
+            candidate_id = research_event.entity_id
+            contact_id_text = payload.get("contact_id")
+            assignment_id_text = payload.get("assignment_id")
+            assignment_status_val = payload.get("assignment_status") or assignment_status or "sourced"
+            payload_stage_id = payload.get("pipeline_stage_id") or payload.get("current_stage_id")
+            payload_stage_name = payload.get("pipeline_stage_name") or stage_name
+            payload_role_id = payload.get("role_mandate_id")
+            payload_evidence_ids = [UUID(str(e)) for e in payload.get("evidence_source_document_ids") or [] if e]
+
+            assignment_uuid = None
+            try:
+                assignment_uuid = UUID(str(assignment_id_text)) if assignment_id_text else None
+            except (ValueError, TypeError):
+                assignment_uuid = None
+
+            contact_uuid = None
+            try:
+                contact_uuid = UUID(str(contact_id_text)) if contact_id_text else None
+            except (ValueError, TypeError):
+                contact_uuid = None
+
+            assignment = None
+            if assignment_uuid:
+                assignment = await assignment_repo.get_by_id(tenant_id, assignment_uuid)
+                if assignment and assignment.status:
+                    assignment_status_val = assignment.status
+
+            pipeline_stage_uuid = None
+            if assignment and assignment.current_stage_id:
+                pipeline_stage_uuid = assignment.current_stage_id
+            elif payload_stage_id:
+                try:
+                    pipeline_stage_uuid = UUID(str(payload_stage_id))
+                except (ValueError, TypeError):
+                    pipeline_stage_uuid = None
+
+            stage_lookup_id, stage_lookup_name = (None, None)
+            if pipeline_stage_uuid:
+                stage_lookup_id, stage_lookup_name = await self._resolve_pipeline_stage(tenant_uuid, pipeline_stage_uuid)
+
+            # Persist back-links for idempotency if missing
+            if candidate_id and not getattr(executive, "candidate_id", None):
+                executive.candidate_id = candidate_id
+            if contact_uuid and not getattr(executive, "contact_id", None):
+                executive.contact_id = contact_uuid
+            if assignment and not getattr(executive, "candidate_assignment_id", None):
+                executive.candidate_assignment_id = assignment.id
+            await self.db.flush()
 
             return {
-                "candidate_id": existing_event_row.entity_id,
-                "contact_id": payload.get("contact_id"),
-                "assignment_id": payload.get("assignment_id"),
-                "research_event_id": existing_event_row.id,
+                "candidate_id": candidate_id,
+                "contact_id": contact_uuid,
+                "assignment_id": assignment.id if assignment else assignment_uuid,
+                "role_id": resolved_role_id or payload_role_id,
+                "pipeline_stage_id": stage_lookup_id,
+                "pipeline_stage_name": stage_lookup_name or payload_stage_name,
+                "assignment_status": assignment_status_val,
+                "evidence_source_document_ids": payload_evidence_ids or evidence_ids,
+                "research_event_id": research_event.id,
                 "source_document_id": source_document_id,
                 "review_status": getattr(executive, "review_status", "new"),
             }
 
-        candidate_repo = CandidateRepository(self.db)
-        candidate = await candidate_repo.create(
-            tenant_id,
-            CandidateCreate(
-                tenant_id=tenant_id,
-                first_name=first_name,
-                last_name=last_name,
-                email=executive.email,
-                current_title=executive.title,
-                current_company=company_name,
-                location=executive.location,
-                linkedin_url=executive.linkedin_url,
-            ),
-        )
+        # Creation path
+        candidate = None
+        if getattr(executive, "candidate_id", None):
+            candidate = await candidate_repo.get_by_id(tenant_id, executive.candidate_id)
+
+        if not candidate:
+            candidate = await candidate_repo.create(
+                tenant_id,
+                CandidateCreate(
+                    tenant_id=tenant_id,
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=executive.email,
+                    current_title=executive.title,
+                    current_company=company_name,
+                    location=executive.location,
+                    linkedin_url=executive.linkedin_url,
+                ),
+            )
 
         contact = None
-        if company_id:
-            contact_repo = ContactRepository(self.db)
+        if getattr(executive, "contact_id", None):
+            contact = await contact_repo.get_by_id(tenant_id, executive.contact_id)
+        elif company_id:
             contact = await contact_repo.create(
                 tenant_id,
                 ContactCreate(
@@ -746,27 +847,40 @@ class CompanyResearchService:
                 ),
             )
 
-        assignment_repo = CandidateAssignmentRepository(self.db)
-        assignment = await assignment_repo.create(
-            tenant_id,
-            CandidateAssignmentCreate(
+        assignment = None
+        if getattr(executive, "candidate_assignment_id", None):
+            assignment = await assignment_repo.get_by_id(tenant_id, executive.candidate_assignment_id)
+
+        if not assignment:
+            assignment = await assignment_repo.get_by_candidate_and_role(
                 tenant_id=tenant_id,
                 candidate_id=candidate.id,
-                role_id=role_id,
-                status=assignment_status or "sourced",
-                current_stage_id=current_stage_id,
-                source="executive_review",
-                notes=notes,
-            ),
-        )
+                role_id=resolved_role_id,
+            )
 
-        evidence_ids: list[UUID] = []
-        if executive.source_document_id:
-            evidence_ids.append(executive.source_document_id)
-        for ev in getattr(executive, "evidence", []) or []:
-            if ev.source_document_id:
-                evidence_ids.append(ev.source_document_id)
-        evidence_ids = list(dict.fromkeys(evidence_ids))
+        if not assignment:
+            assignment = await assignment_repo.create(
+                tenant_id,
+                CandidateAssignmentCreate(
+                    tenant_id=tenant_id,
+                    candidate_id=candidate.id,
+                    role_id=resolved_role_id,
+                    status=assignment_status or "sourced",
+                    current_stage_id=stage_id,
+                    source="executive_review",
+                    notes=notes,
+                ),
+            )
+        elif stage_id and assignment.current_stage_id is None:
+            assignment.current_stage_id = stage_id
+            await self.db.flush()
+
+        pipeline_stage_uuid = assignment.current_stage_id or stage_id
+        stage_lookup_id, stage_lookup_name = (None, None)
+        if pipeline_stage_uuid:
+            stage_lookup_id, stage_lookup_name = await self._resolve_pipeline_stage(tenant_uuid, pipeline_stage_uuid)
+
+        assignment_status_value = assignment.status or assignment_status or "sourced"
 
         research_event_repo = ResearchEventRepository(self.db)
         research_event = await research_event_repo.create(
@@ -781,9 +895,12 @@ class CompanyResearchService:
                     "executive_id": str(executive_id),
                     "company_prospect_id": str(executive.company_prospect_id),
                     "company_research_run_id": str(executive.company_research_run_id),
-                    "role_mandate_id": str(role_id) if role_id else None,
+                    "role_mandate_id": str(resolved_role_id) if resolved_role_id else None,
                     "assignment_id": str(assignment.id),
-                    "contact_id": str(contact.id) if contact else None,
+                    "assignment_status": assignment_status_value,
+                    "contact_id": str(getattr(contact, "id", None)) if contact else None,
+                    "pipeline_stage_id": str(stage_lookup_id) if stage_lookup_id else None,
+                    "pipeline_stage_name": stage_lookup_name,
                     "review_status": getattr(executive, "review_status", "new"),
                     "verification_status": getattr(executive, "verification_status", None),
                     "provenance": getattr(executive, "discovered_by", None),
@@ -810,36 +927,62 @@ class CompanyResearchService:
                         "candidate_id": str(candidate.id),
                         "assignment_id": str(assignment.id),
                         "evidence_source_document_ids": [str(eid) for eid in evidence_ids],
+                        "pipeline_stage_id": str(stage_lookup_id) if stage_lookup_id else None,
+                        "pipeline_stage_name": stage_lookup_name,
                     },
                     sort_keys=True,
                 ),
                 doc_metadata={
                     "company_name": company_name,
-                    "role_mandate_id": str(role_id) if role_id else None,
+                    "role_mandate_id": str(resolved_role_id) if resolved_role_id else None,
                     "review_status": getattr(executive, "review_status", "new"),
                     "verification_status": getattr(executive, "verification_status", None),
                     "provenance": getattr(executive, "discovered_by", None),
                     "executive_source_document_id": str(executive.source_document_id) if executive.source_document_id else None,
                     "executive_evidence_source_document_ids": [str(eid) for eid in evidence_ids],
+                    "pipeline_stage_id": str(stage_lookup_id) if stage_lookup_id else None,
+                    "pipeline_stage_name": stage_lookup_name,
                 },
             ),
         )
 
+        executive.candidate_id = candidate.id
+        executive.contact_id = getattr(contact, "id", None)
+        executive.candidate_assignment_id = assignment.id
+
+        evidence_text = "|".join(str(eid) for eid in evidence_ids)
+
         self.db.add(
             ActivityLog(
                 tenant_id=tenant_id,
-                role_id=role_id,
+                role_id=resolved_role_id,
                 candidate_id=candidate.id,
                 contact_id=getattr(contact, "id", None),
                 type="EXECUTIVE_PIPELINE_CREATE",
                 message=(
                     f"executive_id={executive_id} candidate_id={candidate.id} "
-                    f"assignment_id={assignment.id} review_status={getattr(executive, 'review_status', 'new')} "
-                    f"evidence_count={len(evidence_ids)}"
+                    f"assignment_id={assignment.id} role_id={resolved_role_id} stage_id={stage_lookup_id} "
+                    f"stage_name={stage_lookup_name or ''} evidence_ids={evidence_text}"
                 ),
                 created_by=actor or "system",
             )
         )
+
+        if stage_lookup_id:
+            self.db.add(
+                ActivityLog(
+                    tenant_id=tenant_id,
+                    role_id=resolved_role_id,
+                    candidate_id=candidate.id,
+                    contact_id=getattr(contact, "id", None),
+                    type="EXECUTIVE_PIPELINE_STAGE_SET",
+                    message=(
+                        f"candidate_id={candidate.id} assignment_id={assignment.id} "
+                        f"stage_id={stage_lookup_id} stage_name={stage_lookup_name or ''}"
+                    ),
+                    created_by=actor or "system",
+                )
+            )
 
         await self.db.flush()
 
@@ -847,6 +990,11 @@ class CompanyResearchService:
             "candidate_id": candidate.id,
             "contact_id": getattr(contact, "id", None),
             "assignment_id": assignment.id,
+            "role_id": resolved_role_id,
+            "pipeline_stage_id": stage_lookup_id,
+            "pipeline_stage_name": stage_lookup_name,
+            "assignment_status": assignment_status_value,
+            "evidence_source_document_ids": evidence_ids,
             "research_event_id": research_event.id,
             "source_document_id": source_document.id,
             "review_status": getattr(executive, "review_status", "new"),
@@ -1610,6 +1758,10 @@ class CompanyResearchService:
                 ResearchEvent.entity_id,
                 ResearchEvent.raw_payload["contact_id"].astext,
                 ResearchEvent.raw_payload["assignment_id"].astext,
+                ResearchEvent.raw_payload["role_mandate_id"].astext,
+                ResearchEvent.raw_payload["pipeline_stage_id"].astext,
+                ResearchEvent.raw_payload["pipeline_stage_name"].astext,
+                ResearchEvent.raw_payload["assignment_status"].astext,
                 ResearchEvent.created_at,
             )
             .where(
@@ -1621,8 +1773,10 @@ class CompanyResearchService:
             .order_by(ResearchEvent.created_at.desc())
         )
 
+        assignment_ids: List[UUID] = []
         mapping: Dict[UUID, dict] = {}
-        for exec_id_text, candidate_id, contact_id_text, assignment_id_text, created_at in result.all():
+        raw_rows = result.all()
+        for exec_id_text, candidate_id, contact_id_text, assignment_id_text, role_id_text, stage_id_text, stage_name_text, assignment_status_text, created_at in raw_rows:
             exec_uuid = UUID(str(exec_id_text))
             if exec_uuid in mapping:
                 continue
@@ -1636,12 +1790,70 @@ class CompanyResearchService:
                 assignment_uuid = UUID(assignment_id_text) if assignment_id_text else None
             except (ValueError, TypeError):
                 assignment_uuid = None
+            if assignment_uuid:
+                assignment_ids.append(assignment_uuid)
             mapping[exec_uuid] = {
                 "candidate_id": candidate_id,
                 "contact_id": contact_uuid,
                 "assignment_id": assignment_uuid,
+                "role_id": None,
+                "pipeline_stage_id": None,
+                "pipeline_stage_name": stage_name_text,
+                "assignment_status": assignment_status_text,
                 "created_at": created_at,
             }
+
+        assignment_details: Dict[UUID, dict] = {}
+        if assignment_ids:
+            assignment_rows = await self.db.execute(
+                select(
+                    CandidateAssignment.id,
+                    CandidateAssignment.role_id,
+                    CandidateAssignment.current_stage_id,
+                    CandidateAssignment.status,
+                    PipelineStage.name,
+                )
+                .outerjoin(PipelineStage, PipelineStage.id == CandidateAssignment.current_stage_id)
+                .where(CandidateAssignment.id.in_(assignment_ids))
+            )
+            for assignment_id, role_id, stage_id, status, stage_name in assignment_rows.all():
+                assignment_details[assignment_id] = {
+                    "role_id": role_id,
+                    "stage_id": stage_id,
+                    "status": status,
+                    "stage_name": stage_name,
+                }
+
+        for exec_uuid, values in mapping.items():
+            assignment_uuid = values.get("assignment_id")
+            details = assignment_details.get(assignment_uuid) if assignment_uuid else None
+
+            role_uuid = details.get("role_id") if details else None
+            stage_uuid = details.get("stage_id") if details else None
+            assignment_status = details.get("status") if details else None
+            stage_name = details.get("stage_name") if details else None
+
+            if not stage_uuid:
+                raw_stage = next((row for row in raw_rows if UUID(str(row[0])) == exec_uuid), None)
+                if raw_stage:
+                    try:
+                        stage_uuid = UUID(str(raw_stage[5])) if raw_stage[5] else None
+                    except (ValueError, TypeError):
+                        stage_uuid = None
+                    stage_name = stage_name or raw_stage[6]
+
+            if not role_uuid:
+                raw_role = next((row for row in raw_rows if UUID(str(row[0])) == exec_uuid), None)
+                if raw_role and raw_role[4]:
+                    try:
+                        role_uuid = UUID(str(raw_role[4]))
+                    except (ValueError, TypeError):
+                        role_uuid = None
+
+            values["role_id"] = role_uuid
+            values["pipeline_stage_id"] = stage_uuid
+            values["pipeline_stage_name"] = stage_name
+            values["assignment_status"] = assignment_status or values.get("assignment_status")
         return mapping
 
     def _build_pack_audit_summary(
@@ -1973,6 +2185,11 @@ class CompanyResearchService:
                 pipeline_status="created" if pipeline_info else "not_created",
                 candidate_id=pipeline_info.get("candidate_id") if pipeline_info else None,
                 contact_id=pipeline_info.get("contact_id") if pipeline_info else None,
+                role_id=pipeline_info.get("role_id") if pipeline_info else None,
+                assignment_id=pipeline_info.get("assignment_id") if pipeline_info else None,
+                assignment_status=pipeline_info.get("assignment_status") if pipeline_info else None,
+                pipeline_stage_id=pipeline_info.get("pipeline_stage_id") if pipeline_info else None,
+                pipeline_stage_name=pipeline_info.get("pipeline_stage_name") if pipeline_info else None,
                 contact_enrichment_status=(enrichment_info or {}).get("status"),
                 contact_enrichment_source_document_id=(enrichment_info or {}).get("source_document_id"),
                 evidence_source_document_ids=sorted({UUID(str(eid)) for eid in evidence_ids if eid}, key=lambda v: str(v)),
