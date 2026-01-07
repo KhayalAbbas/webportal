@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "your-secret-key-change-this-in-production-min-32-chars"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
+
+    # Operational limits / defaults (override via env)
+    EXPORT_PACK_MAX_ZIP_BYTES: int = 25 * 1024 * 1024
+    EXPORT_PACK_DEFAULT_MAX_COMPANIES: int = 500
+    EXPORT_PACK_DEFAULT_MAX_EXECUTIVES: int = 2000
+    EXPORT_PACK_MAX_COMPANIES: int = 2000
+    EXPORT_PACK_MAX_EXECUTIVES: int = 5000
+    BULK_ENRICH_MAX_EXECUTIVES: int = 20
     
     class Config:
         # Load variables from .env file if it exists

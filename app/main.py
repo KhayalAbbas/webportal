@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
+from app.errors import AppError, app_error_handler
 from app.routers import (
     health,
     health_check,
@@ -75,6 +76,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+app.add_exception_handler(AppError, app_error_handler)
 
 
 # Include routers (API endpoints)

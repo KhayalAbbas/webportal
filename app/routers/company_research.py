@@ -17,7 +17,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.core.dependencies import get_db, verify_user_tenant_access
+from app.errors import raise_app_error
 from app.models.user import User
 from app.services.company_research_service import CompanyResearchService
 from app.services.contact_enrichment_service import ContactEnrichmentService
@@ -839,10 +841,19 @@ async def bulk_enrich_executive_contacts(
 ):
     """Bulk explicit contact enrichment for executives in a run."""
 
+    max_allowed = settings.BULK_ENRICH_MAX_EXECUTIVES
+    if payload.executive_ids and len(payload.executive_ids) > max_allowed:
+        raise_app_error(
+            400,
+            "EXEC_ENRICH_LIMIT_EXCEEDED",
+            "Too many executive_ids supplied",
+            {"max_executive_ids": max_allowed, "provided": len(payload.executive_ids)},
+        )
+
     research_service = CompanyResearchService(db)
     run = await research_service.get_research_run(current_user.tenant_id, run_id)
     if not run:
-        raise HTTPException(status_code=404, detail="Research run not found")
+        raise_app_error(404, "RUN_NOT_FOUND", "Research run not found", {"run_id": str(run_id)})
 
     enrichment_service = ContactEnrichmentService(db)
     enrichment_request = ContactEnrichmentRequest(**payload.model_dump(exclude={"executive_ids"}))
@@ -860,7 +871,12 @@ async def bulk_enrich_executive_contacts(
             performed_by=current_user.email or current_user.username,
         )
         if results is None:
-            raise HTTPException(status_code=404, detail="Executive prospect not found")
+            raise_app_error(
+                404,
+                "EXEC_NOT_FOUND",
+                "Executive prospect not found",
+                {"executive_id": str(exec_id)},
+            )
 
         items.append(
             BulkExecutiveContactEnrichmentResponseItem(
@@ -1039,7 +1055,12 @@ async def enrich_executive_contacts(
     )
 
     if results is None:
-        raise HTTPException(status_code=404, detail="Executive prospect not found")
+        raise_app_error(
+            404,
+            "EXEC_NOT_FOUND",
+            "Executive prospect not found",
+            {"executive_id": str(executive_id)},
+        )
 
     return ExecutiveContactEnrichmentResponse(executive_id=executive_id, results=results)
 
@@ -1058,9 +1079,6 @@ async def create_executive_pipeline(
 
     service = CompanyResearchService(db)
 
-    def _error(status_code: int, code: str, message: str) -> None:
-        raise HTTPException(status_code=status_code, detail={"code": code, "message": message})
-
     try:
         result = await service.create_executive_pipeline(
             tenant_id=current_user.tenant_id,
@@ -1074,19 +1092,19 @@ async def create_executive_pipeline(
     except ValueError as exc:  # noqa: BLE001
         msg = str(exc)
         if msg == "review_status_not_accepted":
-            _error(409, "EXEC_NOT_ACCEPTED", "Executive must be accepted before ATS promotion")
+            raise_app_error(409, "EXEC_NOT_ACCEPTED", "Executive must be accepted before ATS promotion")
         if msg == "prospect_missing":
-            _error(404, "PROSPECT_NOT_FOUND", "Company prospect not found for executive")
+            raise_app_error(404, "PROSPECT_NOT_FOUND", "Company prospect not found for executive")
         if msg == "role_missing":
-            _error(400, "ROLE_REQUIRED", "role_id is required on the prospect or payload")
+            raise_app_error(400, "ROLE_REQUIRED", "role_id is required on the prospect or payload")
         if msg == "role_mismatch":
-            _error(400, "ROLE_MISMATCH", "role_id does not match prospect role")
+            raise_app_error(400, "ROLE_MISMATCH", "role_id does not match prospect role")
         if msg == "stage_not_found":
-            _error(400, "STAGE_NOT_FOUND", "current_stage_id not found for tenant")
+            raise_app_error(400, "STAGE_NOT_FOUND", "current_stage_id not found for tenant")
         raise
 
     if result is None:
-        _error(404, "EXEC_NOT_FOUND", "Executive prospect not found")
+        raise_app_error(404, "EXEC_NOT_FOUND", "Executive prospect not found")
 
     await db.commit()
     return result
@@ -1821,15 +1839,21 @@ async def export_run_pack(
         )
     except ValueError as exc:  # noqa: BLE001
         msg = str(exc)
+        if msg == "research_run_not_found":
+            raise_app_error(404, "RUN_NOT_FOUND", "Research run not found", {"run_id": str(run_id)})
         if msg == "export_param_invalid":
-            raise HTTPException(
-                status_code=400,
-                detail={"code": "EXPORT_LIMIT_INVALID", "message": "max_companies and max_executives must be >= 1"},
+            raise_app_error(
+                400,
+                "EXPORT_LIMIT_INVALID",
+                "max_companies and max_executives must be >= 1",
+                {"max_companies": max_companies, "max_executives": max_executives},
             )
         if msg == "export_pack_too_large":
-            raise HTTPException(
-                status_code=413,
-                detail={"code": "EXPORT_ZIP_TOO_LARGE", "message": "export pack exceeds maximum allowed size"},
+            raise_app_error(
+                413,
+                "EXPORT_ZIP_TOO_LARGE",
+                "export pack exceeds maximum allowed size",
+                {"max_zip_bytes": CompanyResearchService.EXPORT_MAX_ZIP_BYTES},
             )
         raise
 

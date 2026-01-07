@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
+from app.core.config import settings
 from app.repositories.company_research_repo import CompanyResearchRepository
 from app.repositories.enrichment_assignment_repository import EnrichmentAssignmentRepository
 from app.repositories.candidate_repository import CandidateRepository
@@ -98,11 +99,11 @@ class CompanyResearchService:
         "both": 2,
     }
 
-    EXPORT_MAX_ZIP_BYTES = 25 * 1024 * 1024
-    EXPORT_DEFAULT_MAX_COMPANIES = 500
-    EXPORT_DEFAULT_MAX_EXECUTIVES = 2000
-    EXPORT_MAX_COMPANIES = 2000
-    EXPORT_MAX_EXECUTIVES = 5000
+    EXPORT_MAX_ZIP_BYTES = settings.EXPORT_PACK_MAX_ZIP_BYTES
+    EXPORT_DEFAULT_MAX_COMPANIES = settings.EXPORT_PACK_DEFAULT_MAX_COMPANIES
+    EXPORT_DEFAULT_MAX_EXECUTIVES = settings.EXPORT_PACK_DEFAULT_MAX_EXECUTIVES
+    EXPORT_MAX_COMPANIES = settings.EXPORT_PACK_MAX_COMPANIES
+    EXPORT_MAX_EXECUTIVES = settings.EXPORT_PACK_MAX_EXECUTIVES
     
     def __init__(self, db: AsyncSession):
         self.db = db
