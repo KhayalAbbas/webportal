@@ -815,6 +815,7 @@ class CompanyResearchRepository:
         tenant_id: str,
         run_id: UUID,
         canonical_company_id: Optional[UUID] = None,
+        company_prospect_id: Optional[UUID] = None,
     ) -> List[ExecutiveMergeDecision]:
         query = select(ExecutiveMergeDecision).where(
             ExecutiveMergeDecision.tenant_id == tenant_id,
@@ -822,6 +823,8 @@ class CompanyResearchRepository:
         )
         if canonical_company_id:
             query = query.where(ExecutiveMergeDecision.canonical_company_id == canonical_company_id)
+        if company_prospect_id:
+            query = query.where(ExecutiveMergeDecision.company_prospect_id == company_prospect_id)
 
         result = await self.db.execute(query.order_by(ExecutiveMergeDecision.created_at.asc()))
         return list(result.scalars().all())

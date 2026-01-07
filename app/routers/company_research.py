@@ -901,10 +901,14 @@ async def list_executive_prospects(
 async def compare_executives(
     run_id: UUID,
     canonical_company_id: Optional[UUID] = Query(None, description="Filter compare view by canonical company"),
+    company_prospect_id: Optional[UUID] = Query(None, description="Filter compare view by company prospect"),
     current_user: User = Depends(verify_user_tenant_access),
     db: AsyncSession = Depends(get_db),
 ):
     """Compare internal vs external executives for a run/company with evidence pointers."""
+
+    if not canonical_company_id and not company_prospect_id:
+        raise HTTPException(status_code=400, detail="company_scope_required")
 
     service = CompanyResearchService(db)
     run = await service.get_research_run(current_user.tenant_id, run_id)
@@ -915,6 +919,7 @@ async def compare_executives(
         tenant_id=current_user.tenant_id,
         run_id=run_id,
         canonical_company_id=canonical_company_id,
+        company_prospect_id=company_prospect_id,
     )
     return ExecutiveCompareResponse.model_validate(payload)
 

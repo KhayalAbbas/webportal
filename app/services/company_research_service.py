@@ -1513,21 +1513,31 @@ class CompanyResearchService:
         tenant_id: str,
         run_id: UUID,
         canonical_company_id: Optional[UUID] = None,
+        company_prospect_id: Optional[UUID] = None,
     ) -> dict:
         exec_rows = await self.list_executive_prospects_with_evidence(
             tenant_id=tenant_id,
             run_id=run_id,
             canonical_company_id=canonical_company_id,
+            company_prospect_id=company_prospect_id,
         )
 
         exec_map: dict[UUID, dict] = {row["id"]: row for row in exec_rows}
         if not exec_rows:
             return {
+                "company_name": None,
+                "company_prospect_id": company_prospect_id,
+                "canonical_company_id": canonical_company_id,
                 "matched_or_both": [],
                 "internal_only": [],
                 "external_only": [],
                 "candidate_matches": [],
             }
+
+        # Derive company metadata for the snapshot (single-company compare view)
+        response_company_name = exec_rows[0].get("company_name")
+        response_company_prospect_id = exec_rows[0].get("company_prospect_id")
+        response_canonical_company_id = canonical_company_id or exec_rows[0].get("canonical_company_id")
 
         response_source_ids: set[UUID] = set()
         evidence_source_ids: set[UUID] = set()
@@ -1548,6 +1558,7 @@ class CompanyResearchService:
             tenant_id=tenant_id,
             run_id=run_id,
             canonical_company_id=canonical_company_id,
+            company_prospect_id=company_prospect_id,
         )
         decision_map: dict[tuple[UUID, UUID], ExecutiveMergeDecision] = {}
         for dec in decisions:
@@ -1574,6 +1585,7 @@ class CompanyResearchService:
                 "id": exec_row["id"],
                 "company_prospect_id": exec_row["company_prospect_id"],
                 "canonical_company_id": exec_row.get("canonical_company_id"),
+                "company_name": exec_row.get("company_name"),
                 "name": exec_row.get("name"),
                 "title": exec_row.get("title"),
                 "provenance": exec_row.get("provenance") or exec_row.get("discovered_by"),
@@ -1603,6 +1615,7 @@ class CompanyResearchService:
                 {
                     "company_prospect_id": row.get("company_prospect_id"),
                     "canonical_company_id": row.get("canonical_company_id"),
+                    "company_name": row.get("company_name"),
                     "name": row.get("name"),
                     "title": row.get("title"),
                     "internal": _leaf(row, "internal"),
@@ -1640,6 +1653,7 @@ class CompanyResearchService:
                 {
                     "company_prospect_id": left_row.get("company_prospect_id") or right_row.get("company_prospect_id"),
                     "canonical_company_id": dec.canonical_company_id or left_row.get("canonical_company_id") or right_row.get("canonical_company_id"),
+                    "company_name": left_row.get("company_name") or right_row.get("company_name"),
                     "name": left_row.get("name") or right_row.get("name"),
                     "title": left_row.get("title") or right_row.get("title"),
                     "internal": internal_leaf,
@@ -1668,6 +1682,7 @@ class CompanyResearchService:
                     {
                         "company_prospect_id": i_row.get("company_prospect_id"),
                         "canonical_company_id": i_row.get("canonical_company_id") or e_row.get("canonical_company_id"),
+                        "company_name": i_row.get("company_name") or e_row.get("company_name"),
                         "name": i_row.get("name") or e_row.get("name"),
                         "title": i_row.get("title") or e_row.get("title"),
                         "internal": _leaf(i_row, "internal"),
@@ -1697,6 +1712,9 @@ class CompanyResearchService:
         )
 
         return {
+            "company_name": response_company_name,
+            "company_prospect_id": response_company_prospect_id,
+            "canonical_company_id": response_canonical_company_id,
             "matched_or_both": matched_or_both_sorted,
             "internal_only": internal_only,
             "external_only": external_only,

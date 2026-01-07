@@ -642,6 +642,7 @@ class ExecutiveCompareLeaf(BaseModel):
     id: UUID
     company_prospect_id: UUID
     canonical_company_id: Optional[UUID] = None
+    company_name: Optional[str] = None
     name: str
     title: Optional[str] = None
     provenance: Optional[str] = None
@@ -659,6 +660,7 @@ class ExecutiveCompareMatch(BaseModel):
 
     company_prospect_id: UUID
     canonical_company_id: Optional[UUID] = None
+    company_name: Optional[str] = None
     name: str
     title: Optional[str] = None
     internal: Optional[ExecutiveCompareLeaf] = None
@@ -670,6 +672,9 @@ class ExecutiveCompareMatch(BaseModel):
 class ExecutiveCompareResponse(BaseModel):
     """Comparison response listing matches and gaps."""
 
+    company_name: Optional[str] = None
+    company_prospect_id: Optional[UUID] = None
+    canonical_company_id: Optional[UUID] = None
     matched_or_both: List[ExecutiveCompareMatch] = Field(default_factory=list)
     internal_only: List[ExecutiveCompareLeaf] = Field(default_factory=list)
     external_only: List[ExecutiveCompareLeaf] = Field(default_factory=list)
