@@ -59,3 +59,4 @@ scripts/proofs/_artifacts/
 # OS
 .DS_Store
 Thumbs.db
+scripts/proofs/tmp_openapi_excerpt.py
