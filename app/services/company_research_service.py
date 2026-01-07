@@ -20,6 +20,13 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.repositories.company_research_repo import CompanyResearchRepository
 from app.repositories.enrichment_assignment_repository import EnrichmentAssignmentRepository
+from app.repositories.candidate_repository import CandidateRepository
+from app.repositories.contact_repository import ContactRepository
+from app.repositories.candidate_assignment_repository import CandidateAssignmentRepository
+from app.repositories.research_event_repository import ResearchEventRepository
+from app.repositories.source_document_repository import SourceDocumentRepository
+from app.models.research_event import ResearchEvent
+from app.models.source_document import SourceDocument
 from app.models.company_research import (
     CompanyResearchRun,
     CompanyProspect,
@@ -54,9 +61,13 @@ from app.schemas.company_research import (
     CompanyProspectMetricCreate,
     SourceDocumentCreate,
     SourceDocumentUpdate,
-    ResearchEventCreate,
     ProspectSignalEvidence,
 )
+from app.schemas.research_event import ResearchEventCreate
+from app.schemas.source_document import SourceDocumentCreate as ResearchEventSourceDocumentCreate
+from app.schemas.candidate import CandidateCreate
+from app.schemas.contact import ContactCreate
+from app.schemas.candidate_assignment import CandidateAssignmentCreate
 from app.utils.url_canonicalizer import canonicalize_url
 
 
@@ -80,6 +91,14 @@ class CompanyResearchService:
         self.db = db
         self.repo = CompanyResearchRepository(db)
         self.assignment_repo = EnrichmentAssignmentRepository(db)
+
+    def _split_name(self, full_name: str) -> tuple[str, str]:
+        tokens = [token for token in (full_name or "").strip().split() if token]
+        if not tokens:
+            return "Executive", "Prospect"
+        if len(tokens) == 1:
+            return tokens[0], tokens[0]
+        return tokens[0], " ".join(tokens[1:])
     
     # ========================================================================
     # Company Research Run Operations
@@ -573,6 +592,256 @@ class CompanyResearchService:
         await self.db.flush()
         await self.db.refresh(executive)
         return executive
+
+    async def update_executive_review_status(
+        self,
+        tenant_id: str,
+        executive_id: UUID,
+        review_status: str,
+        actor: Optional[str] = None,
+    ) -> Optional[ExecutiveProspect]:
+        """Update executive review_status with deterministic audit logging."""
+
+        if review_status not in self.REVIEW_STATUSES:
+            raise ValueError("invalid_review_status")
+
+        executive = await self.repo.get_executive_prospect(tenant_id, executive_id)
+        if not executive:
+            return None
+
+        current_status = getattr(executive, "review_status", "new")
+        if current_status == review_status:
+            return executive
+
+        executive.review_status = review_status
+
+        role_id = None
+        if getattr(executive, "company_prospect", None):
+            role_id = getattr(executive.company_prospect, "role_mandate_id", None)
+
+        self.db.add(
+            ActivityLog(
+                tenant_id=tenant_id,
+                role_id=role_id,
+                type="EXECUTIVE_REVIEW_STATUS",
+                message=(
+                    f"executive_id={executive_id} prospect_id={executive.company_prospect_id} "
+                    f"run_id={executive.company_research_run_id} review_status {current_status}->{review_status}"
+                ),
+                created_by=actor or "system",
+            )
+        )
+
+        await self.db.flush()
+        await self.db.refresh(executive)
+        return executive
+
+    async def create_executive_pipeline(
+        self,
+        tenant_id: str,
+        executive_id: UUID,
+        *,
+        assignment_status: Optional[str] = None,
+        current_stage_id: Optional[UUID] = None,
+        notes: Optional[str] = None,
+        actor: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Create ATS candidate/contact/assignment from an accepted executive prospect with audit/evidence."""
+
+        executive = await self.repo.get_executive_prospect(tenant_id, executive_id)
+        if not executive:
+            return None
+
+        if getattr(executive, "review_status", "new") != "accepted":
+            raise ValueError("review_status_not_accepted")
+
+        prospect = getattr(executive, "company_prospect", None)
+        if not prospect:
+            raise ValueError("prospect_missing")
+
+        role_id = getattr(prospect, "role_mandate_id", None)
+        company_id = getattr(prospect, "normalized_company_id", None)
+        company_name = getattr(prospect, "name_normalized", None) or getattr(prospect, "name_raw", None)
+
+        if not role_id:
+            raise ValueError("role_missing")
+
+        first_name, last_name = self._split_name(
+            getattr(executive, "name_normalized", None)
+            or getattr(executive, "name_raw", None)
+            or "Executive Prospect",
+        )
+
+        tenant_uuid = UUID(str(tenant_id))
+
+        # Idempotency: return existing pipeline artifacts if already created for this executive.
+        existing_event = await self.db.execute(
+            select(ResearchEvent).where(
+                ResearchEvent.tenant_id == tenant_uuid,
+                ResearchEvent.source_type == "executive_review",
+                ResearchEvent.entity_type == "CANDIDATE",
+                ResearchEvent.raw_payload.contains({"executive_id": str(executive_id)}),
+            ).order_by(ResearchEvent.created_at.asc())
+        )
+        existing_event_row = existing_event.scalars().first()
+        if existing_event_row:
+            existing_source_id = await self.db.execute(
+                select(SourceDocument.id)
+                .where(SourceDocument.research_event_id == existing_event_row.id)
+                .order_by(SourceDocument.created_at.asc())
+            )
+
+            source_document_id = existing_source_id.scalars().first()
+            payload = existing_event_row.raw_payload or {}
+
+            return {
+                "candidate_id": existing_event_row.entity_id,
+                "contact_id": payload.get("contact_id"),
+                "assignment_id": payload.get("assignment_id"),
+                "research_event_id": existing_event_row.id,
+                "source_document_id": source_document_id,
+                "review_status": getattr(executive, "review_status", "new"),
+            }
+
+        candidate_repo = CandidateRepository(self.db)
+        candidate = await candidate_repo.create(
+            tenant_id,
+            CandidateCreate(
+                tenant_id=tenant_id,
+                first_name=first_name,
+                last_name=last_name,
+                email=executive.email,
+                current_title=executive.title,
+                current_company=company_name,
+                location=executive.location,
+                linkedin_url=executive.linkedin_url,
+            ),
+        )
+
+        contact = None
+        if company_id:
+            contact_repo = ContactRepository(self.db)
+            contact = await contact_repo.create(
+                tenant_id,
+                ContactCreate(
+                    tenant_id=tenant_id,
+                    company_id=company_id,
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=executive.email,
+                    role_title=executive.title,
+                    notes=(
+                        f"Created from executive prospect {executive_id} "
+                        f"for run {executive.company_research_run_id}"
+                    ),
+                ),
+            )
+
+        assignment_repo = CandidateAssignmentRepository(self.db)
+        assignment = await assignment_repo.create(
+            tenant_id,
+            CandidateAssignmentCreate(
+                tenant_id=tenant_id,
+                candidate_id=candidate.id,
+                role_id=role_id,
+                status=assignment_status or "sourced",
+                current_stage_id=current_stage_id,
+                source="executive_review",
+                notes=notes,
+            ),
+        )
+
+        evidence_ids: list[UUID] = []
+        if executive.source_document_id:
+            evidence_ids.append(executive.source_document_id)
+        for ev in getattr(executive, "evidence", []) or []:
+            if ev.source_document_id:
+                evidence_ids.append(ev.source_document_id)
+        evidence_ids = list(dict.fromkeys(evidence_ids))
+
+        research_event_repo = ResearchEventRepository(self.db)
+        research_event = await research_event_repo.create(
+            tenant_uuid,
+            ResearchEventCreate(
+                tenant_id=tenant_uuid,
+                source_type="executive_review",
+                source_url=executive.profile_url or executive.linkedin_url,
+                entity_type="CANDIDATE",
+                entity_id=candidate.id,
+                raw_payload={
+                    "executive_id": str(executive_id),
+                    "company_prospect_id": str(executive.company_prospect_id),
+                    "company_research_run_id": str(executive.company_research_run_id),
+                    "role_mandate_id": str(role_id) if role_id else None,
+                    "assignment_id": str(assignment.id),
+                    "contact_id": str(contact.id) if contact else None,
+                    "review_status": getattr(executive, "review_status", "new"),
+                    "verification_status": getattr(executive, "verification_status", None),
+                    "provenance": getattr(executive, "discovered_by", None),
+                    "evidence_source_document_ids": [str(eid) for eid in evidence_ids],
+                    "source_document_id": str(executive.source_document_id) if executive.source_document_id else None,
+                },
+            ),
+        )
+
+        source_doc_repo = SourceDocumentRepository(self.db)
+        source_document = await source_doc_repo.create(
+            tenant_uuid,
+            ResearchEventSourceDocumentCreate(
+                tenant_id=tenant_uuid,
+                research_event_id=research_event.id,
+                document_type="executive_review_pipeline",
+                title=(
+                    f"Executive {executive.name_normalized or executive.name_raw} pipeline promotion"
+                ),
+                url=executive.profile_url or executive.linkedin_url,
+                text_content=json.dumps(
+                    {
+                        "executive_id": str(executive_id),
+                        "candidate_id": str(candidate.id),
+                        "assignment_id": str(assignment.id),
+                        "evidence_source_document_ids": [str(eid) for eid in evidence_ids],
+                    },
+                    sort_keys=True,
+                ),
+                doc_metadata={
+                    "company_name": company_name,
+                    "role_mandate_id": str(role_id) if role_id else None,
+                    "review_status": getattr(executive, "review_status", "new"),
+                    "verification_status": getattr(executive, "verification_status", None),
+                    "provenance": getattr(executive, "discovered_by", None),
+                    "executive_source_document_id": str(executive.source_document_id) if executive.source_document_id else None,
+                    "executive_evidence_source_document_ids": [str(eid) for eid in evidence_ids],
+                },
+            ),
+        )
+
+        self.db.add(
+            ActivityLog(
+                tenant_id=tenant_id,
+                role_id=role_id,
+                candidate_id=candidate.id,
+                contact_id=getattr(contact, "id", None),
+                type="EXECUTIVE_PIPELINE_CREATE",
+                message=(
+                    f"executive_id={executive_id} candidate_id={candidate.id} "
+                    f"assignment_id={assignment.id} review_status={getattr(executive, 'review_status', 'new')} "
+                    f"evidence_count={len(evidence_ids)}"
+                ),
+                created_by=actor or "system",
+            )
+        )
+
+        await self.db.flush()
+
+        return {
+            "candidate_id": candidate.id,
+            "contact_id": getattr(contact, "id", None),
+            "assignment_id": assignment.id,
+            "research_event_id": research_event.id,
+            "source_document_id": source_document.id,
+            "review_status": getattr(executive, "review_status", "new"),
+        }
     
     async def count_prospects_for_run(
         self,
@@ -1040,6 +1309,7 @@ class CompanyResearchService:
                     "discovered_by": exec_row.discovered_by,
                     "provenance": exec_row.discovered_by,
                     "verification_status": getattr(exec_row, "verification_status", None) or getattr(company, "verification_status", None),
+                    "review_status": getattr(exec_row, "review_status", "new"),
                     "name": exec_row.name_raw,
                     "name_normalized": exec_row.name_normalized,
                     "title": exec_row.title,

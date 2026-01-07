@@ -458,6 +458,12 @@ class ExecutiveProspect(TenantScopedModel):
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="new", index=True)
     discovered_by: Mapped[str] = mapped_column(String(50), nullable=False, default="internal")
     verification_status: Mapped[str] = mapped_column(String(50), nullable=False, default="unverified")
+    review_status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="new",
+        server_default="new",
+    )
     source_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     source_document_id: Mapped[Optional[UUID]] = mapped_column(
         UUID(as_uuid=True),
@@ -490,6 +496,12 @@ class ExecutiveProspect(TenantScopedModel):
         Index("ix_executive_prospects_run_id", "company_research_run_id"),
         Index("ix_executive_prospects_company_id", "company_prospect_id"),
         Index("ix_executive_prospects_status", "status"),
+        Index(
+            "ix_executive_prospects_review_status",
+            "tenant_id",
+            "company_research_run_id",
+            "review_status",
+        ),
         UniqueConstraint(
             "tenant_id",
             "company_research_run_id",

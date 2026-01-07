@@ -199,6 +199,12 @@ class ExecutiveVerificationUpdate(BaseModel):
     verification_status: str = Field(..., max_length=50)
 
 
+class ExecutiveReviewUpdate(BaseModel):
+    """Schema for updating an executive review gate status."""
+
+    review_status: str = Field(..., max_length=50)
+
+
 # ============================================================================
 # Company Prospect Evidence Schemas
 # ============================================================================
@@ -460,6 +466,7 @@ class ExecutiveProspectRead(BaseModel):
     discovered_by: Optional[str] = None
     provenance: Optional[str] = None
     verification_status: Optional[str] = None
+    review_status: str = Field(default="new")
     name: str
     name_normalized: str
     title: Optional[str] = None
@@ -473,6 +480,25 @@ class ExecutiveProspectRead(BaseModel):
     source_document_id: Optional[UUID] = None
     evidence_source_document_ids: List[UUID] = Field(default_factory=list)
     evidence: List[ExecutiveEvidenceRead] = Field(default_factory=list)
+
+
+class ExecutivePipelineCreate(BaseModel):
+    """Request payload to create ATS pipeline records from an executive prospect."""
+
+    assignment_status: Optional[str] = Field(default="sourced", max_length=100)
+    current_stage_id: Optional[UUID] = None
+    notes: Optional[str] = Field(default=None, max_length=2000)
+
+
+class ExecutivePipelineCreateResponse(BaseModel):
+    """Response payload summarizing pipeline objects created from an executive prospect."""
+
+    candidate_id: UUID
+    contact_id: Optional[UUID] = None
+    assignment_id: UUID
+    research_event_id: UUID
+    source_document_id: UUID
+    review_status: str
 
 
 class ExecutiveEngineEvidence(BaseModel):
