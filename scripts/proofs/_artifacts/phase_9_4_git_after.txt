@@ -1,10 +1,11 @@
 ﻿## master...origin/master
-M  scripts/proofs/_artifacts/phase_9_4_commit.txt
+ M scripts/proofs/_artifacts/phase_9_4_git_after.txt
+ M scripts/proofs/_artifacts/phase_9_4_tag.txt
 
-commit c3b90a5a2b52a74cd84a593d9d38ed54af1f2974 (HEAD -> master, tag: phase_9_4_signed_off, origin/master, origin/HEAD)
+commit 1038a9d419068ad71552288d84e200b6f74609b1 (HEAD -> master, tag: phase_9_4_signed_off, origin/master, origin/HEAD)
 Author: ATS Local <local@ats>
-Date:   Wed Jan 7 19:41:38 2026 +0400
+Date:   Wed Jan 7 19:44:49 2026 +0400
 
     Phase 9.4: external LLM JSON company discovery ingest API + evidence-first storage + deterministic proof
 
-c3b90a5a2b52a74cd84a593d9d38ed54af1f2974 refs/tags/phase_9_4_signed_off
+1038a9d419068ad71552288d84e200b6f74609b1 refs/tags/phase_9_4_signed_off
