@@ -16,14 +16,18 @@ from app.repositories.candidate_contact_point_repository import CandidateContact
 from app.repositories.research_event_repository import ResearchEventRepository
 from app.repositories.source_document_repository import SourceDocumentRepository
 from app.repositories.ai_enrichment_repository import AIEnrichmentRepository
+from app.repositories.company_research_repo import CompanyResearchRepository
 from app.schemas.research_event import ResearchEventCreate
-from app.schemas.source_document import SourceDocumentCreate
+from app.schemas.source_document import SourceDocumentCreate as EventSourceDocumentCreate
+from app.schemas.company_research import SourceDocumentCreate as ResearchSourceDocumentCreate
 from app.schemas.ai_enrichment import AIEnrichmentCreate
 from app.schemas.contact_enrichment import ContactEnrichmentRequest, ProviderEnrichmentResult
 from app.utils.canonical_json import canonical_dumps, canonical_hash
 from app.services.contact_enrichment import MockLushaAdapter, MockSignalHireAdapter
+from app.models.company_research import ExecutiveProspectEvidence
 
 PURPOSE_CONTACT_ENRICHMENT = "candidate_contact_enrichment"
+PURPOSE_EXEC_CONTACT_ENRICHMENT = "executive_contact_enrichment"
 
 
 class ContactEnrichmentService:
@@ -36,6 +40,7 @@ class ContactEnrichmentService:
         self.research_event_repo = ResearchEventRepository(db)
         self.source_document_repo = SourceDocumentRepository(db)
         self.ai_enrichment_repo = AIEnrichmentRepository(db)
+        self.company_repo = CompanyResearchRepository(db)
         self.adapters = {
             "lusha": MockLushaAdapter(),
             "signalhire": MockSignalHireAdapter(),
@@ -137,7 +142,7 @@ class ContactEnrichmentService:
 
             source_document = await self.source_document_repo.create(
                 tenant_uuid,
-                SourceDocumentCreate(
+                EventSourceDocumentCreate(
                     tenant_id=tenant_uuid,
                     research_event_id=research_event.id,
                     document_type="provider_json",
@@ -295,6 +300,180 @@ class ContactEnrichmentService:
             )
 
         return points
+
+    def _executive_context(self, executive: Any) -> Dict[str, Any]:
+        company = getattr(executive, "company_prospect", None)
+        return {
+            "id": str(executive.id),
+            "company_prospect_id": str(executive.company_prospect_id),
+            "company_name": getattr(company, "name_normalized", None)
+            or getattr(company, "name_raw", None),
+            "run_id": str(executive.company_research_run_id),
+            "name": executive.name_raw,
+            "name_normalized": executive.name_normalized,
+            "title": executive.title,
+            "linkedin_url": executive.linkedin_url,
+            "profile_url": executive.profile_url,
+            "email": executive.email,
+            "status": executive.status,
+            "verification_status": executive.verification_status,
+            "review_status": getattr(executive, "review_status", None),
+        }
+
+    async def enrich_executive_contacts(
+        self,
+        tenant_id: str,
+        executive_id: UUID,
+        request: ContactEnrichmentRequest,
+        performed_by: Optional[str] = None,
+    ) -> Optional[List[ProviderEnrichmentResult]]:
+        executive = await self.company_repo.get_executive_prospect(tenant_id, executive_id)
+        if not executive:
+            return None
+
+        tenant_uuid = UUID(str(tenant_id))
+        exec_context = self._executive_context(executive)
+        provider_results: List[ProviderEnrichmentResult] = []
+
+        for provider_name in request.providers:
+            normalized_provider = provider_name.lower()
+            adapter = self.adapters.get(normalized_provider)
+            if not adapter:
+                provider_results.append(
+                    ProviderEnrichmentResult(
+                        provider=normalized_provider,
+                        status="error",
+                        message="Unsupported provider",
+                    )
+                )
+                continue
+
+            recent = await self.ai_enrichment_repo.get_latest_for_provider(
+                tenant_uuid,
+                normalized_provider,
+                PURPOSE_EXEC_CONTACT_ENRICHMENT,
+                executive_id,
+                "EXECUTIVE",
+            )
+            if recent and not request.force and request.ttl_minutes > 0:
+                deadline = recent.created_at + timedelta(minutes=request.ttl_minutes)
+                now = datetime.now(timezone.utc)
+                if deadline > now:
+                    recent_source = self._source_document_from_enrichment(recent)
+                    provider_results.append(
+                        ProviderEnrichmentResult(
+                            provider=normalized_provider,
+                            status="skipped",
+                            enrichment_id=recent.id,
+                            message="TTL window not expired",
+                            source_document_id=recent_source,
+                        )
+                    )
+                    continue
+
+            raw_payload = await adapter.fetch_contacts(exec_context)
+            payload_with_context = {
+                "provider": normalized_provider,
+                "mode": request.mode,
+                "executive": exec_context,
+                "payload": raw_payload,
+            }
+            content_hash = canonical_hash(payload_with_context)
+            canonical_text = canonical_dumps(payload_with_context)
+
+            existing = await self.ai_enrichment_repo.get_by_hash(
+                tenant_uuid,
+                normalized_provider,
+                PURPOSE_EXEC_CONTACT_ENRICHMENT,
+                content_hash,
+                executive_id,
+                "EXECUTIVE",
+            )
+            if existing and not request.force:
+                existing_source = self._source_document_from_enrichment(existing)
+                provider_results.append(
+                    ProviderEnrichmentResult(
+                        provider=normalized_provider,
+                        status="skipped",
+                        enrichment_id=existing.id,
+                        message="Identical payload already processed",
+                        source_document_id=existing_source,
+                    )
+                )
+                continue
+
+            source_document = await self.company_repo.create_source_document(
+                tenant_id,
+                ResearchSourceDocumentCreate(
+                    company_research_run_id=executive.company_research_run_id,
+                    source_type="provider_json",
+                    title=f"{normalized_provider.title()} contact data (executive)",
+                    url=raw_payload.get("source_url") if isinstance(raw_payload, dict) else None,
+                    original_url=raw_payload.get("source_url") if isinstance(raw_payload, dict) else None,
+                    content_text=canonical_text,
+                    content_hash=content_hash,
+                    mime_type="application/json",
+                    meta={
+                        "provider": normalized_provider,
+                        "mode": request.mode,
+                        "schema_version": raw_payload.get("schema_version") if isinstance(raw_payload, dict) else None,
+                        "content_hash": content_hash,
+                        "company_name": exec_context.get("company_name"),
+                        "entity": "executive",
+                    },
+                    max_attempts=1,
+                ),
+            )
+
+            evidence = ExecutiveProspectEvidence(
+                tenant_id=tenant_uuid,
+                executive_prospect_id=executive_id,
+                source_type="contact_enrichment",
+                source_name=f"{normalized_provider} contact enrichment",
+                source_url=raw_payload.get("source_url") if isinstance(raw_payload, dict) else None,
+                raw_snippet=None,
+                evidence_weight=0.5,
+                source_document_id=source_document.id,
+                source_content_hash=content_hash,
+            )
+            self.db.add(evidence)
+
+            enrichment = await self.ai_enrichment_repo.create(
+                tenant_uuid,
+                AIEnrichmentCreate(
+                    target_type="EXECUTIVE",
+                    target_id=executive_id,
+                    model_name=f"mock-{normalized_provider}",
+                    enrichment_type="CONTACT_POINTS",
+                    payload={
+                        "provider_payload": raw_payload,
+                        "source_document_id": str(source_document.id),
+                        "executive_id": str(executive_id),
+                    },
+                    company_research_run_id=executive.company_research_run_id,
+                    purpose=PURPOSE_EXEC_CONTACT_ENRICHMENT,
+                    provider=normalized_provider,
+                    input_scope_hash=content_hash,
+                    content_hash=content_hash,
+                    source_document_id=source_document.id,
+                    status="success",
+                    error_message=None,
+                ),
+            )
+
+            provider_results.append(
+                ProviderEnrichmentResult(
+                    provider=normalized_provider,
+                    status="created",
+                    added_points=0,
+                    skipped_points=0,
+                    enrichment_id=enrichment.id,
+                    source_document_id=source_document.id,
+                )
+            )
+
+        await self.db.commit()
+        return provider_results
 
     async def _backfill_candidate_contacts(self, candidate: Candidate, added_points: List[Any]) -> None:
         if not added_points:

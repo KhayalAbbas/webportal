@@ -20,6 +20,12 @@ from app.schemas.task import TaskCreate, TaskUpdate, TaskRead
 from app.schemas.list import ListCreate, ListUpdate, ListRead
 from app.schemas.list_item import ListItemCreate, ListItemUpdate, ListItemRead
 from app.schemas.bd_opportunity import BDOpportunityCreate, BDOpportunityUpdate, BDOpportunityRead
+from app.schemas.executive_contact_enrichment import (
+    ExecutiveContactEnrichmentResponse,
+    BulkExecutiveContactEnrichmentRequest,
+    BulkExecutiveContactEnrichmentResponse,
+    BulkExecutiveContactEnrichmentResponseItem,
+)
 
 __all__ = [
     # Tenant
@@ -54,4 +60,9 @@ __all__ = [
     "ListItemCreate", "ListItemUpdate", "ListItemRead",
     # BDOpportunity
     "BDOpportunityCreate", "BDOpportunityUpdate", "BDOpportunityRead",
+    # Executive contact enrichment
+    "ExecutiveContactEnrichmentResponse",
+    "BulkExecutiveContactEnrichmentRequest",
+    "BulkExecutiveContactEnrichmentResponse",
+    "BulkExecutiveContactEnrichmentResponseItem",
 ]

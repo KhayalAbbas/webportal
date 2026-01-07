@@ -1,4 +1,4 @@
-"""
+﻿"""
 Company Research Router - API endpoints.
 
 Provides REST API for company discovery and agentic sourcing.
@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from app.core.dependencies import get_db, verify_user_tenant_access
 from app.models.user import User
 from app.services.company_research_service import CompanyResearchService
+from app.services.contact_enrichment_service import ContactEnrichmentService
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
     CompanyResearchRunRead,
@@ -59,6 +60,13 @@ from app.schemas.company_research import (
     CanonicalCompanyRead,
     CanonicalCompanyListItem,
     CanonicalCompanyLinkRead,
+)
+from app.schemas.contact_enrichment import ContactEnrichmentRequest
+from app.schemas.executive_contact_enrichment import (
+    ExecutiveContactEnrichmentResponse,
+    BulkExecutiveContactEnrichmentRequest,
+    BulkExecutiveContactEnrichmentResponse,
+    BulkExecutiveContactEnrichmentResponseItem,
 )
 
 
@@ -818,6 +826,51 @@ async def export_executives_csv(
     return StreamingResponse(stream, media_type="text/csv", headers=headers)
 
 
+@router.post(
+    "/runs/{run_id}/executives/enrich_contacts",
+    response_model=BulkExecutiveContactEnrichmentResponse,
+)
+async def bulk_enrich_executive_contacts(
+    run_id: UUID,
+    payload: BulkExecutiveContactEnrichmentRequest,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bulk explicit contact enrichment for executives in a run."""
+
+    research_service = CompanyResearchService(db)
+    run = await research_service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    enrichment_service = ContactEnrichmentService(db)
+    enrichment_request = ContactEnrichmentRequest(**payload.model_dump(exclude={"executive_ids"}))
+
+    items: List[BulkExecutiveContactEnrichmentResponseItem] = []
+    for exec_id in payload.executive_ids:
+        executive = await research_service.repo.get_executive_prospect(current_user.tenant_id, exec_id)
+        if not executive or executive.company_research_run_id != run_id:
+            raise HTTPException(status_code=404, detail="Executive prospect not found in run")
+
+        results = await enrichment_service.enrich_executive_contacts(
+            tenant_id=str(current_user.tenant_id),
+            executive_id=exec_id,
+            request=enrichment_request,
+            performed_by=current_user.email or current_user.username,
+        )
+        if results is None:
+            raise HTTPException(status_code=404, detail="Executive prospect not found")
+
+        items.append(
+            BulkExecutiveContactEnrichmentResponseItem(
+                executive_id=exec_id,
+                results=results,
+            )
+        )
+
+    return BulkExecutiveContactEnrichmentResponse(items=items)
+
+
 @router.patch("/executives/{executive_id}/verification-status", response_model=ExecutiveProspectRead)
 async def update_executive_verification_status(
     executive_id: UUID,
@@ -962,6 +1015,32 @@ async def update_executive_review_status(
             "evidence": [],
         }
     )
+
+
+@router.post(
+    "/executives/{executive_id}/enrich_contacts",
+    response_model=ExecutiveContactEnrichmentResponse,
+)
+async def enrich_executive_contacts(
+    executive_id: UUID,
+    payload: ContactEnrichmentRequest,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger explicit executive contact enrichment with TTL/hash idempotency."""
+
+    enrichment_service = ContactEnrichmentService(db)
+    results = await enrichment_service.enrich_executive_contacts(
+        tenant_id=str(current_user.tenant_id),
+        executive_id=executive_id,
+        request=payload,
+        performed_by=current_user.email or current_user.username,
+    )
+
+    if results is None:
+        raise HTTPException(status_code=404, detail="Executive prospect not found")
+
+    return ExecutiveContactEnrichmentResponse(executive_id=executive_id, results=results)
 
 
 @router.post(
