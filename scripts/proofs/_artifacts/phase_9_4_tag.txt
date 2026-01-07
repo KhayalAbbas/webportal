@@ -1,13 +1,10 @@
-﻿commit 1038a9d419068ad71552288d84e200b6f74609b1 (HEAD -> master, tag: phase_9_4_signed_off)
+﻿commit 21a449a8bfc5ea70b773e5af9c78ee525fba97f8 (HEAD -> master, tag: phase_9_4_signed_off)
 Author: ATS Local <local@ats>
-Date:   Wed Jan 7 19:44:49 2026 +0400
+Date:   Wed Jan 7 19:46:07 2026 +0400
 
     Phase 9.4: external LLM JSON company discovery ingest API + evidence-first storage + deterministic proof
 
- .../_artifacts/phase_9_4_artifact_manifest.txt     | 15 ++++---
- scripts/proofs/_artifacts/phase_9_4_commit.txt     | 46 ++++++++++------------
- scripts/proofs/_artifacts/phase_9_4_git_after.txt  | 10 +++++
- scripts/proofs/_artifacts/phase_9_4_push.txt       | 10 +++++
- .../_artifacts/phase_9_4_signoff_checklist.txt     |  2 +-
- scripts/proofs/_artifacts/phase_9_4_tag.txt        | 29 ++++++++++++++
- 6 files changed, 78 insertions(+), 34 deletions(-)
+ scripts/proofs/_artifacts/phase_9_4_git_after.txt |  9 +++---
+ scripts/proofs/_artifacts/phase_9_4_push.txt      |  7 +++++
+ scripts/proofs/_artifacts/phase_9_4_tag.txt       | 34 ++++++-----------------
+ 3 files changed, 21 insertions(+), 29 deletions(-)
