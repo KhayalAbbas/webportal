@@ -9,7 +9,7 @@ from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, HttpUrl
 
 from app.schemas.base import TenantScopedBase, TenantScopedRead
 
@@ -210,10 +210,47 @@ class ExecutiveReviewUpdate(BaseModel):
 # ============================================================================
 
 
+class SeedListEvidence(BaseModel):
+    """Evidence item supplied with seed list entries."""
+
+    url: HttpUrl
+    label: Optional[str] = None
+    kind: Optional[str] = Field(default="homepage", pattern=r"^(homepage|annual_report|ranking_list|registry|press_release|investor|other)$")
+    snippet: Optional[str] = None
+
+
+class SeedListItem(BaseModel):
+    """Seeded company entry for SeedListProvider."""
+
+    name: str
+    website_url: Optional[str] = None
+    hq_country: Optional[str] = None
+    hq_city: Optional[str] = None
+    sector: Optional[str] = None
+    subsector: Optional[str] = None
+    description: Optional[str] = None
+    urls: Optional[List[HttpUrl]] = None
+    evidence: Optional[List[SeedListEvidence]] = None
+
+
+class SeedListProviderRequest(BaseModel):
+    """Request envelope for SeedListProvider (paste or CSV)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    mode: Optional[Literal["paste", "csv"]] = "paste"
+    items: Optional[List[SeedListItem]] = None
+    csv_text: Optional[str] = None
+    source_label: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class DiscoveryProviderRunPayload(BaseModel):
     """Request payload for running a discovery provider."""
 
-    request: Optional[Dict[str, Any]] = None
+    model_config = ConfigDict(extra="allow")
+
+    request: Optional[SeedListProviderRequest | Dict[str, Any]] = None
 
 
 class DiscoveryProviderRunResponse(BaseModel):
@@ -231,6 +268,7 @@ class DiscoveryProviderRunResponse(BaseModel):
     skipped: Optional[bool] = None
     reason: Optional[str] = None
     ingest_stats: Optional[Dict[str, Any]] = None
+    raw_source_id: Optional[UUID] = None
 
 
 # ============================================================================

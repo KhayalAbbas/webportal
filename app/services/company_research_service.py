@@ -75,8 +75,8 @@ from app.schemas.company_research import (
     PackMergeDecision,
     PackAuditEvent,
     PackAuditSummary,
+    ResearchEventCreate,
 )
-from app.schemas.research_event import ResearchEventCreate
 from app.schemas.source_document import SourceDocumentCreate as ResearchEventSourceDocumentCreate
 from app.schemas.candidate import CandidateCreate
 from app.schemas.contact import ContactCreate
@@ -2530,6 +2530,14 @@ class CompanyResearchService:
         return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
 
     @staticmethod
+    def _normalize_seed_raw_text(raw_text: Optional[str]) -> str:
+        """Normalize raw seed payload text for stable hashing."""
+        if raw_text is None:
+            return ""
+        normalized = "\n".join(str(raw_text).splitlines()).strip()
+        return normalized
+
+    @staticmethod
     def _normalize_person_name(name: Optional[str]) -> str:
         if not name:
             return ""
@@ -2680,11 +2688,48 @@ class CompanyResearchService:
         # Enforce run existence and mutability before generating provider output
         await self.ensure_sources_unlocked(tenant_id, run_id)
 
+        provider_request = request_payload or {}
+        if hasattr(provider_request, "model_dump"):
+            provider_request = provider_request.model_dump(exclude_none=True)
+
         provider_result = provider.run(
             tenant_id=tenant_id,
             run_id=run_id,
-            request=request_payload or {},
+            request=provider_request,
         )
+
+        raw_source = None
+        raw_hash = None
+        if provider_result.raw_input_text:
+            normalized_raw = self._normalize_seed_raw_text(provider_result.raw_input_text)
+            raw_hash = hashlib.sha256(normalized_raw.encode("utf-8")).hexdigest()
+            existing_raw = await self.repo.find_source_by_hash(tenant_id, run_id, raw_hash)
+            if existing_raw:
+                raw_source = existing_raw
+            else:
+                raw_source = await self.add_source(
+                    tenant_id,
+                    SourceDocumentCreate(
+                        company_research_run_id=run_id,
+                        source_type="seed_input",
+                        title=f"Seed input ({provider_result.provider})",
+                        mime_type="text/plain",
+                        content_text=normalized_raw,
+                        content_hash=raw_hash,
+                        meta={
+                            "kind": "seed_input",
+                            "provider": provider_result.provider,
+                            "version": provider_result.version,
+                            **(provider_result.raw_input_meta or {}),
+                        },
+                    ),
+                )
+            raw_source.status = "processed"
+            raw_source.error_message = None
+            raw_source.meta = {**(raw_source.meta or {}), "ingest_stats": {"stored_raw": True}}
+            await self.db.flush()
+
+        raw_source_id = str(raw_source.id) if raw_source else None
 
         parsed = provider_result.payload
         canonical_json = self._canonical_json(parsed.canonical_dict())
@@ -2711,6 +2756,7 @@ class CompanyResearchService:
                 "ingest_stats": ingest_meta,
                 "provider_version": provider_result.version,
                 "content_hash": content_hash,
+                "raw_source_id": raw_source_id,
             }
 
         source_meta = {
@@ -2720,6 +2766,7 @@ class CompanyResearchService:
             "model": provider_result.model,
             "purpose": purpose,
             "schema_version": parsed.schema_version,
+            "raw_source_id": raw_source_id,
         }
 
         source = await self.add_source(
@@ -2746,7 +2793,7 @@ class CompanyResearchService:
             purpose=purpose,
         )
 
-        return {**summary, "provider_version": provider_result.version}
+        return {**summary, "provider_version": provider_result.version, "raw_source_id": raw_source_id, "content_hash": content_hash}
 
     async def process_llm_json_sources_for_run(
         self,
@@ -2895,6 +2942,8 @@ class CompanyResearchService:
             "urls_existing": 0,
         }
 
+        # Track evidence we have already attached for a given company and discovery source to avoid
+        # violating the unique constraint (tenant_id, company_prospect_id, source_document_id, source_type, source_name).
         evidence_seen: set[tuple[str, str, str]] = set()
 
         for company in parsed_payload.companies:
@@ -2936,7 +2985,12 @@ class CompanyResearchService:
 
             # Evidence handling
             for ev in company.evidence or []:
-                dedupe_key = (str(existing.id), ev.url, ev.label or ev.kind or "llm_json")
+                # Align dedupe with DB uniqueness: scope on company + source doc + name/type, not URL
+                dedupe_key = (
+                    str(existing.id),
+                    str(source.id),
+                    (ev.label or ev.kind or "llm_json"),
+                )
                 if dedupe_key in evidence_seen:
                     continue
                 evidence_seen.add(dedupe_key)
