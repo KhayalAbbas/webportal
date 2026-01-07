@@ -1,0 +1,23 @@
+Phase 9.4 artifact manifest
+- scripts/proofs/_artifacts/phase_9_4_preflight.txt
+- scripts/proofs/_artifacts/phase_9_4_openapi_before.json
+- scripts/proofs/_artifacts/phase_9_4_discovery_notes.txt
+- scripts/proofs/phase_9_4_external_llm_discovery_ingest_proof.py
+- scripts/proofs/_artifacts/phase_9_4_openapi_after.json
+- scripts/proofs/_artifacts/phase_9_4_openapi_after_excerpt.txt
+- scripts/proofs/_artifacts/phase_9_4_first_call.json
+- scripts/proofs/_artifacts/phase_9_4_second_call.json
+- scripts/proofs/_artifacts/phase_9_4_db_excerpt.txt
+- scripts/proofs/_artifacts/phase_9_4_proof.txt
+- scripts/proofs/_artifacts/phase_9_4_proof_console.txt
+- scripts/proofs/_artifacts/phase_9_4_release_notes.md
+- scripts/proofs/_artifacts/phase_9_4_signoff_checklist.txt
+- scripts/proofs/_artifacts/phase_9_4_artifact_manifest.txt
+- Pending (post-commit):
+  - scripts/proofs/_artifacts/phase_9_4_git_status_before_commit.txt
+  - scripts/proofs/_artifacts/phase_9_4_git_diff_stat.txt
+  - scripts/proofs/_artifacts/phase_9_4_git_log_before_commit.txt
+  - scripts/proofs/_artifacts/phase_9_4_commit.txt
+  - scripts/proofs/_artifacts/phase_9_4_tag.txt
+  - scripts/proofs/_artifacts/phase_9_4_push.txt
+  - scripts/proofs/_artifacts/phase_9_4_git_after.txt

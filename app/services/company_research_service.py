@@ -56,7 +56,7 @@ from app.services.canonical_company_service import CanonicalCompanyService
 from app.services.discovery_provider import get_discovery_provider
 from app.schemas.ai_proposal import AIProposal
 from app.schemas.ai_enrichment import AIEnrichmentCreate
-from app.schemas.llm_discovery import LlmDiscoveryPayload
+from app.schemas.llm_discovery import LlmDiscoveryPayload, LlmCompany, LlmEvidence, LlmRunContext
 from app.schemas.executive_discovery import ExecutiveDiscoveryPayload
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -2667,6 +2667,160 @@ class CompanyResearchService:
         )
 
         return summary
+
+    async def ingest_external_llm_discovery(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        request: Any,
+        purpose: str = "company_discovery",
+    ) -> dict:
+        """Ingest external LLM discovery JSON (Grok-style) with idempotency.
+
+        Stores the request/response envelope as a llm_json SourceDocument, then
+        maps suggested companies into LlmDiscoveryPayload for ingestion.
+        """
+
+        if purpose != "company_discovery":
+            raise ValueError("invalid_purpose")
+
+        await self.ensure_sources_unlocked(tenant_id, run_id)
+
+        from app.schemas.company_research import ExternalLLMDiscoveryIngestRequest  # local import to avoid cycle
+
+        if isinstance(request, ExternalLLMDiscoveryIngestRequest):
+            req_obj = request
+        else:
+            req_obj = ExternalLLMDiscoveryIngestRequest.model_validate(request or {})
+
+        provider = req_obj.provider
+        model_name = (req_obj.meta or {}).get("model") if req_obj.meta else None
+
+        envelope = {
+            "provider": provider,
+            "request_id": req_obj.request_id,
+            "prompt": req_obj.prompt,
+            "prompt_ref": req_obj.prompt_ref,
+            "response_json": req_obj.response_json,
+            "suggested_companies": [c.model_dump(exclude_none=True) for c in req_obj.suggested_companies],
+            "suggested_urls": req_obj.suggested_urls,
+            "meta": req_obj.meta,
+            "purpose": purpose,
+            "schema_version": "external_llm_discovery_v1",
+        }
+
+        canonical_envelope = self._canonical_json(envelope)
+        content_hash = hashlib.sha256(canonical_envelope.encode("utf-8")).hexdigest()
+
+        existing_source = await self.repo.find_source_by_hash(tenant_id, run_id, content_hash)
+        if existing_source and existing_source.source_type == "llm_json":
+            enrichment_query = await self.db.execute(
+                select(AIEnrichmentRecord).where(
+                    AIEnrichmentRecord.tenant_id == tenant_id,
+                    AIEnrichmentRecord.company_research_run_id == run_id,
+                    AIEnrichmentRecord.purpose == purpose,
+                    AIEnrichmentRecord.provider == provider,
+                    AIEnrichmentRecord.content_hash == content_hash,
+                )
+            )
+            enrichment = enrichment_query.scalar_one_or_none()
+            ingest_meta = (existing_source.meta or {}).get("ingest_stats") or {}
+            return {
+                "reused": True,
+                "reused_reason": "duplicate_hash",
+                "source_document_id": str(existing_source.id),
+                "enrichment_record_id": str(enrichment.id) if enrichment else (existing_source.meta or {}).get("enrichment_id"),
+                "content_hash": content_hash,
+                "input_scope_hash": content_hash,
+                "companies_upserted": ingest_meta.get("companies_new", 0),
+                "urls_added": ingest_meta.get("urls_created", 0),
+                "evidence_links_added": ingest_meta.get("evidence_created", 0),
+            }
+
+        source_meta = {
+            "kind": "llm_json",
+            "provider": provider,
+            "model": model_name,
+            "purpose": purpose,
+            "schema_version": "external_llm_discovery_v1",
+            "request_id": req_obj.request_id,
+            "prompt_present": bool(req_obj.prompt or req_obj.prompt_ref),
+        }
+
+        source = await self.add_source(
+            tenant_id,
+            SourceDocumentCreate(
+                company_research_run_id=run_id,
+                source_type="llm_json",
+                title=f"External LLM discovery ({provider})",
+                mime_type="application/json",
+                content_text=canonical_envelope,
+                content_hash=content_hash,
+                meta=source_meta,
+            ),
+        )
+
+        companies: list[LlmCompany] = []
+        for comp in req_obj.suggested_companies:
+            evidence_entries: list[LlmEvidence] = []
+            for idx, url in enumerate(comp.evidence_urls or []):
+                label = f"{comp.provenance}_{idx+1}" if comp.provenance else f"evidence_{idx+1}"
+                evidence_entries.append(
+                    LlmEvidence(
+                        url=url,
+                        label=label,
+                        kind="homepage",
+                        snippet=comp.notes,
+                    )
+                )
+            companies.append(
+                LlmCompany(
+                    name=comp.name,
+                    website_url=comp.website_url,
+                    description=comp.notes,
+                    evidence=evidence_entries or None,
+                    confidence=0.6,
+                )
+            )
+
+        run_context = LlmRunContext(
+            query=req_obj.prompt or req_obj.prompt_ref,
+            notes=f"provider:{provider}|request_id:{req_obj.request_id}" if req_obj.request_id else None,
+        )
+
+        parsed_payload = LlmDiscoveryPayload(
+            provider=provider,
+            model=model_name,
+            run_context=run_context,
+            companies=companies,
+        )
+
+        summary = await self._ingest_discovery_payload(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            source=source,
+            parsed_payload=parsed_payload,
+            provider=provider,
+            model_name=model_name,
+            content_hash=content_hash,
+            purpose=purpose,
+        )
+
+        summary_counts = {
+            "companies_upserted": int(summary.get("companies_new") or 0),
+            "urls_added": int(summary.get("urls_created") or 0),
+            "evidence_links_added": int(summary.get("evidence_created") or 0),
+        }
+
+        return {
+            "source_document_id": summary.get("source_id"),
+            "enrichment_record_id": summary.get("enrichment_id"),
+            "content_hash": content_hash,
+            "input_scope_hash": content_hash,
+            **summary_counts,
+            "reused": False,
+            "reused_reason": None,
+        }
 
     async def run_discovery_provider(
         self,

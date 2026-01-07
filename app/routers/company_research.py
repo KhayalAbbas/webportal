@@ -64,6 +64,8 @@ from app.schemas.company_research import (
     CanonicalCompanyLinkRead,
     DiscoveryProviderRunPayload,
     DiscoveryProviderRunResponse,
+    ExternalLLMDiscoveryIngestRequest,
+    ExternalLLMDiscoveryIngestResponse,
     RunPack,
 )
 from app.schemas.contact_enrichment import ContactEnrichmentRequest
@@ -565,6 +567,40 @@ async def add_llm_json_source(
     )
     await db.commit()
     return summary
+
+
+@router.post(
+    "/runs/{run_id}/discovery/external-llm/ingest",
+    response_model=ExternalLLMDiscoveryIngestResponse,
+)
+async def ingest_external_llm_discovery(
+    run_id: UUID,
+    payload: ExternalLLMDiscoveryIngestRequest,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ingest an external LLM (Grok-style) discovery payload idempotently."""
+
+    service = CompanyResearchService(db)
+    try:
+        result = await service.ingest_external_llm_discovery(
+            tenant_id=current_user.tenant_id,
+            run_id=run_id,
+            request=payload,
+            purpose="company_discovery",
+        )
+    except ValueError as exc:  # noqa: BLE001
+        message = str(exc)
+        if message == "run_not_found":
+            raise_app_error(404, "RUN_NOT_FOUND", "Research run not found", {"run_id": str(run_id)})
+        if message in {"plan_locked", "run_locked"}:
+            raise_app_error(409, "SOURCES_LOCKED", "Sources are locked after run start", {"run_id": str(run_id)})
+        if message == "invalid_purpose":
+            raise_app_error(400, "INVALID_PURPOSE", "purpose must be company_discovery")
+        raise
+
+    await db.commit()
+    return ExternalLLMDiscoveryIngestResponse.model_validate(result)
 
 
 @router.post(

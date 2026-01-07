@@ -286,6 +286,42 @@ class DiscoveryProviderRunResponse(BaseModel):
 
 
 # ============================================================================
+# External LLM Discovery Ingest Schemas (Phase 9.4)
+# ============================================================================
+
+
+class ExternalSuggestedCompany(BaseModel):
+    name: str
+    website_url: Optional[str] = None
+    evidence_urls: Optional[List[str]] = None
+    notes: Optional[str] = None
+    provenance: Optional[str] = None
+
+
+class ExternalLLMDiscoveryIngestRequest(BaseModel):
+    provider: str
+    request_id: Optional[str] = None
+    prompt: Optional[str] = None
+    prompt_ref: Optional[str] = None
+    response_json: Dict[str, Any]
+    suggested_companies: List[ExternalSuggestedCompany]
+    suggested_urls: Optional[List[str]] = None
+    meta: Optional[Dict[str, Any]] = None
+
+
+class ExternalLLMDiscoveryIngestResponse(BaseModel):
+    source_document_id: Optional[UUID] = None
+    enrichment_record_id: Optional[UUID] = None
+    content_hash: Optional[str] = None
+    input_scope_hash: Optional[str] = None
+    companies_upserted: Optional[int] = None
+    urls_added: Optional[int] = None
+    evidence_links_added: Optional[int] = None
+    reused: Optional[bool] = None
+    reused_reason: Optional[str] = None
+
+
+# ============================================================================
 # Company Prospect Evidence Schemas
 # ============================================================================
 

@@ -1,0 +1,29 @@
+Phase 9.4 discovery ingest notes
+
+Key files reviewed:
+- app/services/company_research_service.py
+  - _canonical_json provides deterministic JSON for hashing.
+  - ingest_llm_json_payload() stores SourceDocument(source_type="llm_json", meta kind=llm_json/provider/model/purpose/schema_version), hashes canonical LlmDiscoveryPayload, and returns duplicate_hash when content_hash already present.
+  - _ingest_discovery_payload() creates or reuses AIEnrichmentRecord keyed on (tenant_id, run_id, purpose, provider, content_hash) with input_scope_hash=content_hash, and upserts CompanyProspect + evidence + URL sources. Evidence dedupe key is (company_id, source_document_id, label/kind); URLs dedupe via normalized URL map.
+  - run_discovery_provider() shows envelope storage as SourceDocument(source_type="discovery_provider_envelope") with ingest_stats and linkage via envelope_source_id, plus raw input handling as SourceDocument(source_type="seed_input").
+  - process_llm_json_sources_for_run() reprocesses llm_json sources; treats meta.ingest_stats as processed marker.
+- app/routers/company_research.py
+  - Existing ingest_llm_json endpoint posts a payload validated as LlmDiscoveryPayload (purpose company_discovery enforced in service).
+- app/schemas/llm_discovery.py and app/schemas/company_research.py
+  - LlmDiscoveryPayload/LlmCompany/LlmEvidence define canonical_dict used for hashing; DiscoveryProviderRunResponse exposes source/enrichment/content_hash/raw_source_id/envelope_source_id.
+
+Source types observed:
+- llm_json, discovery_provider, discovery_provider_envelope, seed_input, url, pdf, manual_list, ai_proposal, etc.
+
+Router prefix and conventions:
+- Router prefix is /company-research with tag company-research. Discovery actions use /runs/{run_id}/discovery/... paths (e.g., providers/{provider_key}/run, executive-discovery/run). Ingest endpoints for sources live under /runs/{run_id}/sources/... (e.g., llm-json, proposal, pdf). Errors are returned either as HTTPException (simple 404/400) or via raise_app_error to wrap {"error": {code,message,details}}.
+
+Provenance/verification conventions:
+- CompanyProspect.discovered_by set to provider label (e.g., google_search) in _ingest_discovery_payload; verification_status defaults to "unverified" when created.
+- AIEnrichmentRecord.enrichment_type="COMPANY_DISCOVERY_JSON" for discovery payloads.
+- URL candidates created as SourceDocument(source_type="url", meta.origin="llm_json") linked via evidence URL normalization.
+
+Idempotency model:
+- content_hash is SHA256 of canonical payload/envelope; repo.find_source_by_hash(tenant, run, content_hash) prevents duplicate SourceDocument creation.
+- AIEnrichmentRecord reuse via unique match on provider/purpose/content_hash per run/tenant.
+- Evidence dedupe uses company + source document + label/kind; URL dedupe via normalized URL map for the run.

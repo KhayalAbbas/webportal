@@ -1,0 +1,266 @@
+PATH EXCERPT
+{
+  "/company-research/runs/{run_id}/discovery/external-llm/ingest": {
+    "post": {
+      "tags": [
+        "company-research"
+      ],
+      "summary": "Ingest External Llm Discovery",
+      "description": "Ingest an external LLM (Grok-style) discovery payload idempotently.",
+      "operationId": "ingest_external_llm_discovery_company_research_runs__run_id__discovery_external_llm_ingest_post",
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "run_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Run Id"
+          }
+        },
+        {
+          "name": "x-tenant-id",
+          "in": "header",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "title": "X-Tenant-Id"
+          }
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ExternalLLMDiscoveryIngestRequest"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Successful Response",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalLLMDiscoveryIngestResponse"
+              }
+            }
+          }
+        },
+        "422": {
+          "description": "Validation Error",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+SCHEMAS
+{
+  "ExternalLLMDiscoveryIngestRequest": {
+    "properties": {
+      "provider": {
+        "type": "string",
+        "title": "Provider"
+      },
+      "request_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Request Id"
+      },
+      "prompt": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Prompt"
+      },
+      "prompt_ref": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Prompt Ref"
+      },
+      "response_json": {
+        "type": "object",
+        "title": "Response Json"
+      },
+      "suggested_companies": {
+        "items": {
+          "$ref": "#/components/schemas/ExternalSuggestedCompany"
+        },
+        "type": "array",
+        "title": "Suggested Companies"
+      },
+      "suggested_urls": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Suggested Urls"
+      },
+      "meta": {
+        "anyOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Meta"
+      }
+    },
+    "type": "object",
+    "required": [
+      "provider",
+      "response_json",
+      "suggested_companies"
+    ],
+    "title": "ExternalLLMDiscoveryIngestRequest"
+  },
+  "ExternalLLMDiscoveryIngestResponse": {
+    "properties": {
+      "source_document_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Source Document Id"
+      },
+      "enrichment_record_id": {
+        "anyOf": [
+          {
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Enrichment Record Id"
+      },
+      "content_hash": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Content Hash"
+      },
+      "input_scope_hash": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Input Scope Hash"
+      },
+      "companies_upserted": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Companies Upserted"
+      },
+      "urls_added": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Urls Added"
+      },
+      "evidence_links_added": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Evidence Links Added"
+      },
+      "reused": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Reused"
+      },
+      "reused_reason": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Reused Reason"
+      }
+    },
+    "type": "object",
+    "title": "ExternalLLMDiscoveryIngestResponse"
+  }
+}

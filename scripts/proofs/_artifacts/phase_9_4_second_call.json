@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "body": {
+    "source_document_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+    "enrichment_record_id": "a5838abc-212b-4a15-a38c-fcc61655165b",
+    "content_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8",
+    "input_scope_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8",
+    "companies_upserted": 2,
+    "urls_added": 3,
+    "evidence_links_added": 4,
+    "reused": true,
+    "reused_reason": "duplicate_hash"
+  }
+}

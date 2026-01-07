@@ -1,0 +1,6 @@
+﻿## master...origin/master
+ M app/routers/company_research.py
+ M app/schemas/company_research.py
+ M app/services/company_research_service.py
+?? scripts/proofs/phase_9_4_external_llm_discovery_ingest_proof.py
+?? scripts/proofs/phase_9_4_preflight.py

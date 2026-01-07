@@ -1,0 +1,4 @@
+﻿ app/routers/company_research.py          |  36 +++++++
+ app/schemas/company_research.py          |  36 +++++++
+ app/services/company_research_service.py | 156 ++++++++++++++++++++++++++++++-
+ 3 files changed, 227 insertions(+), 1 deletion(-)

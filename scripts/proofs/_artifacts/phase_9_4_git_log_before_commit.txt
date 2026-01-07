@@ -1,0 +1,29 @@
+﻿commit 0dbf28cce5049d6542219de879723f78ac469b3c (HEAD -> master, tag: phase_9_3_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 19:23:05 2026 +0400
+
+    Phase 9.3: GoogleSearchProvider discovery + evidence envelope + offline deterministic proof
+
+commit 70a299a5e4778bf809a94a6f92360025051efa8e
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 19:19:44 2026 +0400
+
+    Phase 9.3: GoogleSearchProvider discovery + evidence envelope + offline deterministic proof
+
+commit 499dc73b30df4749b096642f4ae67ae76beb3147
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 19:19:03 2026 +0400
+
+    Phase 9.3: GoogleSearchProvider discovery + evidence envelope + offline deterministic proof
+
+commit 85beb3f7e625715fa0ccc1c4f840a8e71e93361e
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 19:18:18 2026 +0400
+
+    Phase 9.3: GoogleSearchProvider discovery + evidence envelope + offline deterministic proof
+
+commit 49c348e08c8efbfadfdb4c66e03a986eca75b2e1
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 19:16:31 2026 +0400
+
+    Phase 9.3: GoogleSearchProvider discovery + evidence envelope + offline deterministic proof

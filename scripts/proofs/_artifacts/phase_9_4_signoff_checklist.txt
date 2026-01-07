@@ -1,0 +1,9 @@
+Phase 9.4 sign-off checklist
+- Preflight captured (health, openapi before, alembic head/current, git status/log): scripts/proofs/_artifacts/phase_9_4_preflight.txt
+- Discovery notes updated with router prefix/naming conventions: scripts/proofs/_artifacts/phase_9_4_discovery_notes.txt
+- Schemas updated for external LLM ingest request/response (reused flag, counts)
+- Service + router endpoint added: /company-research/runs/{run_id}/discovery/external-llm/ingest with structured errors
+- Deterministic proof executed (2-pass idempotency) with DB excerpt + openapi after
+- OpenAPI after + excerpt captured: scripts/proofs/_artifacts/phase_9_4_openapi_after.json and ..._after_excerpt.txt
+- Release notes and artifact manifest generated
+- Pending: git status/diff/log before commit, commit, tag phase_9_4_signed_off, push, post-push clean check

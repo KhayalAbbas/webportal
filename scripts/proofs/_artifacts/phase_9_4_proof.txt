@@ -1,0 +1,199 @@
+PHASE 9.4 EXTERNAL LLM DISCOVERY INGEST PROOF
+================================================
+Status: PASS
+Run ID: 3cad4f38-b803-4af0-95a3-38e2a29c264a
+Tenant ID: b3909011-8bd3-439d-a421-3b70fae124e9
+
+Health:
+{
+  "status": 200,
+  "body": {
+    "api_ok": true,
+    "db_ok": true,
+    "alembic_head_ok": true,
+    "alembic_current": "2b04b1c3c0f3",
+    "alembic_head": "2b04b1c3c0f3"
+  }
+}
+
+First call:
+{
+  "status": 200,
+  "body": {
+    "source_document_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+    "enrichment_record_id": "a5838abc-212b-4a15-a38c-fcc61655165b",
+    "content_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8",
+    "input_scope_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8",
+    "companies_upserted": 2,
+    "urls_added": 3,
+    "evidence_links_added": 4,
+    "reused": false,
+    "reused_reason": null
+  }
+}
+
+Second call (idempotency check):
+{
+  "status": 200,
+  "body": {
+    "source_document_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+    "enrichment_record_id": "a5838abc-212b-4a15-a38c-fcc61655165b",
+    "content_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8",
+    "input_scope_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8",
+    "companies_upserted": 2,
+    "urls_added": 3,
+    "evidence_links_added": 4,
+    "reused": true,
+    "reused_reason": "duplicate_hash"
+  }
+}
+
+DB excerpt:
+{
+  "sources": {
+    "llm_json": [
+      {
+        "id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+        "content_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8",
+        "status": "processed",
+        "meta": {
+          "kind": "llm_json",
+          "model": "grok-2",
+          "purpose": "company_discovery",
+          "provider": "grok",
+          "request_id": "phase_9_4_external_llm_proof",
+          "ingest_stats": {
+            "urls_created": 3,
+            "companies_new": 2,
+            "urls_existing": 1,
+            "evidence_created": 4,
+            "companies_existing": 0
+          },
+          "enrichment_id": "a5838abc-212b-4a15-a38c-fcc61655165b",
+          "prompt_present": true,
+          "schema_version": "external_llm_discovery_v1"
+        }
+      }
+    ],
+    "url": [
+      {
+        "id": "0f649084-fb52-4a08-9544-8881e111febb",
+        "url": "https://press.example.com/helio",
+        "content_hash": null,
+        "meta": {
+          "kind": "url",
+          "origin": "llm_json",
+          "evidence_kind": "homepage",
+          "llm_source_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+          "evidence_label": "grok_2"
+        }
+      },
+      {
+        "id": "47a1ec22-5039-43b3-8fbd-b5a6413a05d8",
+        "url": "https://shared.example.com/profile",
+        "content_hash": null,
+        "meta": {
+          "kind": "url",
+          "origin": "llm_json",
+          "evidence_kind": "homepage",
+          "llm_source_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+          "evidence_label": "grok_2"
+        }
+      },
+      {
+        "id": "52bd449f-20f7-49b1-8092-17934b10da9c",
+        "url": "https://news.example.com/atlas",
+        "content_hash": null,
+        "meta": {
+          "kind": "url",
+          "origin": "llm_json",
+          "evidence_kind": "homepage",
+          "llm_source_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+          "evidence_label": "grok_1"
+        }
+      }
+    ]
+  },
+  "enrichments": [
+    {
+      "id": "a5838abc-212b-4a15-a38c-fcc61655165b",
+      "provider": "grok",
+      "purpose": "company_discovery",
+      "content_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8",
+      "input_scope_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8",
+      "source_document_id": "aa74baac-71da-43d6-826c-fda2ea86278d"
+    }
+  ],
+  "prospects": [
+    {
+      "id": "f1846bd9-9bc7-4e8d-ba9a-1438950f9c8d",
+      "name": "atlas climate",
+      "discovered_by": "grok",
+      "verification_status": "unverified"
+    },
+    {
+      "id": "7658dbb0-2ad3-4732-8673-3ed4eb2cfded",
+      "name": "helio data",
+      "discovered_by": "grok",
+      "verification_status": "unverified"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "853fdcfd-fc64-4ce9-b0af-0f61b9839be2",
+      "company_prospect_id": "f1846bd9-9bc7-4e8d-ba9a-1438950f9c8d",
+      "source_url": "https://news.example.com/atlas",
+      "source_document_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+      "source_content_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8"
+    },
+    {
+      "id": "78a0f9f4-e606-4b9f-a93c-cc1fbf4f3867",
+      "company_prospect_id": "f1846bd9-9bc7-4e8d-ba9a-1438950f9c8d",
+      "source_url": "https://shared.example.com/profile",
+      "source_document_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+      "source_content_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8"
+    },
+    {
+      "id": "69d89b5a-e793-4a4d-a454-5db04add90de",
+      "company_prospect_id": "7658dbb0-2ad3-4732-8673-3ed4eb2cfded",
+      "source_url": "https://shared.example.com/profile",
+      "source_document_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+      "source_content_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8"
+    },
+    {
+      "id": "c8a6d935-8765-427b-92be-2e3210dd2c61",
+      "company_prospect_id": "7658dbb0-2ad3-4732-8673-3ed4eb2cfded",
+      "source_url": "https://press.example.com/helio",
+      "source_document_id": "aa74baac-71da-43d6-826c-fda2ea86278d",
+      "source_content_hash": "c623a9434530c0d5f7a7f19b4bb9f7a6c9ded135e535c703267e57dbc2afc3a8"
+    }
+  ],
+  "counts": {
+    "llm_json_sources": 1,
+    "url_sources": 3,
+    "enrichments": 1,
+    "prospects": 2,
+    "evidence": 4
+  }
+}
+
+Assertions:
+PASS - health endpoint returns 200
+PASS - first call ingests payload (not reused)
+PASS - second call marked reused
+PASS - reuse reason is duplicate_hash
+PASS - source_document_id reused
+PASS - enrichment_record_id reused
+PASS - content_hash stable across calls
+PASS - single llm_json source stored
+PASS - llm_json content_hash unique
+PASS - single enrichment record stored
+PASS - enrichment input_scope_hash matches content_hash
+PASS - three URL candidate sources (shared URL reused)
+PASS - four evidence links stored (two per company)
+
+OpenAPI saved to: scripts\proofs\_artifacts\phase_9_4_openapi_after.json
+OpenAPI excerpt: scripts\proofs\_artifacts\phase_9_4_openapi_after_excerpt.txt
+First call: scripts\proofs\_artifacts\phase_9_4_first_call.json
+Second call: scripts\proofs\_artifacts\phase_9_4_second_call.json
+DB excerpt: scripts\proofs\_artifacts\phase_9_4_db_excerpt.txt
