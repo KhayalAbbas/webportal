@@ -1,8 +1,3 @@
 ﻿## master...origin/master
- M app/routers/company_research.py
- M app/schemas/company_research.py
- M app/services/company_research_service.py
- M app/ui/routes/company_research.py
- M app/ui/templates/company_research_run_detail.html
-?? scripts/proofs/phase_9_5_company_review_gate_proof.py
-?? scripts/proofs/phase_9_5_preflight.py
+ M scripts/proofs/_artifacts/phase_9_5_artifact_manifest.txt
+ M scripts/proofs/_artifacts/phase_9_5_git_status_before_commit.txt

@@ -1,6 +1,4 @@
-﻿ app/routers/company_research.py                   |  5 ++-
- app/schemas/company_research.py                   |  1 +
- app/services/company_research_service.py          | 19 +++++++--
- app/ui/routes/company_research.py                 |  4 +-
- app/ui/templates/company_research_run_detail.html | 49 ++++++++++++++++++++++-
- 5 files changed, 70 insertions(+), 8 deletions(-)
+﻿ scripts/proofs/_artifacts/phase_9_5_artifact_manifest.txt        | 7 +++++++
+ scripts/proofs/_artifacts/phase_9_5_git_diff_stat.txt            | 6 ------
+ scripts/proofs/_artifacts/phase_9_5_git_status_before_commit.txt | 9 ++-------
+ 3 files changed, 9 insertions(+), 13 deletions(-)

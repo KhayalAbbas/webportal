@@ -5,6 +5,9 @@ scripts/proofs/_artifacts/phase_9_5_openapi_after_excerpt.txt
 scripts/proofs/_artifacts/phase_9_5_proof.txt
 scripts/proofs/_artifacts/phase_9_5_proof_console.txt
 scripts/proofs/_artifacts/phase_9_5_db_excerpt.txt
+scripts/proofs/_artifacts/phase_9_5_git_status_before_commit.txt
+scripts/proofs/_artifacts/phase_9_5_git_diff_stat.txt
+scripts/proofs/_artifacts/phase_9_5_git_log_before_commit.txt
 scripts/proofs/_artifacts/phase_9_5_accept_enable.json
 scripts/proofs/_artifacts/phase_9_5_accept_enable_2.json
 scripts/proofs/_artifacts/phase_9_5_hold_or_reject_forced_off.json
@@ -23,4 +26,8 @@ scripts/proofs/_artifacts/phase_9_5_seed.json
 scripts/proofs/_artifacts/phase_9_5_discovery_notes.txt
 scripts/proofs/_artifacts/phase_9_5_signoff_checklist.txt
 scripts/proofs/_artifacts/phase_9_5_release_notes.md
+scripts/proofs/_artifacts/phase_9_5_commit.txt
+scripts/proofs/_artifacts/phase_9_5_tag.txt
+scripts/proofs/_artifacts/phase_9_5_push.txt
+scripts/proofs/_artifacts/phase_9_5_git_after.txt
 scripts/proofs/_artifacts/phase_9_5_artifact_manifest.txt
