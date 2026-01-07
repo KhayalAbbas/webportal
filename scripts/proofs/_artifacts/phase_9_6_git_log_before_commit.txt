@@ -1,0 +1,29 @@
+﻿commit 0182d5b91aa927d1166da3230ab306a562fe2fd0 (HEAD -> master, tag: phase_9_5_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 20:16:06 2026 +0400
+
+    Phase 9.5: company review gate + exec_search toggle + accepted-only eligibility enforcement + proof
+
+commit 882411c2ebe7472e2f5d339dcd05c8fc219ba55f
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 20:15:27 2026 +0400
+
+    Phase 9.5: company review gate + exec_search toggle + accepted-only eligibility enforcement + proof
+
+commit 4f813229adbc9e3f2a5048a620e175c879a4fd0e
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 20:14:16 2026 +0400
+
+    Phase 9.5: company review gate + exec_search toggle + accepted-only eligibility enforcement + proof
+
+commit 0c9f3d88e02437ae4a7c43ab1ec841a4cb3244e0
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 20:11:35 2026 +0400
+
+    Phase 9.5: company review gate + exec_search toggle + accepted-only eligibility enforcement + proof
+
+commit 74e747f4811997b92f6165ff3a758aead21d478d (tag: phase_9_4_signed_off)
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 19:46:50 2026 +0400
+
+    Phase 9.4: external LLM JSON company discovery ingest API + evidence-first storage + deterministic proof

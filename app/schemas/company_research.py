@@ -676,6 +676,47 @@ class ExecutiveCompareResponse(BaseModel):
     candidate_matches: List[ExecutiveCompareMatch] = Field(default_factory=list)
 
 
+class ExecutiveEngineRunResult(BaseModel):
+    """Per-engine execution summary for dual-engine orchestration."""
+
+    ran: bool = False
+    skipped_reason: Optional[str] = None
+    enrichment_record_id: Optional[UUID] = None
+    source_document_ids: List[UUID] = Field(default_factory=list)
+    execs_added: int = 0
+    execs_updated: int = 0
+    eligible_company_count: int = 0
+    processed_company_count: int = 0
+
+
+class ExecutiveCombinedStats(BaseModel):
+    """Aggregated executive stats across engines."""
+
+    total_execs_added: int = 0
+    total_execs_updated: int = 0
+
+
+class ExecutiveCompareCounts(BaseModel):
+    """Minimal comparison counts for internal/external overlap."""
+
+    matched_count: int = 0
+    internal_only_count: int = 0
+    external_only_count: int = 0
+
+
+class ExecutiveDiscoveryRunResponse(BaseModel):
+    """Dual-engine executive discovery orchestration response."""
+
+    run_id: UUID
+    tenant_id: str
+    mode: str
+    eligible_company_count: int
+    internal: ExecutiveEngineRunResult
+    external: ExecutiveEngineRunResult
+    combined: ExecutiveCombinedStats
+    compare: ExecutiveCompareCounts
+
+
 class ExecutiveMergeDecisionRequest(BaseModel):
     """Payload for merge decision API."""
 

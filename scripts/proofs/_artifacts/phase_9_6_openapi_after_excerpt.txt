@@ -1,0 +1,171 @@
+POST /company-research/runs/{run_id}/executive-discovery/run
+summary: Run Executive Discovery
+description: Start executive discovery for a run using external payloads.
+requestBody schema (OpenAPI):
+{
+  "$ref": "#/components/schemas/ExecutiveDiscoveryRunPayload"
+}
+response 200 schema (Pydantic ExecutiveDiscoveryRunResponse):
+{
+  "$defs": {
+    "ExecutiveCombinedStats": {
+      "description": "Aggregated executive stats across engines.",
+      "properties": {
+        "total_execs_added": {
+          "default": 0,
+          "title": "Total Execs Added",
+          "type": "integer"
+        },
+        "total_execs_updated": {
+          "default": 0,
+          "title": "Total Execs Updated",
+          "type": "integer"
+        }
+      },
+      "title": "ExecutiveCombinedStats",
+      "type": "object"
+    },
+    "ExecutiveCompareCounts": {
+      "description": "Minimal comparison counts for internal/external overlap.",
+      "properties": {
+        "external_only_count": {
+          "default": 0,
+          "title": "External Only Count",
+          "type": "integer"
+        },
+        "internal_only_count": {
+          "default": 0,
+          "title": "Internal Only Count",
+          "type": "integer"
+        },
+        "matched_count": {
+          "default": 0,
+          "title": "Matched Count",
+          "type": "integer"
+        }
+      },
+      "title": "ExecutiveCompareCounts",
+      "type": "object"
+    },
+    "ExecutiveEngineRunResult": {
+      "description": "Per-engine execution summary for dual-engine orchestration.",
+      "properties": {
+        "eligible_company_count": {
+          "default": 0,
+          "title": "Eligible Company Count",
+          "type": "integer"
+        },
+        "enrichment_record_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enrichment Record Id"
+        },
+        "execs_added": {
+          "default": 0,
+          "title": "Execs Added",
+          "type": "integer"
+        },
+        "execs_updated": {
+          "default": 0,
+          "title": "Execs Updated",
+          "type": "integer"
+        },
+        "processed_company_count": {
+          "default": 0,
+          "title": "Processed Company Count",
+          "type": "integer"
+        },
+        "ran": {
+          "default": false,
+          "title": "Ran",
+          "type": "boolean"
+        },
+        "skipped_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Skipped Reason"
+        },
+        "source_document_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Source Document Ids",
+          "type": "array"
+        }
+      },
+      "title": "ExecutiveEngineRunResult",
+      "type": "object"
+    }
+  },
+  "description": "Dual-engine executive discovery orchestration response.",
+  "properties": {
+    "combined": {
+      "$ref": "#/$defs/ExecutiveCombinedStats"
+    },
+    "compare": {
+      "$ref": "#/$defs/ExecutiveCompareCounts"
+    },
+    "eligible_company_count": {
+      "title": "Eligible Company Count",
+      "type": "integer"
+    },
+    "external": {
+      "$ref": "#/$defs/ExecutiveEngineRunResult"
+    },
+    "internal": {
+      "$ref": "#/$defs/ExecutiveEngineRunResult"
+    },
+    "mode": {
+      "title": "Mode",
+      "type": "string"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "tenant_id",
+    "mode",
+    "eligible_company_count",
+    "internal",
+    "external",
+    "combined",
+    "compare"
+  ],
+  "title": "ExecutiveDiscoveryRunResponse",
+  "type": "object"
+}
+other responses:
+  200: {
+  "description": "Successful Response"
+}
+  422: {
+  "description": "Validation Error"
+}
+gating_error_codes:
+  400 invalid_mode, missing_provider, missing_payload, fixture_not_enabled, invalid_external_payload, no_companies_in_payload, ineligible_companies
+  404 run_not_found
+  422 validation_error (FastAPI)

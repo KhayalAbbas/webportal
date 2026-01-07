@@ -1,0 +1,9 @@
+Phase 9.6 Sign-off Checklist
+- confirmed eligible-first gate enforced (phase_9_6_negative_ineligible_payload.json demonstrates 400 ineligible block)
+- confirmed external ineligible payload blocked (phase_9_6_negative_ineligible_payload.json)
+- confirmed dual-engine internal+external evidence stored with pointers (phase_9_6_db_excerpt.txt)
+- confirmed compare counts present in orchestration response (phase_9_6_first_call.json and phase_9_6_second_call.json)
+- confirmed second call idempotent via duplicate_hash reuse (phase_9_6_second_call.json)
+- confirmed OpenAPI before/after captured (phase_9_6_openapi_before.json and phase_9_6_openapi_after.json)
+- confirmed DB excerpt captured (phase_9_6_db_excerpt.txt)
+- confirmed all artifacts stored under scripts/proofs/_artifacts/phase_9_6_*

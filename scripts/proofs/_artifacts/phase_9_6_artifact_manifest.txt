@@ -1,0 +1,15 @@
+Phase 9.6 Artifact Manifest
+- scripts/proofs/_artifacts\phase_9_6_db_excerpt.txt
+- scripts/proofs/_artifacts\phase_9_6_discovery_notes.txt
+- scripts/proofs/_artifacts\phase_9_6_first_call.json
+- scripts/proofs/_artifacts\phase_9_6_gate_setup.json
+- scripts/proofs/_artifacts\phase_9_6_negative_ineligible_payload.json
+- scripts/proofs/_artifacts\phase_9_6_openapi_after.json
+- scripts/proofs/_artifacts\phase_9_6_openapi_after_excerpt.txt
+- scripts/proofs/_artifacts\phase_9_6_openapi_before.json
+- scripts/proofs/_artifacts\phase_9_6_preflight.txt
+- scripts/proofs/_artifacts\phase_9_6_proof.txt
+- scripts/proofs/_artifacts\phase_9_6_proof_console.txt
+- scripts/proofs/_artifacts\phase_9_6_release_notes.md
+- scripts/proofs/_artifacts\phase_9_6_second_call.json
+- scripts/proofs/_artifacts\phase_9_6_signoff_checklist.txt

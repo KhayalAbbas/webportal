@@ -3276,6 +3276,48 @@ class CompanyResearchService:
         )
         return list(result.scalars().all())
 
+    async def compute_exec_engine_compare_counts(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> dict:
+        """Return deterministic counts of internal/external/both executives for a run."""
+
+        exec_rows = await self.db.execute(
+            select(ExecutiveProspect).where(
+                ExecutiveProspect.tenant_id == tenant_id,
+                ExecutiveProspect.company_research_run_id == run_id,
+            )
+        )
+
+        matched = 0
+        internal_only = 0
+        external_only = 0
+
+        for exec_rec in exec_rows.scalars().all():
+            provenance = (exec_rec.discovered_by or exec_rec.source_label or "").lower()
+            engines: set[str] = set()
+            if "internal" in provenance:
+                engines.add("internal")
+            if "external" in provenance:
+                engines.add("external")
+
+            if not engines:
+                continue
+
+            if engines == {"internal"}:
+                internal_only += 1
+            elif engines == {"external"}:
+                external_only += 1
+            else:
+                matched += 1
+
+        return {
+            "matched_count": matched,
+            "internal_only_count": internal_only,
+            "external_only_count": external_only,
+        }
+
     def _merge_provenance(self, current: Optional[str], incoming: str) -> str:
         cur = (current or "").lower()
         inc = (incoming or "").lower()
@@ -3695,6 +3737,76 @@ class CompanyResearchService:
             **ingest_result,
             "eligible_company_count": len(eligible),
             "processed_company_count": len(companies_payload),
+        }
+
+    def build_external_fixture_payload(
+        self,
+        eligible_companies: List[CompanyProspect],
+        provider: str = "external_fixture",
+        model_name: str = "deterministic_fixture_v1",
+    ) -> dict:
+        """Deterministic fixture payload for proofs without network access."""
+
+        companies_payload: list[dict[str, object]] = []
+        for prospect in sorted(
+            eligible_companies,
+            key=lambda p: self._normalize_company_name(p.name_normalized or p.name_raw) or "",
+        ):
+            company_name = prospect.name_normalized or prospect.name_raw
+            company_norm = self._normalize_company_name(company_name)
+            slug = re.sub(r"[^a-z0-9]+", "-", (company_norm or "").lower()).strip("-") or "company"
+            website = self._normalize_url_value(prospect.website_url or f"https://example.com/{slug}")
+            location = prospect.hq_city or "Unknown"
+
+            executives = [
+                {
+                    "name": f"{company_name} CEO",
+                    "title": "Chief Executive Officer",
+                    "profile_url": f"https://example.com/{slug}/ceo",
+                    "linkedin_url": f"https://www.linkedin.com/in/{slug}-ceo",
+                    "confidence": 0.91,
+                    "evidence": [
+                        {
+                            "url": website,
+                            "label": "Fixture leadership page",
+                            "kind": "external_fixture",
+                            "snippet": f"Leadership listing for {company_name} CEO.",
+                        }
+                    ],
+                },
+                {
+                    "name": f"{company_name} COO",
+                    "title": "Chief Operating Officer",
+                    "profile_url": f"https://example.com/{slug}/coo",
+                    "linkedin_url": f"https://www.linkedin.com/in/{slug}-coo",
+                    "confidence": 0.83,
+                    "evidence": [
+                        {
+                            "url": website,
+                            "label": "Fixture leadership page",
+                            "kind": "external_fixture",
+                            "snippet": f"Operations lead reference for {company_name} COO.",
+                        }
+                    ],
+                },
+            ]
+
+            companies_payload.append(
+                {
+                    "company_name": company_name,
+                    "company_normalized": company_norm,
+                    "company_website": website,
+                    "executives": executives,
+                }
+            )
+
+        return {
+            "schema_version": "executive_discovery_v1",
+            "provider": provider,
+            "model": model_name,
+            "generated_at": "1970-01-01T00:00:00+00:00",
+            "query": "external_fixture:dual_engine",
+            "companies": companies_payload,
         }
     
     async def get_source(

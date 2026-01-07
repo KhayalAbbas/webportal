@@ -9,6 +9,7 @@ import base64
 import binascii
 import csv
 import io
+import os
 from typing import List, Optional
 from uuid import UUID
 
@@ -67,6 +68,7 @@ from app.schemas.company_research import (
     ExternalLLMDiscoveryIngestRequest,
     ExternalLLMDiscoveryIngestResponse,
     RunPack,
+    ExecutiveDiscoveryRunResponse,
 )
 from app.schemas.contact_enrichment import ContactEnrichmentRequest
 from app.schemas.executive_contact_enrichment import (
@@ -75,6 +77,7 @@ from app.schemas.executive_contact_enrichment import (
     BulkExecutiveContactEnrichmentResponse,
     BulkExecutiveContactEnrichmentResponseItem,
 )
+from app.schemas.executive_discovery import ExecutiveDiscoveryPayload
 
 
 def _apply_rank_filters(
@@ -232,6 +235,10 @@ class ExecutiveDiscoveryRunPayload(BaseModel):
     provider: Optional[str] = None
     model: Optional[str] = None
     payload: Optional[dict] = None
+    external_fixture: Optional[bool] = Field(
+        default=False,
+        description="Proof-only flag to run deterministic external fixture payload when RUN_PROOFS_FIXTURES=1.",
+    )
 
 
 class ExecutiveEligibilityItem(BaseModel):
@@ -668,25 +675,113 @@ async def list_executive_discovery_eligible(
     ]
 
 
-@router.post("/runs/{run_id}/executive-discovery/run")
+@router.post(
+    "/runs/{run_id}/executive-discovery/run",
+    response_model=ExecutiveDiscoveryRunResponse,
+)
 async def run_executive_discovery(
     run_id: UUID,
     payload: ExecutiveDiscoveryRunPayload,
     current_user: User = Depends(verify_user_tenant_access),
     db: AsyncSession = Depends(get_db),
 ):
-    """Start executive discovery for a run using internal stub and/or external payloads."""
+    """Start executive discovery for a run with eligible-first gating and dual-engine orchestration."""
 
     service = CompanyResearchService(db)
+
+    def http_error(code: str, message: str, status_code: int = 400) -> None:
+        raise HTTPException(status_code=status_code, detail={"error": {"code": code, "message": message}})
+
     run = await service.get_research_run(current_user.tenant_id, run_id)
     if not run:
-        raise HTTPException(status_code=404, detail="Research run not found")
+        http_error("run_not_found", "Research run not found", 404)
 
     if payload.mode not in {"internal", "external", "both"}:
-        raise HTTPException(status_code=400, detail="Invalid mode")
+        http_error("invalid_mode", "Invalid mode", 400)
 
     eligible_companies = await service.list_executive_eligible_companies(current_user.tenant_id, run_id)
     eligible_company_count = len(eligible_companies)
+    eligible_norms = {
+        service._normalize_company_name(p.name_normalized or p.name_raw) for p in eligible_companies  # noqa: SLF001
+    }
+
+    def empty_response(reason: str) -> dict:
+        return {
+            "run_id": run_id,
+            "tenant_id": str(current_user.tenant_id),
+            "mode": payload.mode,
+            "eligible_company_count": 0,
+            "internal": {
+                "ran": False,
+                "skipped_reason": reason,
+                "enrichment_record_id": None,
+                "source_document_ids": [],
+                "execs_added": 0,
+                "execs_updated": 0,
+                "eligible_company_count": 0,
+                "processed_company_count": 0,
+            },
+            "external": {
+                "ran": False,
+                "skipped_reason": reason,
+                "enrichment_record_id": None,
+                "source_document_ids": [],
+                "execs_added": 0,
+                "execs_updated": 0,
+                "eligible_company_count": 0,
+                "processed_company_count": 0,
+            },
+            "combined": {
+                "total_execs_added": 0,
+                "total_execs_updated": 0,
+            },
+            "compare": {
+                "matched_count": 0,
+                "internal_only_count": 0,
+                "external_only_count": 0,
+            },
+        }
+
+    if eligible_company_count == 0:
+        return empty_response("no_eligible_companies")
+
+    external_payload = payload.payload
+    external_fixture_requested = bool(payload.external_fixture)
+
+    if payload.mode in {"external", "both"}:
+        if not payload.provider and not external_fixture_requested:
+            http_error("missing_provider", "provider is required for external mode", 400)
+        if not external_payload and not external_fixture_requested:
+            http_error("missing_payload", "Missing payload for external mode", 400)
+
+        if external_fixture_requested:
+            if os.getenv("RUN_PROOFS_FIXTURES", "0") != "1":
+                http_error(
+                    "fixture_not_enabled",
+                    "external_fixture allowed only when RUN_PROOFS_FIXTURES=1",
+                    400,
+                )
+            external_payload = service.build_external_fixture_payload(eligible_companies)
+        else:
+            try:
+                parsed_payload = ExecutiveDiscoveryPayload(**external_payload)
+            except Exception as exc:  # noqa: BLE001
+                http_error("invalid_external_payload", str(exc), 400)
+
+            requested_norms: list[str] = []
+            for company in parsed_payload.companies:
+                norm = service._normalize_company_name(  # noqa: SLF001
+                    company.company_normalized or company.company_name
+                )
+                if norm:
+                    requested_norms.append(norm)
+
+            if not requested_norms:
+                http_error("no_companies_in_payload", "External payload contained no companies", 400)
+
+            missing = sorted({norm for norm in requested_norms if norm not in eligible_norms})
+            if missing:
+                http_error("ineligible_companies", ",".join(missing), 400)
 
     internal_result = None
     external_result = None
@@ -698,58 +793,79 @@ async def run_executive_discovery(
         )
 
     if payload.mode in {"external", "both"}:
-        if not payload.payload:
-            raise HTTPException(status_code=400, detail="Missing payload for external mode")
-        if not payload.provider:
-            raise HTTPException(status_code=400, detail="provider is required for external mode")
         engine = payload.engine or "external"
         try:
             external_result = await service.ingest_executive_llm_json_payload(
                 tenant_id=current_user.tenant_id,
                 run_id=run_id,
-                payload=payload.payload,
-                provider=payload.provider,
+                payload=external_payload,
+                provider=payload.provider or "external_fixture",
                 model_name=payload.model,
                 title=payload.title,
                 engine=engine,
-                request_payload=payload.payload,
+                request_payload=external_payload,
             )
         except ValueError as exc:  # noqa: BLE001
             message = str(exc)
             status_code = 400
             if message == "run_not_found":
                 status_code = 404
-            raise HTTPException(status_code=status_code, detail=message)
+            http_error(message, message, status_code)
 
     await db.commit()
 
-    def _add_source_label(items: list[dict] | None, source: str) -> list[dict]:
-        return [{**item, "source": source} for item in (items or [])]
+    compare_counts = await service.compute_exec_engine_compare_counts(current_user.tenant_id, run_id)
 
-    combined_summaries: list[dict] = []
-    if internal_result:
-        combined_summaries.extend(_add_source_label(internal_result.get("company_summaries"), "internal"))
-    if external_result:
-        combined_summaries.extend(_add_source_label(external_result.get("company_summaries"), "external"))
+    def map_engine(result: Optional[dict]) -> dict:
+        if not result:
+            return {
+                "ran": False,
+                "skipped_reason": None,
+                "enrichment_record_id": None,
+                "source_document_ids": [],
+                "execs_added": 0,
+                "execs_updated": 0,
+                "eligible_company_count": eligible_company_count,
+                "processed_company_count": 0,
+            }
 
-    processed_company_count = 0
-    if internal_result:
-        processed_company_count = max(processed_company_count, int(internal_result.get("processed_company_count", 0)))
-    if external_result:
-        processed_company_count = max(processed_company_count, int(external_result.get("processed_company_count", 0)))
+        skipped = bool(result.get("skipped"))
+        execs_added = int(result.get("executives_new", 0))
+        execs_updated = int(result.get("executives_existing", 0))
+        source_ids: list[str] = []
+        for key in ["source_id", "request_source_id"]:
+            value = result.get(key)
+            if value:
+                source_ids.append(str(value))
 
-    skipped = None
-    if payload.mode == "internal":
-        skipped = (internal_result or {}).get("skipped")
+        return {
+            "ran": not skipped,
+            "skipped_reason": result.get("reason") if skipped else None,
+            "enrichment_record_id": result.get("enrichment_id"),
+            "source_document_ids": source_ids,
+            "execs_added": execs_added,
+            "execs_updated": execs_updated,
+            "eligible_company_count": int(result.get("eligible_company_count", eligible_company_count)),
+            "processed_company_count": int(result.get("processed_company_count", 0)),
+        }
+
+    internal_block = map_engine(internal_result)
+    external_block = map_engine(external_result)
+
+    combined = {
+        "total_execs_added": internal_block["execs_added"] + external_block["execs_added"],
+        "total_execs_updated": internal_block["execs_updated"] + external_block["execs_updated"],
+    }
 
     return {
+        "run_id": run_id,
+        "tenant_id": str(current_user.tenant_id),
         "mode": payload.mode,
         "eligible_company_count": eligible_company_count,
-        "processed_company_count": processed_company_count,
-        "company_summaries": combined_summaries,
-        "internal_result": internal_result,
-        "external_result": external_result,
-        "skipped": skipped,
+        "internal": internal_block,
+        "external": external_block,
+        "combined": combined,
+        "compare": compare_counts,
     }
 
 

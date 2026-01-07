@@ -1,0 +1,4 @@
+phase_9_6_exec_discovery_dual_engine_proof PASS
+tenant=b3909011-8bd3-439d-a421-3b70fae124e9
+run=7678adc4-57e1-4ff7-9570-197c637b382c
+Assertions: eligible-first gate enforced; external ineligible payload blocked; dual-engine returns compare counts; idempotent second call uses duplicate hash; evidence pointers and enrichment IDs present.

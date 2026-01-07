@@ -1,0 +1,172 @@
+Prospects:
+{
+  "exec_search_enabled": true,
+  "id": "e08cec6f-3249-4ca2-aea7-924cac4595de",
+  "name_normalized": "atlas robotics",
+  "review_status": "accepted"
+}
+{
+  "exec_search_enabled": false,
+  "id": "ea53032a-a3b4-41b4-b221-ed6131759671",
+  "name_normalized": "helio labs",
+  "review_status": "hold"
+}
+Executives:
+{
+  "company_prospect_id": "e08cec6f-3249-4ca2-aea7-924cac4595de",
+  "discovered_by": "both",
+  "id": "70d8a67f-f7e9-40e7-888f-846377f2d6e4",
+  "name_normalized": "atlas robotics ceo",
+  "source_label": "both",
+  "title": "Chief Executive Officer",
+  "verification_status": "unverified"
+}
+{
+  "company_prospect_id": "e08cec6f-3249-4ca2-aea7-924cac4595de",
+  "discovered_by": "internal",
+  "id": "ab1d17d0-eaf7-44f9-b45c-5012018a317b",
+  "name_normalized": "atlas robotics cfo",
+  "source_label": "internal",
+  "title": "Chief Financial Officer",
+  "verification_status": "unverified"
+}
+{
+  "company_prospect_id": "e08cec6f-3249-4ca2-aea7-924cac4595de",
+  "discovered_by": "external",
+  "id": "fffbecf6-5e2f-4171-8438-48fdeead48bf",
+  "name_normalized": "atlas robotics coo",
+  "source_label": "external",
+  "title": "Chief Operating Officer",
+  "verification_status": "unverified"
+}
+Evidence:
+{
+  "executive_prospect_id": "70d8a67f-f7e9-40e7-888f-846377f2d6e4",
+  "source_content_hash": "8542ef3718a5e74816295293eab87bdca764ae9ea904ded4e8b1c7cb6309eb8f",
+  "source_document_id": "551d33f1-6c15-4597-9977-e05ec5d39777",
+  "source_name": "Internal stub leadership page"
+}
+{
+  "executive_prospect_id": "70d8a67f-f7e9-40e7-888f-846377f2d6e4",
+  "source_content_hash": "42b914f6870cb03cdc6ef258f69621665b2d1cce0955e2e0824f136e2397cf62",
+  "source_document_id": "7902ab4d-b414-4c9e-b45d-9f368dc85027",
+  "source_name": "Leadership page"
+}
+{
+  "executive_prospect_id": "ab1d17d0-eaf7-44f9-b45c-5012018a317b",
+  "source_content_hash": "8542ef3718a5e74816295293eab87bdca764ae9ea904ded4e8b1c7cb6309eb8f",
+  "source_document_id": "551d33f1-6c15-4597-9977-e05ec5d39777",
+  "source_name": "Internal stub leadership page"
+}
+{
+  "executive_prospect_id": "fffbecf6-5e2f-4171-8438-48fdeead48bf",
+  "source_content_hash": "42b914f6870cb03cdc6ef258f69621665b2d1cce0955e2e0824f136e2397cf62",
+  "source_document_id": "7902ab4d-b414-4c9e-b45d-9f368dc85027",
+  "source_name": "Leadership page"
+}
+Sources:
+{
+  "content_hash": "1bb046b17d64394961c1a11fa8cb3c9a778a3d3902d9068e2f7c38d5e5e4fbf4",
+  "engine": null,
+  "id": "b4d965e9-6f9c-47cd-a3fe-96e9a68951af",
+  "kind": "seed_input",
+  "source_type": "seed_input",
+  "title": "Seed input (seed_list)"
+}
+{
+  "content_hash": null,
+  "engine": null,
+  "id": "b632f516-996b-4302-9a78-60df0c82cbc1",
+  "kind": "url",
+  "source_type": "url",
+  "title": "Variant HTML"
+}
+{
+  "content_hash": null,
+  "engine": null,
+  "id": "6cc9a28f-b231-44e1-a4df-6ae53a5f8ba2",
+  "kind": "url",
+  "source_type": "url",
+  "title": "phase_9_6_seed"
+}
+{
+  "content_hash": null,
+  "engine": null,
+  "id": "59659514-5da1-4e77-b3e9-cda126b80666",
+  "kind": "url",
+  "source_type": "url",
+  "title": "Content HTML"
+}
+{
+  "content_hash": null,
+  "engine": null,
+  "id": "25600dee-233b-49fa-b68b-e825ca1b7474",
+  "kind": "url",
+  "source_type": "url",
+  "title": "phase_9_6_seed"
+}
+{
+  "content_hash": "881f7a34b838ecfbeec2092ff65d8a2c763a202706659d1db8a4ed83ccc2758d",
+  "engine": null,
+  "id": "8b68a805-3742-4450-8b36-e1b341e03e2c",
+  "kind": "discovery_provider",
+  "source_type": "discovery_provider",
+  "title": "Discovery provider: seed_list"
+}
+{
+  "content_hash": "1a59e6cbd7674688537e5424a510fa8b6bde90edd6963d92a096cdfbb61deddb",
+  "engine": "internal",
+  "id": "7186d178-31a6-415f-bbb5-d1b765fe46b9",
+  "kind": "llm_json_request",
+  "source_type": "llm_json",
+  "title": "Internal Executive Discovery"
+}
+{
+  "content_hash": "8542ef3718a5e74816295293eab87bdca764ae9ea904ded4e8b1c7cb6309eb8f",
+  "engine": "internal",
+  "id": "551d33f1-6c15-4597-9977-e05ec5d39777",
+  "kind": "llm_json_response",
+  "source_type": "llm_json",
+  "title": "Internal Executive Discovery"
+}
+{
+  "content_hash": "3cf6842d78d31a8cf811c45970da88e26d833f7759d048ce117d4f85fb36ed62",
+  "engine": "external",
+  "id": "b6329aa5-2a94-4226-8053-b4202b12f093",
+  "kind": "llm_json_request",
+  "source_type": "llm_json",
+  "title": "phase_9_6_dual"
+}
+{
+  "content_hash": null,
+  "engine": "external",
+  "id": "cb7103df-f201-4c00-9e27-8a7c5f7a210f",
+  "kind": "url",
+  "source_type": "url",
+  "title": "Leadership page"
+}
+{
+  "content_hash": "42b914f6870cb03cdc6ef258f69621665b2d1cce0955e2e0824f136e2397cf62",
+  "engine": "external",
+  "id": "7902ab4d-b414-4c9e-b45d-9f368dc85027",
+  "kind": "llm_json_response",
+  "source_type": "llm_json",
+  "title": "phase_9_6_dual"
+}
+Enrichments:
+{
+  "content_hash": "8542ef3718a5e74816295293eab87bdca764ae9ea904ded4e8b1c7cb6309eb8f",
+  "enrichment_type": "EXECUTIVE_DISCOVERY_JSON",
+  "id": "262f62de-e555-410e-a418-702b96ee88a2",
+  "input_scope_hash": "1a59e6cbd7674688537e5424a510fa8b6bde90edd6963d92a096cdfbb61deddb",
+  "provider": "internal_stub",
+  "purpose": "executive_discovery"
+}
+{
+  "content_hash": "42b914f6870cb03cdc6ef258f69621665b2d1cce0955e2e0824f136e2397cf62",
+  "enrichment_type": "EXECUTIVE_DISCOVERY_JSON",
+  "id": "e9029383-c674-49eb-878d-77c77bbbd427",
+  "input_scope_hash": "3cf6842d78d31a8cf811c45970da88e26d833f7759d048ce117d4f85fb36ed62",
+  "provider": "external_engine",
+  "purpose": "executive_discovery"
+}

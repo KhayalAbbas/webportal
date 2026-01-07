@@ -1,0 +1,44 @@
+{
+  "body": {
+    "combined": {
+      "total_execs_added": 0,
+      "total_execs_updated": 0
+    },
+    "compare": {
+      "external_only_count": 1,
+      "internal_only_count": 1,
+      "matched_count": 0
+    },
+    "eligible_company_count": 1,
+    "external": {
+      "eligible_company_count": 1,
+      "enrichment_record_id": "e9029383-c674-49eb-878d-77c77bbbd427",
+      "execs_added": 0,
+      "execs_updated": 0,
+      "processed_company_count": 1,
+      "ran": false,
+      "skipped_reason": "duplicate_hash",
+      "source_document_ids": [
+        "7902ab4d-b414-4c9e-b45d-9f368dc85027",
+        "b6329aa5-2a94-4226-8053-b4202b12f093"
+      ]
+    },
+    "internal": {
+      "eligible_company_count": 1,
+      "enrichment_record_id": "262f62de-e555-410e-a418-702b96ee88a2",
+      "execs_added": 0,
+      "execs_updated": 0,
+      "processed_company_count": 1,
+      "ran": false,
+      "skipped_reason": "duplicate_hash",
+      "source_document_ids": [
+        "551d33f1-6c15-4597-9977-e05ec5d39777",
+        "7186d178-31a6-415f-bbb5-d1b765fe46b9"
+      ]
+    },
+    "mode": "both",
+    "run_id": "7678adc4-57e1-4ff7-9570-197c637b382c",
+    "tenant_id": "b3909011-8bd3-439d-a421-3b70fae124e9"
+  },
+  "status": 200
+}

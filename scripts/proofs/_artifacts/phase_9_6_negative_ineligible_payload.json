@@ -1,0 +1,11 @@
+{
+  "body": {
+    "detail": {
+      "error": {
+        "code": "ineligible_companies",
+        "message": "ineligible bogus"
+      }
+    }
+  },
+  "status": 400
+}

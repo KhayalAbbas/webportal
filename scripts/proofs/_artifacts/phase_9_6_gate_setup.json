@@ -1,0 +1,37 @@
+{
+  "elig_after": {
+    "body": [
+      {
+        "exec_search_enabled": true,
+        "id": "e08cec6f-3249-4ca2-aea7-924cac4595de",
+        "name_normalized": "atlas robotics",
+        "review_status": "accepted"
+      }
+    ],
+    "status": 200
+  },
+  "elig_before": {
+    "body": [],
+    "status": 200
+  },
+  "seed": {
+    "body": {
+      "companies_existing": 0,
+      "companies_new": 2,
+      "content_hash": "881f7a34b838ecfbeec2092ff65d8a2c763a202706659d1db8a4ed83ccc2758d",
+      "enrichment_id": "680d9482-f333-4717-9a06-50b716e4baea",
+      "envelope_source_id": null,
+      "error": null,
+      "evidence_created": 4,
+      "ingest_stats": null,
+      "provider_version": "1",
+      "raw_source_id": "b4d965e9-6f9c-47cd-a3fe-96e9a68951af",
+      "reason": null,
+      "skipped": null,
+      "source_id": "8b68a805-3742-4450-8b36-e1b341e03e2c",
+      "urls_created": 4,
+      "urls_existing": 0
+    },
+    "status": 200
+  }
+}

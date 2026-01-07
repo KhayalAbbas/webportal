@@ -1,0 +1,29 @@
+
+=== GET /health ===
+
+StatusCode Content                                   
+---------- -------                                   
+       200 {"status":"ok","message":"API is running"}
+
+
+
+=== alembic current ===
+2b04b1c3c0f3 (head)
+
+=== alembic heads ===
+2b04b1c3c0f3 (head)
+
+=== git status -sb ===
+## master...origin/master
+ M app/routers/company_research.py
+ M app/schemas/company_research.py
+ M app/services/company_research_service.py
+?? scripts/proofs/phase_9_6_exec_discovery_dual_engine_proof.py
+
+=== git log -1 --decorate ===
+commit 0182d5b91aa927d1166da3230ab306a562fe2fd0 (HEAD -> master, tag: phase_9_5_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Wed Jan 7 20:16:06 2026 +0400
+
+    Phase 9.5: company review gate + exec_search toggle + accepted-only eligibility enforcement + proof
+
