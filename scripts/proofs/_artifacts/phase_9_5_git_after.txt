@@ -1,7 +1,9 @@
 ﻿## master...origin/master
-commit 4f813229adbc9e3f2a5048a620e175c879a4fd0e (HEAD -> master, tag: phase_9_5_signed_off, origin/master, origin/HEAD)
+ M scripts/proofs/_artifacts/phase_9_5_git_after.txt
+ M scripts/proofs/_artifacts/phase_9_5_tag.txt
+commit 882411c2ebe7472e2f5d339dcd05c8fc219ba55f (HEAD -> master, tag: phase_9_5_signed_off, origin/master, origin/HEAD)
 Author: ATS Local <local@ats>
-Date:   Wed Jan 7 20:14:16 2026 +0400
+Date:   Wed Jan 7 20:15:27 2026 +0400
 
     Phase 9.5: company review gate + exec_search toggle + accepted-only eligibility enforcement + proof
-4f813229adbc9e3f2a5048a620e175c879a4fd0e refs/tags/phase_9_5_signed_off
+882411c2ebe7472e2f5d339dcd05c8fc219ba55f refs/tags/phase_9_5_signed_off
