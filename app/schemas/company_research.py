@@ -395,6 +395,39 @@ class CompanyProspectRanking(BaseModel):
 
 
 # ============================================================================
+# Executive Ranking Schemas (Phase 7.11)
+# ============================================================================
+
+
+class ExecutiveRankReason(BaseModel):
+    """Explainability reason for executive ranking."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
+    label: str
+    weight: float
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+
+
+class ExecutiveRanking(BaseModel):
+    """Deterministic ranked executive response with stable ordering."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    executive_id: UUID
+    company_prospect_id: UUID
+    display_name: str
+    title: Optional[str] = None
+    provenance: Optional[str] = None
+    verification_status: Optional[str] = None
+    rank_score: float
+    rank_position: int
+    evidence_source_document_ids: List[UUID] = Field(default_factory=list)
+    why_ranked: List[ExecutiveRankReason] = Field(default_factory=list)
+
+
+# ============================================================================
 # Executive Prospect Schemas (Phase 7.7)
 # ============================================================================
 

@@ -33,6 +33,7 @@ from app.schemas.company_research import (
     CompanyProspectListItem,
     CompanyProspectWithEvidence,
     CompanyProspectRanking,
+    ExecutiveRanking,
     ExecutiveProspectRead,
     ExecutiveCompareResponse,
     ExecutiveMergeDecisionRequest,
@@ -140,6 +141,36 @@ async def _get_filtered_rankings(
         discovered_by,
         exec_search_enabled,
     )
+
+
+async def _get_ranked_executives(
+    service: CompanyResearchService,
+    tenant_id: str,
+    run_id: UUID,
+    *,
+    company_prospect_id: Optional[UUID],
+    provenance: Optional[str],
+    verification_status: Optional[str],
+    q: Optional[str],
+    limit: int,
+    offset: int,
+) -> List[ExecutiveRanking]:
+    run = await service.get_research_run(tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    ranked_raw = await service.rank_executives_for_run(
+        tenant_id=tenant_id,
+        run_id=run_id,
+        company_prospect_id=company_prospect_id,
+        provenance=provenance,
+        verification_status=verification_status,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+    return [ExecutiveRanking.model_validate(item) for item in ranked_raw]
 
 router = APIRouter(prefix="/company-research", tags=["company-research"])
 
@@ -1416,6 +1447,136 @@ async def export_ranked_prospects_csv(
 
     payload = output.getvalue()
     filename = f"prospects-ranked-{run_id}.csv"
+    return StreamingResponse(
+        iter([payload]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/runs/{run_id}/executives-ranked", response_model=List[ExecutiveRanking])
+async def rank_executives_for_run(
+    run_id: UUID,
+    company_prospect_id: Optional[UUID] = Query(None, description="Filter by company prospect identifier"),
+    provenance: Optional[str] = Query(None, description="Filter by provenance (internal, external, both)"),
+    verification_status: Optional[str] = Query(None, description="Filter by verification status (unverified, partial, verified)"),
+    q: Optional[str] = Query(None, description="Case-insensitive search on display_name or title"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return deterministic, explainable executive rankings."""
+
+    service = CompanyResearchService(db)
+    ranked = await _get_ranked_executives(
+        service,
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        company_prospect_id=company_prospect_id,
+        provenance=provenance,
+        verification_status=verification_status,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+    return ranked
+
+
+@router.get("/runs/{run_id}/executives-ranked.json", response_model=List[ExecutiveRanking])
+async def export_ranked_executives_json(
+    run_id: UUID,
+    company_prospect_id: Optional[UUID] = Query(None, description="Filter by company prospect identifier"),
+    provenance: Optional[str] = Query(None, description="Filter by provenance (internal, external, both)"),
+    verification_status: Optional[str] = Query(None, description="Filter by verification status (unverified, partial, verified)"),
+    q: Optional[str] = Query(None, description="Case-insensitive search on display_name or title"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export ranked executives as JSON with explainability."""
+
+    service = CompanyResearchService(db)
+    ranked = await _get_ranked_executives(
+        service,
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        company_prospect_id=company_prospect_id,
+        provenance=provenance,
+        verification_status=verification_status,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+    return ranked
+
+
+@router.get("/runs/{run_id}/executives-ranked.csv")
+async def export_ranked_executives_csv(
+    run_id: UUID,
+    company_prospect_id: Optional[UUID] = Query(None, description="Filter by company prospect identifier"),
+    provenance: Optional[str] = Query(None, description="Filter by provenance (internal, external, both)"),
+    verification_status: Optional[str] = Query(None, description="Filter by verification status (unverified, partial, verified)"),
+    q: Optional[str] = Query(None, description="Case-insensitive search on display_name or title"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export ranked executives as CSV with explainability rollup."""
+
+    service = CompanyResearchService(db)
+    ranked = await _get_ranked_executives(
+        service,
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        company_prospect_id=company_prospect_id,
+        provenance=provenance,
+        verification_status=verification_status,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "rank_position",
+            "rank_score",
+            "executive_id",
+            "company_id",
+            "display_name",
+            "title",
+            "provenance",
+            "verification_status",
+            "reason_codes",
+            "evidence_source_document_ids",
+        ]
+    )
+
+    for item in ranked:
+        reason_codes = ";".join([reason.code for reason in (item.why_ranked or [])])
+        evidence_ids = ";".join(sorted(str(eid) for eid in (item.evidence_source_document_ids or [])))
+
+        writer.writerow(
+            [
+                item.rank_position,
+                f"{float(item.rank_score):.6f}",
+                item.executive_id,
+                item.company_prospect_id,
+                item.display_name,
+                item.title or "",
+                item.provenance or "",
+                item.verification_status or "",
+                reason_codes,
+                evidence_ids,
+            ]
+        )
+
+    payload = output.getvalue()
+    filename = f"executives-ranked-{run_id}.csv"
     return StreamingResponse(
         iter([payload]),
         media_type="text/csv",

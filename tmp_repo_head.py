@@ -762,54 +762,6 @@ class CompanyResearchRepository:
             return existing, False
         raise RuntimeError("merge_decision_upsert_failed")
 
-    async def list_executive_rank_inputs(
-        self,
-        tenant_id: str,
-        run_id: UUID,
-        company_prospect_id: Optional[UUID] = None,
-    ) -> List[dict]:
-        """Fetch executives with company context and evidence pointers (distinct) for ranking."""
-
-        evidence_ids = func.array_agg(func.distinct(ExecutiveProspectEvidence.source_document_id)).label(
-            "evidence_source_document_ids"
-        )
-
-        query = (
-            select(
-                ExecutiveProspect,
-                CompanyProspect,
-                evidence_ids,
-            )
-            .join(CompanyProspect, CompanyProspect.id == ExecutiveProspect.company_prospect_id)
-            .outerjoin(ExecutiveProspectEvidence, ExecutiveProspectEvidence.executive_prospect_id == ExecutiveProspect.id)
-            .where(
-                ExecutiveProspect.tenant_id == tenant_id,
-                ExecutiveProspect.company_research_run_id == run_id,
-                CompanyProspect.tenant_id == tenant_id,
-                CompanyProspect.company_research_run_id == run_id,
-            )
-            .group_by(ExecutiveProspect.id, CompanyProspect.id)
-        )
-
-        if company_prospect_id:
-            query = query.where(ExecutiveProspect.company_prospect_id == company_prospect_id)
-
-        result = await self.db.execute(query)
-        rows = result.all()
-
-        payload: List[dict] = []
-        for exec_row, company_row, evidence_ids_val in rows:
-            evidence_ids_list = [eid for eid in (evidence_ids_val or []) if eid]
-            payload.append(
-                {
-                    "executive": exec_row,
-                    "company": company_row,
-                    "evidence_source_document_ids": evidence_ids_list,
-                }
-            )
-
-        return payload
-
     async def list_merge_decisions_for_run(
         self,
         tenant_id: str,
@@ -2094,4 +2046,3 @@ class CompanyResearchRepository:
                 error_message=message if status == "failed" else None,
             ),
         )
-

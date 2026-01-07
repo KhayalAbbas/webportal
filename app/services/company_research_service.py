@@ -70,6 +70,11 @@ class CompanyResearchService:
         "partial": 1,
         "verified": 2,
     }
+    EXEC_PROVENANCE_ORDER = {
+        "external": 0,
+        "internal": 1,
+        "both": 2,
+    }
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -733,6 +738,145 @@ class CompanyResearchService:
         for item in sliced:
             item.pop("_tie_breaker_name", None)
         return sliced
+
+    # ====================================================================
+    # Executive Ranking (Phase 7.11)
+    # ====================================================================
+
+    async def rank_executives_for_run(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        *,
+        company_prospect_id: Optional[UUID] = None,
+        provenance: Optional[str] = None,
+        verification_status: Optional[str] = None,
+        q: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[dict]:
+        """Deterministically rank executives with explainability and stable tie-breakers."""
+
+        rows = await self.repo.list_executive_rank_inputs(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            company_prospect_id=company_prospect_id,
+        )
+
+        ver_weights = {
+            "verified": 1000.0,
+            "partial": 500.0,
+            "unverified": 0.0,
+        }
+        prov_weights = {
+            "both": 200.0,
+            "internal": 100.0,
+            "external": 100.0,
+        }
+
+        provenance_filter = provenance.lower() if provenance else None
+        verification_filter = verification_status.lower() if verification_status else None
+        query_filter = q.lower() if q else None
+
+        ranked: List[dict] = []
+        for row in rows:
+            exec_row = row.get("executive")
+            company_row = row.get("company")
+            evidence_ids_raw = row.get("evidence_source_document_ids") or []
+
+            evidence_ids_sorted = sorted(
+                {UUID(str(eid)) for eid in evidence_ids_raw if eid},
+                key=lambda eid: str(eid),
+            )
+
+            provenance_value = (
+                (getattr(exec_row, "discovered_by", None) or getattr(exec_row, "source_label", None) or "")
+                .strip()
+                .lower()
+            )
+            provenance_value = provenance_value or None
+
+            verification_value = (
+                (getattr(exec_row, "verification_status", None) or getattr(company_row, "verification_status", None) or "unverified")
+                .strip()
+                .lower()
+            )
+
+            if provenance_filter and (provenance_value or "") != provenance_filter:
+                continue
+            if verification_filter and verification_value != verification_filter:
+                continue
+            if company_prospect_id and getattr(exec_row, "company_prospect_id", None) != company_prospect_id:
+                continue
+
+            display_name = (
+                getattr(exec_row, "name_normalized", None)
+                or getattr(exec_row, "name_raw", None)
+                or getattr(exec_row, "name", None)
+                or ""
+            )
+            title = getattr(exec_row, "title", None) or ""
+
+            if query_filter:
+                if query_filter not in display_name.lower() and query_filter not in title.lower():
+                    continue
+
+            ver_weight = float(ver_weights.get(verification_value, 0.0))
+            prov_weight = float(prov_weights.get(provenance_value, 0.0)) if provenance_value else 0.0
+            evidence_weight = float(min(len(evidence_ids_sorted) * 10.0, 100.0))
+
+            rank_score = float(ver_weight + prov_weight + evidence_weight)
+
+            reasons = [
+                {
+                    "code": "VERIFICATION_STATUS",
+                    "label": f"verification_status={verification_value or 'unknown'}",
+                    "weight": ver_weight,
+                    "evidence_source_document_ids": [],
+                },
+                {
+                    "code": "PROVENANCE",
+                    "label": f"provenance={provenance_value or 'unknown'}",
+                    "weight": prov_weight,
+                    "evidence_source_document_ids": [],
+                },
+                {
+                    "code": "EVIDENCE_COVERAGE",
+                    "label": "evidence_coverage",
+                    "weight": evidence_weight,
+                    "evidence_source_document_ids": evidence_ids_sorted,
+                },
+            ]
+
+            ranked.append(
+                {
+                    "executive_id": exec_row.id,
+                    "company_prospect_id": exec_row.company_prospect_id,
+                    "display_name": display_name,
+                    "title": title or None,
+                    "provenance": provenance_value,
+                    "verification_status": verification_value,
+                    "rank_score": rank_score,
+                    "rank_position": 0,
+                    "evidence_source_document_ids": evidence_ids_sorted,
+                    "why_ranked": reasons,
+                }
+            )
+
+        ranked_sorted = sorted(
+            ranked,
+            key=lambda item: (
+                -item["rank_score"],
+                -self.EXEC_VERIFICATION_ORDER.get(item.get("verification_status") or "", -1),
+                -self.EXEC_PROVENANCE_ORDER.get(item.get("provenance") or "", -1),
+                str(item["executive_id"]),
+            ),
+        )
+
+        for idx, item in enumerate(ranked_sorted, start=1):
+            item["rank_position"] = idx
+
+        return ranked_sorted[offset : offset + limit]
 
     # ====================================================================
     # Job Queue Operations
