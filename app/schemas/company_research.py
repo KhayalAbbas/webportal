@@ -505,6 +505,7 @@ class ExecutivePipelineCreateResponse(BaseModel):
     research_event_id: UUID
     source_document_id: UUID
     review_status: str
+    idempotent: bool = False
 
 
 class ExecutiveEngineEvidence(BaseModel):

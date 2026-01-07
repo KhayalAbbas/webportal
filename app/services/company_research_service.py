@@ -97,6 +97,12 @@ class CompanyResearchService:
         "internal": 1,
         "both": 2,
     }
+
+    EXPORT_MAX_ZIP_BYTES = 25 * 1024 * 1024
+    EXPORT_DEFAULT_MAX_COMPANIES = 500
+    EXPORT_DEFAULT_MAX_EXECUTIVES = 2000
+    EXPORT_MAX_COMPANIES = 2000
+    EXPORT_MAX_EXECUTIVES = 5000
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -805,6 +811,7 @@ class CompanyResearchService:
                 "research_event_id": research_event.id,
                 "source_document_id": source_document_id,
                 "review_status": getattr(executive, "review_status", "new"),
+                "idempotent": True,
             }
 
         # Creation path
@@ -998,6 +1005,7 @@ class CompanyResearchService:
             "research_event_id": research_event.id,
             "source_document_id": source_document.id,
             "review_status": getattr(executive, "review_status", "new"),
+            "idempotent": False,
         }
     
     async def count_prospects_for_run(
@@ -2090,14 +2098,25 @@ class CompanyResearchService:
         run_id: UUID,
         *,
         include_html: bool = False,
+        max_companies: Optional[int] = None,
+        max_executives: Optional[int] = None,
     ) -> Tuple[RunPack, bytes, Dict[str, bytes]]:
         run = await self.get_research_run(tenant_id, run_id)
         if not run:
             raise ValueError("research_run_not_found")
 
+        company_limit = max_companies or self.EXPORT_DEFAULT_MAX_COMPANIES
+        exec_limit = max_executives or self.EXPORT_DEFAULT_MAX_EXECUTIVES
+
+        if company_limit < 1 or exec_limit < 1:
+            raise ValueError("export_param_invalid")
+
+        company_limit = min(company_limit, self.EXPORT_MAX_COMPANIES)
+        exec_limit = min(exec_limit, self.EXPORT_MAX_EXECUTIVES)
+
         prospect_count = await self.count_prospects_for_run(tenant_id, run_id)
-        exec_limit = 1000
-        company_limit = max(prospect_count, 50)
+        if prospect_count:
+            company_limit = min(company_limit, prospect_count)
 
         ranked_companies = await self.rank_prospects_for_run(
             tenant_id=tenant_id,
@@ -2251,7 +2270,11 @@ class CompanyResearchService:
             for name in sorted(files.keys()):
                 zf.writestr(name, files[name])
 
-        return pack, zip_buffer.getvalue(), files
+        zip_bytes = zip_buffer.getvalue()
+        if len(zip_bytes) > self.EXPORT_MAX_ZIP_BYTES:
+            raise ValueError("export_pack_too_large")
+
+        return pack, zip_bytes, files
 
     async def apply_executive_merge_decision(
         self,

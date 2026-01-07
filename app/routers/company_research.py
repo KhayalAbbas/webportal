@@ -1058,6 +1058,9 @@ async def create_executive_pipeline(
 
     service = CompanyResearchService(db)
 
+    def _error(status_code: int, code: str, message: str) -> None:
+        raise HTTPException(status_code=status_code, detail={"code": code, "message": message})
+
     try:
         result = await service.create_executive_pipeline(
             tenant_id=current_user.tenant_id,
@@ -1071,15 +1074,19 @@ async def create_executive_pipeline(
     except ValueError as exc:  # noqa: BLE001
         msg = str(exc)
         if msg == "review_status_not_accepted":
-            raise HTTPException(status_code=409, detail="Review status must be accepted")
+            _error(409, "EXEC_NOT_ACCEPTED", "Executive must be accepted before ATS promotion")
         if msg == "prospect_missing":
-            raise HTTPException(status_code=404, detail="Company prospect not found")
+            _error(404, "PROSPECT_NOT_FOUND", "Company prospect not found for executive")
         if msg == "role_missing":
-            raise HTTPException(status_code=400, detail="Role linkage missing for executive prospect")
+            _error(400, "ROLE_REQUIRED", "role_id is required on the prospect or payload")
+        if msg == "role_mismatch":
+            _error(400, "ROLE_MISMATCH", "role_id does not match prospect role")
+        if msg == "stage_not_found":
+            _error(400, "STAGE_NOT_FOUND", "current_stage_id not found for tenant")
         raise
 
     if result is None:
-        raise HTTPException(status_code=404, detail="Executive prospect not found")
+        _error(404, "EXEC_NOT_FOUND", "Executive prospect not found")
 
     await db.commit()
     return result
@@ -1786,17 +1793,45 @@ async def export_ranked_executives_csv(
 async def export_run_pack(
     run_id: UUID,
     include_html: bool = Query(False, description="Include an HTML print view in the archive"),
+    max_companies: int = Query(
+        CompanyResearchService.EXPORT_DEFAULT_MAX_COMPANIES,
+        ge=1,
+        le=CompanyResearchService.EXPORT_MAX_COMPANIES,
+        description="Maximum companies to include in the pack",
+    ),
+    max_executives: int = Query(
+        CompanyResearchService.EXPORT_DEFAULT_MAX_EXECUTIVES,
+        ge=1,
+        le=CompanyResearchService.EXPORT_MAX_EXECUTIVES,
+        description="Maximum executives to include in the pack",
+    ),
     current_user: User = Depends(verify_user_tenant_access),
     db: AsyncSession = Depends(get_db),
 ):
     """Export a deterministic run pack (JSON + CSVs + optional HTML) as a ZIP."""
 
     service = CompanyResearchService(db)
-    _pack, zip_bytes, _ = await service.build_run_export_pack(
-        tenant_id=current_user.tenant_id,
-        run_id=run_id,
-        include_html=include_html,
-    )
+    try:
+        _pack, zip_bytes, _ = await service.build_run_export_pack(
+            tenant_id=current_user.tenant_id,
+            run_id=run_id,
+            include_html=include_html,
+            max_companies=max_companies,
+            max_executives=max_executives,
+        )
+    except ValueError as exc:  # noqa: BLE001
+        msg = str(exc)
+        if msg == "export_param_invalid":
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "EXPORT_LIMIT_INVALID", "message": "max_companies and max_executives must be >= 1"},
+            )
+        if msg == "export_pack_too_large":
+            raise HTTPException(
+                status_code=413,
+                detail={"code": "EXPORT_ZIP_TOO_LARGE", "message": "export pack exceeds maximum allowed size"},
+            )
+        raise
 
     filename = f"run_{run_id}_pack.zip"
     headers = {"Content-Disposition": f"attachment; filename={filename}"}
