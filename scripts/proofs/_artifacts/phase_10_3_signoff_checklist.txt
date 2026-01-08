@@ -7,4 +7,4 @@ Phase 10.3 signoff checklist
 [ x ] DB excerpt recorded for cancel/retry/reclaim jobs (phase_10_3_db_excerpt.txt)
 [ x ] Release notes captured (phase_10_3_release_notes.md)
 [ x ] Git status/diff/log captured before commit
-[   ] Commit, tag phase_10_3_signed_off, and push recorded
+[ x ] Commit, tag phase_10_3_signed_off, and push recorded
