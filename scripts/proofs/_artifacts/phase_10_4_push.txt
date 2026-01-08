@@ -19,3 +19,22 @@ Total 11 (delta 5), reused 0 (delta 0), pack-reused 0 (from 0)
 remote: Resolving deltas: 100% (5/5), completed with 5 local objects.
 To https://github.com/iuliantpg/ats.git
  + 01c8e81...7266f1f phase_10_4_signed_off -> phase_10_4_signed_off (forced update)
+
+git push origin master (after git artifacts)
+Enumerating objects: 15, done.
+Counting objects: 100% (15/15), done.
+Delta compression using up to 16 threads
+Compressing objects: 100% (8/8), done.
+Writing objects: 100% (8/8), 72.22 KiB | 1.25 MiB/s, done.
+Total 8 (delta 6), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (6/6), completed with 6 local objects.
+To https://github.com/iuliantpg/ats.git
+	cbe55b5..6912000  master -> master
+
+git push --force origin phase_10_4_signed_off (retag to final commit)
+Enumerating objects: 1, done.
+Counting objects: 100% (1/1), done.
+Writing objects: 100% (1/1), 170 bytes | 56.00 KiB/s, done.
+Total 1 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
+To https://github.com/iuliantpg/ats.git
+ + 7266f1f...6f006e5 phase_10_4_signed_off -> phase_10_4_signed_off (forced update)
