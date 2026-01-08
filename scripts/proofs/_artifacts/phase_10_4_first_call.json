@@ -1,0 +1,157 @@
+{
+  "body": {
+    "export": {
+      "content_hash": "29a862438e17fc415f8e71a4af8dbbb881e95f9852633a0148bb4c230e02227f",
+      "created": true,
+      "file_list": [
+        "README.txt",
+        "audit_summary.csv",
+        "canonical_executives.csv",
+        "canonical_executives.json",
+        "companies.csv",
+        "executive_decisions.csv",
+        "executive_decisions.json",
+        "executive_resolution_map.csv",
+        "executive_resolution_map.json",
+        "executives.csv",
+        "merge_decisions.csv",
+        "run_pack.json"
+      ],
+      "zip_path_or_url": "run_b8b96e33-74bb-4994-a72e-311e78d59c98_pack.zip"
+    },
+    "run_id": "b8b96e33-74bb-4994-a72e-311e78d59c98",
+    "steps": [
+      {
+        "counts": null,
+        "error": null,
+        "ids": {
+          "content_hash": "d2e41001ff7760df86fd37867450f8f9fa5c81240fd065712b2e3df84c721c53",
+          "raw_source_id": "a1df4f9b-eda2-4bf0-9d5f-e300a3584151",
+          "source_id": "110a9eeb-9094-4e30-ad3e-85d159e4aca2"
+        },
+        "job_id": null,
+        "name": "discovery",
+        "status": "ok"
+      },
+      {
+        "counts": {
+          "accepted": 1
+        },
+        "error": null,
+        "ids": {
+          "accepted_prospect_ids": [
+            "c899af63-4c26-4544-84d1-b8fb5c8fac6f"
+          ]
+        },
+        "job_id": null,
+        "name": "review_gate",
+        "status": "ok"
+      },
+      {
+        "counts": null,
+        "error": null,
+        "ids": {
+          "params_hash": "30da24cf95379b6dcb02f87f2488f9306969548a902e4f2362814de58908c407",
+          "reused_reason": null
+        },
+        "job_id": "84046689-5de5-49af-b266-c109b5da8b8d",
+        "name": "acquire_extract_enqueue",
+        "status": "ok"
+      },
+      {
+        "counts": {
+          "external": {
+            "companies_targeted": 1,
+            "company_summaries": [
+              {
+                "company_name": "fixture seed",
+                "company_prospect_id": "c899af63-4c26-4544-84d1-b8fb5c8fac6f",
+                "engine": "external",
+                "evidence_created": 2,
+                "executives_existing": 1,
+                "executives_new": 1
+              }
+            ],
+            "content_hash": "c2ace0ebba4b5af7c1a17f2dbca534ed2b94d44706672adaa08f4ddbb16a464f",
+            "eligible_company_count": 1,
+            "enrichment_id": "1f6bf8bb-e412-483f-8be8-162851f9b783",
+            "evidence_created": 2,
+            "executives_existing": 1,
+            "executives_new": 1,
+            "processed_company_count": 1,
+            "request_source_id": "60dc3560-109d-468d-8ec4-4d8566a85cf5",
+            "source_id": "9a85132f-bb20-4e98-82f9-35c3bb659b28",
+            "urls_created": 0,
+            "urls_existing": 2
+          },
+          "internal": {
+            "companies_targeted": 1,
+            "company_summaries": [
+              {
+                "company_name": "fixture seed",
+                "company_prospect_id": "c899af63-4c26-4544-84d1-b8fb5c8fac6f",
+                "engine": "internal",
+                "evidence_created": 2,
+                "executives_existing": 0,
+                "executives_new": 2
+              }
+            ],
+            "content_hash": "d67ea3cb819adeb21e64afc3a727be86a88dd31ebb71c460514dcc38e5b17f42",
+            "eligible_company_count": 1,
+            "enrichment_id": "8cff3314-344c-4948-b9ef-52282bd28609",
+            "evidence_created": 2,
+            "executives_existing": 0,
+            "executives_new": 2,
+            "processed_company_count": 1,
+            "request_source_id": "311c84d2-5258-4c6c-8109-614525781139",
+            "source_id": "472e7af5-4137-4585-9b0a-ba79816cfb9c",
+            "urls_created": 1,
+            "urls_existing": 1
+          }
+        },
+        "error": null,
+        "ids": null,
+        "job_id": null,
+        "name": "executive_discovery",
+        "status": "ok"
+      },
+      {
+        "counts": {
+          "external_only_count": 1,
+          "internal_only_count": 1,
+          "matched_count": 0
+        },
+        "error": null,
+        "ids": null,
+        "job_id": null,
+        "name": "compare_snapshot",
+        "status": "ok"
+      },
+      {
+        "counts": {
+          "promoted": 1,
+          "reused": 0
+        },
+        "error": null,
+        "ids": {
+          "executive_id": "570693ae-d3a6-41ff-9e0d-3de2ad998ba1"
+        },
+        "job_id": null,
+        "name": "promote",
+        "status": "ok"
+      },
+      {
+        "counts": {
+          "bytes": 5421,
+          "files": 12
+        },
+        "error": null,
+        "ids": null,
+        "job_id": null,
+        "name": "export_pack",
+        "status": "ok"
+      }
+    ]
+  },
+  "status": 200
+}

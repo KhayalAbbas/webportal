@@ -1,0 +1,107 @@
+{
+  "candidate_matches": [],
+  "canonical_company_id": null,
+  "company_name": "fixture seed",
+  "company_prospect_id": "c899af63-4c26-4544-84d1-b8fb5c8fac6f",
+  "external_only": [
+    {
+      "canonical_company_id": null,
+      "company_name": "fixture seed",
+      "company_prospect_id": "c899af63-4c26-4544-84d1-b8fb5c8fac6f",
+      "discovered_by": "external",
+      "engine": "external",
+      "evidence": {
+        "enrichment_record_id": "1f6bf8bb-e412-483f-8be8-162851f9b783",
+        "evidence_source_document_ids": [
+          "9a85132f-bb20-4e98-82f9-35c3bb659b28"
+        ],
+        "request_source_document_id": "60dc3560-109d-468d-8ec4-4d8566a85cf5",
+        "response_source_document_id": "9a85132f-bb20-4e98-82f9-35c3bb659b28"
+      },
+      "id": "e16bb234-f810-4998-b565-9ed8f49245f2",
+      "name": "fixture seed COO",
+      "provenance": "external",
+      "source_label": "external",
+      "title": "Chief Operating Officer",
+      "verification_status": "unverified"
+    }
+  ],
+  "internal_only": [
+    {
+      "canonical_company_id": null,
+      "company_name": "fixture seed",
+      "company_prospect_id": "c899af63-4c26-4544-84d1-b8fb5c8fac6f",
+      "discovered_by": "internal",
+      "engine": "internal",
+      "evidence": {
+        "enrichment_record_id": "8cff3314-344c-4948-b9ef-52282bd28609",
+        "evidence_source_document_ids": [
+          "472e7af5-4137-4585-9b0a-ba79816cfb9c"
+        ],
+        "request_source_document_id": "311c84d2-5258-4c6c-8109-614525781139",
+        "response_source_document_id": "472e7af5-4137-4585-9b0a-ba79816cfb9c"
+      },
+      "id": "44c4a21f-b1ec-426c-8724-3bfa9f5b50d7",
+      "name": "fixture seed CFO",
+      "provenance": "internal",
+      "source_label": "internal",
+      "title": "Chief Financial Officer",
+      "verification_status": "unverified"
+    }
+  ],
+  "matched_or_both": [
+    {
+      "canonical_company_id": null,
+      "company_name": "fixture seed",
+      "company_prospect_id": "c899af63-4c26-4544-84d1-b8fb5c8fac6f",
+      "decision": "both",
+      "external": {
+        "canonical_company_id": null,
+        "company_name": "fixture seed",
+        "company_prospect_id": "c899af63-4c26-4544-84d1-b8fb5c8fac6f",
+        "discovered_by": "both",
+        "engine": "external",
+        "evidence": {
+          "enrichment_record_id": "8cff3314-344c-4948-b9ef-52282bd28609",
+          "evidence_source_document_ids": [
+            "472e7af5-4137-4585-9b0a-ba79816cfb9c",
+            "9a85132f-bb20-4e98-82f9-35c3bb659b28"
+          ],
+          "request_source_document_id": "311c84d2-5258-4c6c-8109-614525781139",
+          "response_source_document_id": "472e7af5-4137-4585-9b0a-ba79816cfb9c"
+        },
+        "id": "570693ae-d3a6-41ff-9e0d-3de2ad998ba1",
+        "name": "fixture seed CEO",
+        "provenance": "both",
+        "source_label": "both",
+        "title": "Chief Executive Officer",
+        "verification_status": "unverified"
+      },
+      "internal": {
+        "canonical_company_id": null,
+        "company_name": "fixture seed",
+        "company_prospect_id": "c899af63-4c26-4544-84d1-b8fb5c8fac6f",
+        "discovered_by": "both",
+        "engine": "internal",
+        "evidence": {
+          "enrichment_record_id": "8cff3314-344c-4948-b9ef-52282bd28609",
+          "evidence_source_document_ids": [
+            "472e7af5-4137-4585-9b0a-ba79816cfb9c",
+            "9a85132f-bb20-4e98-82f9-35c3bb659b28"
+          ],
+          "request_source_document_id": "311c84d2-5258-4c6c-8109-614525781139",
+          "response_source_document_id": "472e7af5-4137-4585-9b0a-ba79816cfb9c"
+        },
+        "id": "570693ae-d3a6-41ff-9e0d-3de2ad998ba1",
+        "name": "fixture seed CEO",
+        "provenance": "both",
+        "source_label": "both",
+        "title": "Chief Executive Officer",
+        "verification_status": "unverified"
+      },
+      "name": "fixture seed CEO",
+      "note": null,
+      "title": "Chief Executive Officer"
+    }
+  ]
+}

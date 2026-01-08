@@ -1,0 +1,13 @@
+{
+  "counts": {
+    "promoted": 1,
+    "reused": 0
+  },
+  "error": null,
+  "ids": {
+    "executive_id": "570693ae-d3a6-41ff-9e0d-3de2ad998ba1"
+  },
+  "job_id": null,
+  "name": "promote",
+  "status": "ok"
+}

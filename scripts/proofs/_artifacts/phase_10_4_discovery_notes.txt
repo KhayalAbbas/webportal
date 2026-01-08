@@ -1,0 +1,32 @@
+Phase 10.4 discovery notes
+
+Relevant orchestration endpoints (current state)
+- Discovery providers: POST /company-research/runs/{run_id}/discovery/providers/{provider_key}/run
+  - Ensures sources are unlocked (plan not locked, run status planned/active).
+  - Provider output is canonicalized and hashed; duplicate hashes skip ingest and return reuse metadata.
+  - Stores envelope/raw input as SourceDocuments when provided and stamps ingest_stats; content_hash drives idempotency.
+
+- External LLM discovery ingest: POST /company-research/runs/{run_id}/discovery/external-llm/ingest
+  - Validates purpose=company_discovery and sources must be unlocked; maps envelope to llm_json SourceDocument.
+  - Canonicalized envelope content_hash enforces reuse; returns reused flags and ids when duplicate.
+  - Suggested companies mapped into LlmDiscoveryPayload; evidence_urls become LlmEvidence entries.
+
+- LLM JSON source ingest: POST /company-research/runs/{run_id}/sources/llm-json
+  - Requires purpose=company_discovery and unlocked sources; hashes canonical JSON to dedupe; ingests via _ingest_discovery_payload.
+
+- Executive discovery orchestrator: POST /company-research/runs/{run_id}/executive-discovery/run
+  - Gated by accepted company prospects with exec_search_enabled; external fixture allowed only when RUN_PROOFS_FIXTURES=1.
+  - Modes internal/external/both; validates external payload company names against eligible set; returns per-engine stats + compare counts.
+
+Run/plan locking and gating
+- ensure_sources_unlocked(run) raises plan_locked/run_locked or run_not_found when plan.locked_at is set or status not planned/active.
+- start_run/ retry_run: ensure_plan_and_steps(), lock_plan_on_start(), enqueue run job, set status queued and clear last_error/started_at/finished_at.
+- Plan builder enables steps for llm_json, url fetch/extract/classify/process, entity resolution, canonicalization, ingest lists/proposals, finalize.
+
+Acquire/extract front door (for context)
+- POST /company-research/runs/{run_id}/acquire-extract (sync) runs fetch->extract->classify->process, aggregates touched source_ids, returns status ok|warn.
+- Async variant via :enqueue + job status/cancel/retry; jobs keyed by params_hash; lease recovery endpoint recovers stale running jobs.
+
+Other gates
+- Prospect review gate update forces exec_search_enabled False unless review_status accepted; prevents exec discovery on rejected/hold prospects.
+- Executive verification/review updates log ActivityLog entries and prevent downgrades (verification order unverified<partial<verified).

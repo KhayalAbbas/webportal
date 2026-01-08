@@ -81,6 +81,8 @@ from app.schemas.company_research import (
     PackAuditEvent,
     PackAuditSummary,
     ResearchEventCreate as RunResearchEventCreate,
+    MarketTestRequest,
+    MarketTestResponse,
 )
 from app.schemas.research_event import ResearchEventCreate as EventResearchEventCreate
 from app.schemas.source_document import SourceDocumentCreate as ResearchEventSourceDocumentCreate
@@ -3586,6 +3588,267 @@ class CompanyResearchService:
         )
 
         return {**summary, "provider_version": provider_result.version, "raw_source_id": raw_source_id, "envelope_source_id": envelope_source_id, "content_hash": content_hash}
+
+    async def run_market_test(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        request: MarketTestRequest,
+        *,
+        actor: Optional[str] = None,
+    ) -> MarketTestResponse:
+        """Orchestrate market-test flow using existing building blocks."""
+
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        actor = actor or "system"
+        steps: list[dict[str, object]] = []
+
+        def add_step(
+            name: str,
+            status: str,
+            *,
+            ids: Optional[dict[str, object]] = None,
+            counts: Optional[dict[str, object]] = None,
+            job_id: Optional[UUID] = None,
+            error: Optional[dict[str, object]] = None,
+        ) -> None:
+            steps.append(
+                {
+                    "name": name,
+                    "status": status,
+                    "ids": ids,
+                    "counts": counts,
+                    "job_id": job_id,
+                    "error": error,
+                }
+            )
+
+        # Discovery
+        discovery_ids: dict[str, object] = {}
+        try:
+            if request.discovery_mode == "seed":
+                if not request.seed:
+                    raise ValueError("seed_payload_required")
+
+                seed_items: list[dict[str, object]] = []
+                for company in request.seed.companies or []:
+                    evidence_block = None
+                    if request.seed.urls:
+                        evidence_block = [
+                            {"url": url, "label": "seed_url", "kind": "other"}
+                            for url in request.seed.urls or []
+                        ]
+
+                    seed_items.append(
+                        {
+                            "name": company,
+                            "website_url": None,
+                            "evidence": evidence_block,
+                        }
+                    )
+
+                if not seed_items and request.seed.urls:
+                    seed_items.append(
+                        {
+                            "name": "Seeded Company",
+                            "website_url": None,
+                            "evidence": [
+                                {"url": url, "label": "seed_url", "kind": "other"}
+                                for url in request.seed.urls
+                            ],
+                        }
+                    )
+
+                provider_payload: dict[str, object] = {
+                    "mode": "paste",
+                    "items": seed_items,
+                    "source_label": "market_test_seed",
+                    "notes": "market_test_orchestration",
+                }
+                if request.seed.urls:
+                    provider_payload["urls"] = request.seed.urls
+
+                discovery_result = await self.run_discovery_provider(
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                    provider_key="seed_list",
+                    request_payload=provider_payload,
+                )
+            elif request.discovery_mode == "external_llm":
+                if not request.external_llm_payload:
+                    raise ValueError("external_llm_payload_required")
+
+                discovery_result = await self.ingest_external_llm_discovery(
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                    request=request.external_llm_payload,
+                    purpose="company_discovery",
+                )
+            else:
+                raise ValueError("invalid_discovery_mode")
+
+            for key in ["source_id", "enrichment_record_id", "content_hash", "raw_source_id", "envelope_source_id"]:
+                if key in discovery_result and discovery_result.get(key) is not None:
+                    discovery_ids[key] = discovery_result.get(key)
+
+            add_step("discovery", "ok", ids=discovery_ids or None, counts=None)
+        except Exception as exc:  # noqa: BLE001
+            add_step("discovery", "error", error={"message": str(exc)})
+            raise
+
+        # Company review gate (accept + enable exec search)
+        prospects = await self.list_prospects_for_run(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            limit=200,
+            offset=0,
+        )
+        accepted_ids: list[str] = []
+        for prospect in prospects:
+            updated = await self.update_prospect_review_status(
+                tenant_id=tenant_id,
+                prospect_id=prospect.id,
+                review_status="accepted",
+                exec_search_enabled=True,
+                actor=actor,
+            )
+            if updated:
+                accepted_ids.append(str(updated.id))
+
+        add_step(
+            "review_gate",
+            "ok",
+            ids={"accepted_prospect_ids": accepted_ids} if accepted_ids else None,
+            counts={"accepted": len(accepted_ids)},
+        )
+
+        # Acquire + extract enqueue
+        job_payload = await self.enqueue_acquire_extract_job(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            max_urls=request.max_urls,
+            force=bool(request.force_acquire),
+        )
+        job = job_payload["job"]
+        add_step(
+            "acquire_extract_enqueue",
+            "ok",
+            ids={
+                "params_hash": job_payload.get("params_hash"),
+                "reused_reason": job_payload.get("reused_reason"),
+            },
+            job_id=job.id,
+        )
+
+        # Executive discovery
+        eligible_companies = await self.list_executive_eligible_companies(tenant_id, run_id)
+        internal_result = None
+        external_result = None
+
+        if request.exec_mode in {"internal", "both"}:
+            internal_result = await self.run_internal_executive_discovery(tenant_id, run_id)
+
+        if request.exec_mode in {"external", "both"}:
+            external_payload: Optional[dict] = None
+            if isinstance(request.external_llm_payload, dict):
+                external_payload = request.external_llm_payload
+            elif os.getenv("RUN_PROOFS_FIXTURES", "0") == "1":
+                external_payload = self.build_external_fixture_payload(eligible_companies)
+
+            if not external_payload:
+                raise ValueError("external_payload_required")
+
+            provider = str(external_payload.get("provider", "external_fixture"))
+            model_name = str(external_payload.get("model", "deterministic_fixture_v1"))
+
+            external_result = await self.ingest_executive_llm_json_payload(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                payload=external_payload,
+                provider=provider,
+                model_name=model_name,
+                title="External Executive Discovery",
+                engine="external",
+                request_payload=external_payload,
+            )
+
+        add_step(
+            "executive_discovery",
+            "ok",
+            counts={
+                "internal": internal_result,
+                "external": external_result,
+            },
+        )
+
+        # Compare snapshot
+        if request.do_compare_snapshot is not False:
+            compare_counts = await self.compute_exec_engine_compare_counts(tenant_id, run_id)
+            add_step("compare_snapshot", "ok", counts=compare_counts)
+
+        # Promotion (optional)
+        if request.do_promote:
+            exec_rows = await self.repo.list_executive_prospects_for_run(tenant_id, run_id)
+            target_exec = exec_rows[0] if exec_rows else None
+            if target_exec:
+                await self.update_executive_review_status(
+                    tenant_id=tenant_id,
+                    executive_id=target_exec.id,
+                    review_status="accepted",
+                    actor=actor,
+                )
+
+                role_id = None
+                prospect = await self.repo.get_company_prospect(tenant_id, target_exec.company_prospect_id)
+                if prospect:
+                    role_id = getattr(prospect, "role_mandate_id", None)
+
+                promotion = await self.create_executive_pipeline(
+                    tenant_id=tenant_id,
+                    executive_id=target_exec.id,
+                    assignment_status=None,
+                    current_stage_id=None,
+                    role_id=role_id,
+                    notes=None,
+                    actor=actor,
+                )
+
+                add_step(
+                    "promote",
+                    "ok",
+                    ids={"executive_id": str(target_exec.id)},
+                    counts={
+                        "promoted": int(promotion.get("promoted_count", 0)) if promotion else 0,
+                        "reused": int(promotion.get("reused_count", 0)) if promotion else 0,
+                    },
+                )
+            else:
+                add_step("promote", "skipped", error={"code": "no_executives"})
+
+        export_summary = None
+        if request.do_export is not False:
+            _pack, zip_bytes, file_map = await self.build_run_export_pack(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                include_html=False,
+            )
+            hash_value = hashlib.sha256(zip_bytes).hexdigest()
+            export_summary = {
+                "created": True,
+                "content_hash": hash_value,
+                "zip_path_or_url": f"run_{run_id}_pack.zip",
+                "file_list": sorted(file_map.keys()),
+            }
+            add_step(
+                "export_pack",
+                "ok",
+                counts={"files": len(file_map), "bytes": len(zip_bytes)},
+            )
+
+        return MarketTestResponse(run_id=run_id, steps=steps, export=export_summary)
 
     async def process_llm_json_sources_for_run(
         self,

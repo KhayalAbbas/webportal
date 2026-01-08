@@ -1,0 +1,218 @@
+[
+  {
+    "cancel_requested": false,
+    "created_at": "2026-01-08T10:58:52.312283Z",
+    "error_json": null,
+    "finished_at": null,
+    "job_id": "84046689-5de5-49af-b266-c109b5da8b8d",
+    "params_hash": "30da24cf95379b6dcb02f87f2488f9306969548a902e4f2362814de58908c407",
+    "params_json": {
+      "force": false,
+      "max_urls": 4
+    },
+    "progress_json": {},
+    "run_id": "b8b96e33-74bb-4994-a72e-311e78d59c98",
+    "started_at": null,
+    "status": "queued"
+  },
+  {
+    "attempt_count": 1,
+    "cancel_requested": false,
+    "job_id": "84046689-5de5-49af-b266-c109b5da8b8d",
+    "last_error": null,
+    "params_hash": "30da24cf95379b6dcb02f87f2488f9306969548a902e4f2362814de58908c407",
+    "status": "succeeded"
+  },
+  {
+    "cancel_requested": false,
+    "created_at": "2026-01-08T10:58:52.312283Z",
+    "error_json": null,
+    "finished_at": "2026-01-08T10:58:59.346844Z",
+    "job_id": "84046689-5de5-49af-b266-c109b5da8b8d",
+    "params_hash": "30da24cf95379b6dcb02f87f2488f9306969548a902e4f2362814de58908c407",
+    "params_json": {
+      "force": false,
+      "max_urls": 4
+    },
+    "progress_json": {
+      "classify": {
+        "count": 8,
+        "duplicates": 0,
+        "processed": 0,
+        "skipped": 5,
+        "sources": [],
+        "updated": 0
+      },
+      "extract": {
+        "accepted": 1,
+        "count": 3,
+        "flagged": 2,
+        "processed": 3,
+        "rejected": 0,
+        "skipped": 0,
+        "sources": [
+          {
+            "decision": "accept",
+            "id": "50fb74ce-1738-4c70-85b0-360cd895f23b",
+            "reason_codes": [],
+            "word_count": 402
+          },
+          {
+            "decision": "flag",
+            "id": "311c84d2-5258-4c6c-8109-614525781139",
+            "reason_codes": [
+              "FLAG_THIN_CONTENT",
+              "FLAG_UNSUPPORTED_TYPE"
+            ],
+            "word_count": 140
+          },
+          {
+            "decision": "flag",
+            "id": "60dc3560-109d-468d-8ec4-4d8566a85cf5",
+            "reason_codes": [
+              "FLAG_THIN_CONTENT",
+              "FLAG_UNSUPPORTED_TYPE"
+            ],
+            "word_count": 126
+          }
+        ]
+      },
+      "fetch": {
+        "details": [
+          {
+            "attempt": 1,
+            "error": null,
+            "meta": {
+              "attempt": 1,
+              "canonical_source_id": "50fb74ce-1738-4c70-85b0-360cd895f23b",
+              "canonical_url": "http://127.0.0.1:8899/content_html",
+              "deduped": false,
+              "extraction_method": "generic_html",
+              "http": {
+                "bytes_read": 3073,
+                "canonical_final_url": "http://127.0.0.1:8899/content_html",
+                "content_length": "3073",
+                "content_type": "text/html",
+                "final_url": "http://127.0.0.1:8899/content_html",
+                "headers": {
+                  "content-length": "3073",
+                  "content-type": "text/html",
+                  "date": "Thu, 08 Jan 2026 10:58:56 GMT",
+                  "server": "Phase4_13Fixture/1.0 Python/3.11.9"
+                },
+                "status_code": 200
+              },
+              "items_found": 0,
+              "max_attempts": 3
+            },
+            "next_retry_at": null,
+            "source_id": "50fb74ce-1738-4c70-85b0-360cd895f23b",
+            "status": "fetched",
+            "url": "http://127.0.0.1:8899/content_html"
+          },
+          {
+            "attempt": 1,
+            "error": "HTTP 404",
+            "meta": {
+              "attempt": 1,
+              "backoff_seconds": 30,
+              "canonical_url": "https://example.com/fixture-seed",
+              "error": "HTTP 404",
+              "extraction_method": "http_error",
+              "http": {
+                "bytes_read": 513,
+                "canonical_final_url": "https://example.com/fixture-seed",
+                "content_length": "513",
+                "content_type": "text/html",
+                "final_url": "https://example.com/fixture-seed",
+                "headers": {
+                  "age": "266",
+                  "cf-cache-status": "HIT",
+                  "cf-ray": "9bab2ecf1a065e30-KIV",
+                  "connection": "keep-alive",
+                  "content-encoding": "gzip",
+                  "content-type": "text/html",
+                  "date": "Thu, 08 Jan 2026 10:58:59 GMT",
+                  "server": "cloudflare",
+                  "transfer-encoding": "chunked",
+                  "vary": "Accept-Encoding"
+                },
+                "status_code": 404
+              },
+              "items_found": 0,
+              "max_attempts": 3,
+              "next_retry_at": "2026-01-08T10:59:28.997710+00:00",
+              "retry_reason": "http_error_or_status"
+            },
+            "next_retry_at": "2026-01-08T10:59:28.997710+00:00",
+            "source_id": "22b17e3b-ee03-4ce7-bdf5-90b5bd86f00e",
+            "status": "failed",
+            "url": "https://example.com/fixture-seed"
+          }
+        ],
+        "failed": 1,
+        "fetched": 1,
+        "force": false,
+        "limited": false,
+        "next_retry_at": "2026-01-08T10:59:28.997710+00:00",
+        "pending_recheck": false,
+        "pending_recheck_next_retry_at": null,
+        "processed": 2,
+        "retry_backoff_seconds": 29,
+        "retry_scheduled": true,
+        "selected": 2,
+        "skipped": false,
+        "terminal_failures": 0
+      },
+      "inputs": {
+        "force": false,
+        "max_urls": 4
+      },
+      "process": {
+        "companies_existing": 0,
+        "companies_found": 1,
+        "companies_new": 1,
+        "processed": 3,
+        "sources_detail": [
+          {
+            "chars": 3005,
+            "existing": 0,
+            "extracted": 1,
+            "lines": 3,
+            "new": 1,
+            "source_id": "50fb74ce-1738-4c70-85b0-360cd895f23b",
+            "title": "seed_url"
+          },
+          {
+            "chars": 1075,
+            "existing": 0,
+            "extracted": 0,
+            "lines": 1,
+            "new": 0,
+            "source_id": "60dc3560-109d-468d-8ec4-4d8566a85cf5",
+            "title": "External Executive Discovery"
+          },
+          {
+            "chars": 1175,
+            "existing": 0,
+            "extracted": 0,
+            "lines": 1,
+            "new": 0,
+            "source_id": "311c84d2-5258-4c6c-8109-614525781139",
+            "title": "Internal Executive Discovery"
+          }
+        ]
+      },
+      "source_ids_touched": [
+        "22b17e3b-ee03-4ce7-bdf5-90b5bd86f00e",
+        "311c84d2-5258-4c6c-8109-614525781139",
+        "50fb74ce-1738-4c70-85b0-360cd895f23b",
+        "60dc3560-109d-468d-8ec4-4d8566a85cf5"
+      ],
+      "status": "warn"
+    },
+    "run_id": "b8b96e33-74bb-4994-a72e-311e78d59c98",
+    "started_at": "2026-01-08T10:58:54.773158Z",
+    "status": "succeeded"
+  }
+]

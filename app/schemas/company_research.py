@@ -207,6 +207,64 @@ class ExecutiveReviewUpdate(BaseModel):
 
 
 # ============================================================================
+# Market Test Orchestration Schemas (Phase 10.4)
+# ============================================================================
+
+
+class MarketTestSeedPayload(BaseModel):
+    """Seed list payload for market test discovery."""
+
+    model_config = ConfigDict(extra="allow")
+
+    companies: Optional[List[str]] = None
+    urls: Optional[List[str]] = None
+
+
+class MarketTestRequest(BaseModel):
+    """Request envelope for market-test orchestration."""
+
+    model_config = ConfigDict(extra="allow")
+
+    discovery_mode: Literal["seed", "external_llm"]
+    seed: Optional[MarketTestSeedPayload] = None
+    external_llm_payload: Optional[Dict[str, Any]] = None
+    max_urls: Optional[int] = Field(default=None, ge=0)
+    force_acquire: Optional[bool] = Field(default=False)
+    exec_mode: Literal["internal", "external", "both"]
+    do_compare_snapshot: Optional[bool] = Field(default=True)
+    do_promote: Optional[bool] = Field(default=False)
+    do_export: Optional[bool] = Field(default=True)
+
+
+class MarketTestStepResult(BaseModel):
+    """Per-step outcome for market-test orchestration."""
+
+    name: str
+    status: str
+    ids: Optional[Dict[str, Any]] = None
+    counts: Optional[Dict[str, Any]] = None
+    job_id: Optional[UUID] = None
+    error: Optional[Dict[str, Any]] = None
+
+
+class MarketTestExportSummary(BaseModel):
+    """Export summary for market-test orchestration."""
+
+    created: bool
+    content_hash: Optional[str] = None
+    zip_path_or_url: Optional[str] = None
+    file_list: Optional[List[str]] = None
+
+
+class MarketTestResponse(BaseModel):
+    """Response envelope for market-test orchestration."""
+
+    run_id: UUID
+    steps: List[MarketTestStepResult] = Field(default_factory=list)
+    export: Optional[MarketTestExportSummary] = None
+
+
+# ============================================================================
 # Discovery Provider Schemas (Phase 9.1)
 # ============================================================================
 

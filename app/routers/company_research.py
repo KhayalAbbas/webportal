@@ -69,6 +69,8 @@ from app.schemas.company_research import (
     ExternalLLMDiscoveryIngestResponse,
     RunPack,
     ExecutiveDiscoveryRunResponse,
+    MarketTestRequest,
+    MarketTestResponse,
     AcquireExtractRequest,
     AcquireExtractResponse,
     AcquireExtractJobEnqueueResponse,
@@ -1073,6 +1075,37 @@ async def run_executive_discovery(
         "combined": combined,
         "compare": compare_counts,
     }
+
+
+@router.post("/runs/{run_id}/market-test", response_model=MarketTestResponse)
+async def run_market_test(
+    run_id: UUID,
+    payload: MarketTestRequest,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run the market-test orchestration (Phase 10.4)."""
+
+    service = CompanyResearchService(db)
+    actor = current_user.email or current_user.username or "system"
+
+    try:
+        result = await service.run_market_test(
+            tenant_id=current_user.tenant_id,
+            run_id=run_id,
+            request=payload,
+            actor=actor,
+        )
+    except ValueError as exc:  # noqa: BLE001
+        msg = str(exc)
+        if msg == "run_not_found":
+            raise_app_error(404, "RUN_NOT_FOUND", "Research run not found", {"run_id": str(run_id)})
+        if msg in {"seed_payload_required", "external_llm_payload_required", "invalid_discovery_mode", "external_payload_required"}:
+            raise_app_error(400, "INVALID_REQUEST", msg)
+        raise
+
+    await db.commit()
+    return result
 
 
 @router.get("/runs/{run_id}/executives", response_model=List[ExecutiveProspectRead])

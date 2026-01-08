@@ -1,0 +1,26 @@
+Phase 10.4 design notes — market-test orchestration
+
+Execution order (single call)
+1) Discovery gating: ensure run exists and sources are unlocked.
+2) Discovery ingest:
+   - If discovery_mode=seed: call CompanyResearchService.run_discovery_provider(provider_key="seed_list", request_payload from seed block).
+   - If discovery_mode=external_llm: call CompanyResearchService.ingest_external_llm_discovery(request=external_llm_payload, purpose="company_discovery").
+3) Company review gate for exec discovery: accept + set exec_search_enabled=True for targeted prospects (deterministic: the seeded company list or derived companies from ingest) using CompanyResearchService.update_prospect_review_status.
+4) Acquire+Extract: enqueue CompanyResearchService.enqueue_acquire_extract_job(max_urls, force=force_acquire) and return job_id/params_hash; worker completes outside call (proof drives worker loop).
+5) Executive discovery: call CompanyResearchService.run_executive_discovery (existing router) with exec_mode -> internal/external/both and allow external fixture in proof. Uses eligibility gate (accepted + exec_search_enabled).
+6) Compare snapshot (optional): call CompanyResearchService.compute_exec_engine_compare_counts to return matched/internal_only/external_only counts.
+7) Promote (optional): call CompanyResearchService.create_executive_pipeline on the deterministic accepted executive(s) to produce ATS promotion, capturing reuse flags.
+8) Export (optional): call CompanyResearchService.build_run_export_pack via existing export_run_pack helper to create deterministic ZIP and return hash/path.
+
+Idempotency strategy
+- Discovery ingest dedupes via content_hash (duplicate_hash reuse) for both seed provider and external_llm ingest.
+- Review gate: re-accepting accepted prospects is a no-op; exec_search_enabled remains true when already accepted.
+- Acquire+Extract enqueue uses params_hash; returns existing queued/succeeded job with reused_reason when repeated.
+- Exec discovery: external fixture and internal ingest paths reuse duplicate_hash if same payload; eligibility gate avoids duplicate companies.
+- Compare snapshot: pure read; repeat returns same counts.
+- Promote: create_executive_pipeline returns reused when pipeline exists; no double creation.
+- Export: build_run_export_pack yields stable content; repeated calls reuse identical hash; caller records created vs reused/unchanged.
+
+Terminal PASS criteria for proof
+- First call executes full flow: discovery accepted companies, acquire+extract job created and completed by worker, exec discovery run (internal+external fixtures), compare snapshot present, promotion succeeds, export zip produced with recorded hash.
+- Second call with identical request shows idempotency: discovery duplicate_hash or skipped, acquire+extract enqueue reused (no new job or same params_hash), exec discovery reuses/returns zero new items, export hash unchanged, no additional source docs or promotions created.
