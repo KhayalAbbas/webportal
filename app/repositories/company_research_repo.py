@@ -2073,8 +2073,32 @@ class CompanyResearchRepository:
         await self.db.flush()
         return True
 
-    async def claim_next_job(self, worker_id: str, job_type: Optional[str] = None) -> Optional[CompanyResearchJob]:
+    async def request_cancel_job_by_id(self, job_id: UUID) -> Optional[CompanyResearchJob]:
+        result = await self.db.execute(
+            select(CompanyResearchJob)
+            .where(
+                CompanyResearchJob.id == job_id,
+                CompanyResearchJob.status.in_(["queued", "running"]),
+            )
+            .with_for_update()
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            return None
+        job.cancel_requested = True
+        await self.db.flush()
+        await self.db.refresh(job)
+        return job
+
+    async def claim_next_job(
+        self,
+        worker_id: str,
+        job_type: Optional[str] = None,
+        *,
+        stale_after_seconds: int = 1800,
+    ) -> Optional[CompanyResearchJob]:
         now = func.now()
+        stale_cutoff = utc_now() - timedelta(seconds=stale_after_seconds)
         query = (
             select(CompanyResearchJob)
             .where(
@@ -2087,6 +2111,7 @@ class CompanyResearchRepository:
                 or_(
                     CompanyResearchJob.status != "running",
                     CompanyResearchJob.locked_at.is_(None),
+                    CompanyResearchJob.locked_at <= stale_cutoff,
                 ),
             )
             .order_by(CompanyResearchJob.created_at)
@@ -2101,6 +2126,15 @@ class CompanyResearchRepository:
         job = result.scalar_one_or_none()
         if not job:
             return None
+
+        lease_expired = bool(job.status == "running" and job.locked_at and job.locked_at <= stale_cutoff)
+        if lease_expired:
+            job.status = "failed"
+            job.last_error = job.last_error or "lease_expired"
+            job.locked_at = None
+            job.locked_by = None
+            job.next_retry_at = utc_now()
+            job.cancel_requested = False
 
         job.locked_by = worker_id
         job.locked_at = utc_now()
@@ -2166,6 +2200,9 @@ class CompanyResearchRepository:
         job.last_error = last_error
         job.locked_at = None
         job.locked_by = None
+        job.cancel_requested = False
+        job.finished_at = utc_now()
+        job.next_retry_at = None
         await self.db.flush()
         await self.db.refresh(job)
         return job
@@ -2198,6 +2235,82 @@ class CompanyResearchRepository:
         await self.db.flush()
         await self.db.refresh(job)
         return job
+
+    async def retry_job(
+        self,
+        job_id: UUID,
+        *,
+        backoff_seconds: int = 0,
+        reset_attempts: bool = False,
+    ) -> Optional[CompanyResearchJob]:
+        result = await self.db.execute(
+            select(CompanyResearchJob).where(CompanyResearchJob.id == job_id).with_for_update()
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            return None
+
+        job.status = "queued"
+        job.locked_at = None
+        job.locked_by = None
+        job.cancel_requested = False
+        job.next_retry_at = utc_now() + timedelta(seconds=backoff_seconds) if backoff_seconds > 0 else None
+        job.finished_at = None
+        job.last_error = None
+        if reset_attempts:
+            job.attempt_count = 0
+        await self.db.flush()
+        await self.db.refresh(job)
+        return job
+
+    async def recover_stuck_jobs(
+        self,
+        *,
+        tenant_id: Optional[str] = None,
+        job_type: Optional[str] = None,
+        stale_after_seconds: int = 1800,
+        limit: int = 50,
+    ) -> List[CompanyResearchJob]:
+        cutoff = utc_now() - timedelta(seconds=stale_after_seconds)
+        query = (
+            select(CompanyResearchJob)
+            .where(
+                CompanyResearchJob.status == "running",
+                CompanyResearchJob.locked_at.is_not(None),
+                CompanyResearchJob.locked_at <= cutoff,
+            )
+            .order_by(CompanyResearchJob.locked_at)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+
+        if tenant_id:
+            query = query.where(CompanyResearchJob.tenant_id == tenant_id)
+        if job_type:
+            query = query.where(CompanyResearchJob.job_type == job_type)
+
+        result = await self.db.execute(query)
+        jobs = list(result.scalars().all())
+        if not jobs:
+            return []
+
+        for job in jobs:
+            prev_locked_at = job.locked_at
+            prev_locked_by = job.locked_by
+            job.status = "failed"
+            job.last_error = job.last_error or "lease_expired"
+            job.locked_at = None
+            job.locked_by = None
+            job.next_retry_at = utc_now()
+            job.cancel_requested = False
+            job.finished_at = None
+            setattr(job, "_recovered_locked_at", prev_locked_at)
+            setattr(job, "_recovered_locked_by", prev_locked_by)
+
+        await self.db.flush()
+        for job in jobs:
+            await self.db.refresh(job)
+        return jobs
 
     async def get_job(self, job_id: UUID) -> Optional[CompanyResearchJob]:
         result = await self.db.execute(select(CompanyResearchJob).where(CompanyResearchJob.id == job_id))

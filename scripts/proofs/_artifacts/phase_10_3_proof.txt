@@ -1,0 +1,13 @@
+run_id=2e7d2b23-b031-4f4c-909b-9e3024110fe7 tenant_id=860500aa-0076-4210-a16b-53eef8e3ffb7
+Seeded 3 URL sources for run 2e7d2b23-b031-4f4c-909b-9e3024110fe7
+DB excerpt jobs=3 events=11 for run 2e7d2b23-b031-4f4c-909b-9e3024110fe7
+== assertions ==
+PASS: cancelled job is terminal
+PASS: cancelled job has finished_at
+PASS: failed job recorded
+PASS: failed job has error_json
+PASS: retry endpoint succeeded
+PASS: retry requeued job
+PASS: retried job succeeded
+PASS: stale lease job reclaimed and succeeded
+PROOF_RESULT=PASS

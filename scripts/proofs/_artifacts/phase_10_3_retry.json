@@ -1,0 +1,28 @@
+{
+  "body": {
+    "cancel_requested": false,
+    "created_at": "2026-01-08T09:26:22.822104Z",
+    "error_json": {
+      "message": "fixture_fail",
+      "type": "RuntimeError"
+    },
+    "finished_at": null,
+    "job_id": "16d4d605-7ca7-4a91-8ab4-b04e99d3345d",
+    "params_hash": "c65b5e522d15a8506e05161a2f74355196028fe590f6dd4404f1048f33d14ceb",
+    "params_json": {
+      "force": true,
+      "max_urls": 2
+    },
+    "progress_json": {
+      "inputs": {
+        "force": true,
+        "max_urls": 2
+      },
+      "source_ids_touched": []
+    },
+    "run_id": "2e7d2b23-b031-4f4c-909b-9e3024110fe7",
+    "started_at": "2026-01-08T09:26:22.888184Z",
+    "status": "queued"
+  },
+  "status": 200
+}

@@ -1,0 +1,29 @@
+Phase 10.3 artifact manifest
+
+- scripts/proofs/_artifacts/phase_10_3_preflight.txt
+- scripts/proofs/_artifacts/phase_10_3_discovery_notes.txt
+- scripts/proofs/_artifacts/phase_10_3_seed_urls.json
+- scripts/proofs/_artifacts/phase_10_3_enqueue_for_cancel.json
+- scripts/proofs/_artifacts/phase_10_3_cancel.json
+- scripts/proofs/_artifacts/phase_10_3_status_cancelled.json
+- scripts/proofs/_artifacts/phase_10_3_enqueue_fail.json
+- scripts/proofs/_artifacts/phase_10_3_status_failed.json
+- scripts/proofs/_artifacts/phase_10_3_retry.json
+- scripts/proofs/_artifacts/phase_10_3_status_retried_succeeded.json
+- scripts/proofs/_artifacts/phase_10_3_enqueue_reclaim.json
+- scripts/proofs/_artifacts/phase_10_3_status_reclaimed.json
+- scripts/proofs/_artifacts/phase_10_3_db_excerpt.txt
+- scripts/proofs/_artifacts/phase_10_3_proof.txt
+- scripts/proofs/_artifacts/phase_10_3_proof_console.txt
+- scripts/proofs/_artifacts/phase_10_3_openapi_before.json
+- scripts/proofs/_artifacts/phase_10_3_openapi_after.json
+- scripts/proofs/_artifacts/phase_10_3_openapi_after_excerpt.txt
+- scripts/proofs/_artifacts/phase_10_3_release_notes.md
+- scripts/proofs/_artifacts/phase_10_3_signoff_checklist.txt
+- scripts/proofs/_artifacts/phase_10_3_git_status_before_commit.txt
+- scripts/proofs/_artifacts/phase_10_3_git_diff_stat.txt
+- scripts/proofs/_artifacts/phase_10_3_git_log_before_commit.txt
+- scripts/proofs/_artifacts/phase_10_3_commit.txt
+- scripts/proofs/_artifacts/phase_10_3_tag.txt
+- scripts/proofs/_artifacts/phase_10_3_push.txt
+- scripts/proofs/_artifacts/phase_10_3_git_after.txt

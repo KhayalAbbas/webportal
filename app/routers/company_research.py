@@ -73,6 +73,8 @@ from app.schemas.company_research import (
     AcquireExtractResponse,
     AcquireExtractJobEnqueueResponse,
     AcquireExtractJobStatusResponse,
+    AcquireExtractLeaseRecoveryRequest,
+    AcquireExtractLeaseRecoveryResponse,
 )
 from app.schemas.contact_enrichment import ContactEnrichmentRequest
 from app.schemas.executive_contact_enrichment import (
@@ -477,9 +479,113 @@ async def get_company_research_job(
         params_json=job.params_json or {},
         progress_json=job.progress_json or {},
         error_json=job.error_json,
+        cancel_requested=job.cancel_requested,
         created_at=job.created_at,
         started_at=job.started_at,
         finished_at=job.finished_at,
+    )
+
+
+@router.post(
+    "/jobs/{job_id}:cancel",
+    response_model=AcquireExtractJobStatusResponse,
+)
+async def cancel_acquire_extract_job(
+    job_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Request cancellation for an acquire+extract job."""
+
+    service = CompanyResearchService(db)
+    try:
+        job = await service.cancel_acquire_extract_job(current_user.tenant_id, job_id)
+    except ValueError as exc:  # noqa: BLE001
+        msg = str(exc)
+        if msg == "job_not_found":
+            raise_app_error(404, "JOB_NOT_FOUND", "Job not found", {"job_id": str(job_id)})
+        if msg == "job_terminal":
+            raise_app_error(409, "JOB_NOT_CANCELLABLE", "Job already completed", {"job_id": str(job_id)})
+        raise
+
+    await db.commit()
+    return AcquireExtractJobStatusResponse(
+        job_id=job.id,
+        run_id=job.run_id,
+        status=job.status,
+        params_hash=job.params_hash,
+        params_json=job.params_json or {},
+        progress_json=job.progress_json or {},
+        error_json=job.error_json,
+        cancel_requested=job.cancel_requested,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+    )
+
+
+@router.post(
+    "/jobs/{job_id}:retry",
+    response_model=AcquireExtractJobStatusResponse,
+)
+async def retry_acquire_extract_job(
+    job_id: UUID,
+    reset_attempts: bool = Query(False),
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retry an acquire+extract job from a terminal state."""
+
+    service = CompanyResearchService(db)
+    try:
+        job = await service.retry_acquire_extract_job(current_user.tenant_id, job_id, reset_attempts=reset_attempts)
+    except ValueError as exc:  # noqa: BLE001
+        msg = str(exc)
+        if msg == "job_not_found":
+            raise_app_error(404, "JOB_NOT_FOUND", "Job not found", {"job_id": str(job_id)})
+        if msg == "job_active":
+            raise_app_error(409, "JOB_ACTIVE", "Job is already queued or running", {"job_id": str(job_id)})
+        raise
+
+    await db.commit()
+    return AcquireExtractJobStatusResponse(
+        job_id=job.id,
+        run_id=job.run_id,
+        status=job.status,
+        params_hash=job.params_hash,
+        params_json=job.params_json or {},
+        progress_json=job.progress_json or {},
+        error_json=job.error_json,
+        cancel_requested=job.cancel_requested,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+    )
+
+
+@router.post(
+    "/jobs/acquire-extract:recover-leases",
+    response_model=AcquireExtractLeaseRecoveryResponse,
+)
+async def recover_acquire_extract_leases(
+    payload: AcquireExtractLeaseRecoveryRequest,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Recover stale running acquire+extract jobs by clearing expired leases."""
+
+    service = CompanyResearchService(db)
+    jobs = await service.recover_acquire_extract_leases(
+        tenant_id=current_user.tenant_id,
+        stale_after_seconds=payload.stale_after_seconds,
+        limit=payload.limit,
+    )
+    await db.commit()
+
+    return AcquireExtractLeaseRecoveryResponse(
+        recovered_job_ids=[job.id for job in jobs],
+        recovered_count=len(jobs),
+        stale_after_seconds=payload.stale_after_seconds,
     )
 
 

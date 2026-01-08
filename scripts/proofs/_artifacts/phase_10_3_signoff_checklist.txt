@@ -1,0 +1,10 @@
+Phase 10.3 signoff checklist
+
+[ x ] Preflight: health, openapi before, alembic, git status/log captured (phase_10_3_preflight.txt)
+[ x ] Discovery notes recorded (phase_10_3_discovery_notes.txt)
+[ x ] Proof PASS for cancel, retry, and stale lease reclaim (phase_10_3_job_controls_proof.py + artifacts)
+[ x ] OpenAPI after + excerpt captured (phase_10_3_openapi_after*.json/txt)
+[ x ] DB excerpt recorded for cancel/retry/reclaim jobs (phase_10_3_db_excerpt.txt)
+[ x ] Release notes captured (phase_10_3_release_notes.md)
+[ x ] Git status/diff/log captured before commit
+[   ] Commit, tag phase_10_3_signed_off, and push recorded

@@ -1,0 +1,106 @@
+{
+  "cancel_requested": false,
+  "created_at": "2026-01-08T09:26:24.227875Z",
+  "error_json": null,
+  "finished_at": "2026-01-08T09:26:24.511308Z",
+  "job_id": "cf2c2f1f-75f6-4443-8418-ae21e23ac0c5",
+  "params_hash": "c2a57570bb4e02aafa87e608b5898ce70ee9d001b67741a63a0ff813cce855da",
+  "params_json": {
+    "force": true,
+    "max_urls": 1
+  },
+  "progress_json": {
+    "classify": {
+      "count": 3,
+      "duplicates": 0,
+      "processed": 0,
+      "skipped": 1,
+      "sources": [],
+      "updated": 0
+    },
+    "extract": {
+      "accepted": 0,
+      "count": 2,
+      "flagged": 0,
+      "processed": 0,
+      "rejected": 0,
+      "skipped": 2,
+      "sources": [
+        {
+          "id": "487568e6-82cb-43fb-ae3b-002f4285593e",
+          "reason": "already_extracted",
+          "status": "skipped"
+        },
+        {
+          "id": "97b24b17-409f-41cb-a0a5-9238519b5605",
+          "reason": "already_extracted",
+          "status": "skipped"
+        }
+      ]
+    },
+    "fetch": {
+      "details": [
+        {
+          "attempt": 2,
+          "error": null,
+          "meta": {
+            "attempt": 2,
+            "canonical_url": "http://127.0.0.1:8899/content_html",
+            "extraction_method": "cached",
+            "items_found": 0,
+            "max_attempts": 3
+          },
+          "next_retry_at": null,
+          "source_id": "487568e6-82cb-43fb-ae3b-002f4285593e",
+          "status": "fetched",
+          "url": "http://127.0.0.1:8899/content_html"
+        }
+      ],
+      "failed": 0,
+      "fetched": 1,
+      "force": true,
+      "limited": true,
+      "next_retry_at": null,
+      "pending_recheck": false,
+      "pending_recheck_next_retry_at": null,
+      "processed": 1,
+      "retry_backoff_seconds": null,
+      "retry_scheduled": false,
+      "selected": 1,
+      "skipped": false,
+      "terminal_failures": 0
+    },
+    "inputs": {
+      "force": true,
+      "max_urls": 1
+    },
+    "process": {
+      "companies_existing": 0,
+      "companies_found": 0,
+      "companies_new": 0,
+      "processed": 2,
+      "sources_detail": [
+        {
+          "reason": "already_processed",
+          "source_id": "487568e6-82cb-43fb-ae3b-002f4285593e",
+          "status": "skipped",
+          "title": "content_html"
+        },
+        {
+          "reason": "already_processed",
+          "source_id": "97b24b17-409f-41cb-a0a5-9238519b5605",
+          "status": "skipped",
+          "title": "thin_html"
+        }
+      ]
+    },
+    "source_ids_touched": [
+      "487568e6-82cb-43fb-ae3b-002f4285593e",
+      "97b24b17-409f-41cb-a0a5-9238519b5605"
+    ],
+    "status": "ok"
+  },
+  "run_id": "2e7d2b23-b031-4f4c-909b-9e3024110fe7",
+  "started_at": "2026-01-08T09:26:24.318952Z",
+  "status": "succeeded"
+}

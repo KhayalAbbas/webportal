@@ -1520,8 +1520,14 @@ class CompanyResearchService:
     # Job Queue Operations
     # ====================================================================
 
-    async def claim_next_job(self, worker_id: str, job_type: Optional[str] = None) -> Optional[CompanyResearchJob]:
-        return await self.repo.claim_next_job(worker_id, job_type=job_type)
+    async def claim_next_job(
+        self,
+        worker_id: str,
+        job_type: Optional[str] = None,
+        *,
+        stale_after_seconds: int = 1800,
+    ) -> Optional[CompanyResearchJob]:
+        return await self.repo.claim_next_job(worker_id, job_type=job_type, stale_after_seconds=stale_after_seconds)
 
     async def mark_job_running(self, job_id: UUID, worker_id: str) -> Optional[CompanyResearchJob]:
         return await self.repo.mark_job_running(job_id, worker_id)
@@ -1572,6 +1578,119 @@ class CompanyResearchService:
         if str(job.tenant_id) != str(tenant_id):
             return None
         return job
+
+    async def cancel_acquire_extract_job(self, tenant_id: str, job_id: UUID) -> CompanyResearchJob:
+        job = await self.get_job_for_tenant(tenant_id, job_id)
+        if not job or job.job_type != "acquire_extract_async":
+            raise ValueError("job_not_found")
+
+        if job.status in {"succeeded", "failed", "cancelled"}:
+            raise ValueError("job_terminal")
+
+        if job.status == "queued":
+            job = await self.mark_job_cancelled(job.id, last_error="cancel_requested")
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=RunResearchEventCreate(
+                    company_research_run_id=job.run_id,
+                    event_type="acquire_extract_cancelled",
+                    status="cancelled",
+                    input_json={"job_id": str(job.id)},
+                    output_json={"status": job.status},
+                    error_message="cancel_requested",
+                ),
+            )
+            await self.db.flush()
+            return job
+
+        job = await self.repo.request_cancel_job_by_id(job.id)
+        if not job:
+            raise ValueError("job_not_found")
+
+        await self.repo.create_research_event(
+            tenant_id=tenant_id,
+            data=RunResearchEventCreate(
+                company_research_run_id=job.run_id,
+                event_type="acquire_extract_cancel_requested",
+                status="cancel_requested",
+                input_json={"job_id": str(job.id)},
+                output_json=None,
+                error_message="cancel_requested",
+            ),
+        )
+        await self.db.flush()
+        return job
+
+    async def retry_acquire_extract_job(
+        self,
+        tenant_id: str,
+        job_id: UUID,
+        *,
+        reset_attempts: bool = False,
+    ) -> CompanyResearchJob:
+        job = await self.get_job_for_tenant(tenant_id, job_id)
+        if not job or job.job_type != "acquire_extract_async":
+            raise ValueError("job_not_found")
+
+        if job.status in {"queued", "running"}:
+            raise ValueError("job_active")
+
+        job = await self.repo.retry_job(job.id, reset_attempts=reset_attempts)
+        await self.repo.create_research_event(
+            tenant_id=tenant_id,
+            data=RunResearchEventCreate(
+                company_research_run_id=job.run_id,
+                event_type="acquire_extract_retry_enqueued",
+                status="ok",
+                input_json={"job_id": str(job.id), "reset_attempts": reset_attempts},
+                output_json={
+                    "status": job.status,
+                    "attempt_count": job.attempt_count,
+                    "next_retry_at": job.next_retry_at.isoformat() if job.next_retry_at else None,
+                },
+                error_message=None,
+            ),
+        )
+        await self.db.flush()
+        return job
+
+    async def recover_acquire_extract_leases(
+        self,
+        tenant_id: str,
+        *,
+        stale_after_seconds: int = 1800,
+        limit: int = 50,
+    ) -> List[CompanyResearchJob]:
+        jobs = await self.repo.recover_stuck_jobs(
+            tenant_id=tenant_id,
+            job_type="acquire_extract_async",
+            stale_after_seconds=stale_after_seconds,
+            limit=limit,
+        )
+
+        for job in jobs:
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=RunResearchEventCreate(
+                    company_research_run_id=job.run_id,
+                    event_type="acquire_extract_lease_recovered",
+                    status="ok",
+                    input_json={
+                        "job_id": str(job.id),
+                        "stale_after_seconds": stale_after_seconds,
+                        "limit": limit,
+                    },
+                    output_json={
+                        "recovered_locked_at": getattr(job, "_recovered_locked_at", None),
+                        "recovered_locked_by": getattr(job, "_recovered_locked_by", None),
+                        "next_retry_at": job.next_retry_at.isoformat() if job.next_retry_at else None,
+                    },
+                    error_message=None,
+                ),
+            )
+
+        await self.db.flush()
+        return jobs
     
     # ========================================================================
     # Evidence Operations
@@ -4467,12 +4586,44 @@ class CompanyResearchService:
         if not job or job.job_type != "acquire_extract_async":
             raise ValueError("job_not_found")
 
+        if job.cancel_requested:
+            job = await self.mark_job_cancelled(job.id, last_error="cancel_requested")
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=RunResearchEventCreate(
+                    company_research_run_id=job.run_id,
+                    event_type="acquire_extract_cancelled",
+                    status="cancelled",
+                    input_json={"job_id": str(job.id)},
+                    output_json={"status": job.status},
+                    error_message="cancel_requested",
+                ),
+            )
+            await self.db.commit()
+            return job
+
         params = job.params_json or {}
         max_urls = params.get("max_urls")
         force = bool(params.get("force"))
         job = await self.mark_job_running(job.id, worker_id)
         if not job:
             raise ValueError("job_not_found")
+
+        if job.cancel_requested:
+            job = await self.mark_job_cancelled(job.id, last_error="cancel_requested")
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=RunResearchEventCreate(
+                    company_research_run_id=job.run_id,
+                    event_type="acquire_extract_cancelled",
+                    status="cancelled",
+                    input_json={"job_id": str(job.id)},
+                    output_json={"status": job.status},
+                    error_message="cancel_requested",
+                ),
+            )
+            await self.db.commit()
+            return job
 
         await self.repo.create_research_event(
             tenant_id=tenant_id,

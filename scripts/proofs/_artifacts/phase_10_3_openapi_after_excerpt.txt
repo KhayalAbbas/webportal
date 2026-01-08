@@ -1,0 +1,19 @@
+/company-research/jobs/{job_id}:cancel
+  POST summary: Cancel Acquire Extract Job
+    200: Successful Response
+    422: Validation Error
+
+/company-research/jobs/{job_id}:retry
+  POST summary: Retry Acquire Extract Job
+    200: Successful Response
+    422: Validation Error
+
+/company-research/jobs/acquire-extract:recover-leases
+  POST summary: Recover Acquire Extract Leases
+    200: Successful Response
+    422: Validation Error
+
+/company-research/jobs/{job_id}
+  GET summary: Get Company Research Job
+    200: Successful Response
+    422: Validation Error

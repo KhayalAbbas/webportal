@@ -1,0 +1,16 @@
+{
+  "cancel_requested": false,
+  "created_at": "2026-01-08T09:26:20.955387Z",
+  "error_json": null,
+  "finished_at": "2026-01-08T09:26:21.049530Z",
+  "job_id": "71ddaf3d-112c-4e26-a861-f15488221744",
+  "params_hash": "f93d80f50d4f445b8c4d59ff4b72c9b1b6d16895748d5746d99eb1c83ae7a852",
+  "params_json": {
+    "force": false,
+    "max_urls": 3
+  },
+  "progress_json": {},
+  "run_id": "2e7d2b23-b031-4f4c-909b-9e3024110fe7",
+  "started_at": null,
+  "status": "cancelled"
+}

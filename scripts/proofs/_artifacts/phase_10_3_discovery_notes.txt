@@ -1,0 +1,32 @@
+Phase 10.3 discovery notes
+
+Endpoints (company research acquire/extract job controls)
+- Enqueue: POST /runs/{run_id}/acquire-extract:enqueue
+  Request: body AcquireExtractRequest { max_urls?: int (0-500), force: bool }
+  Response: AcquireExtractJobEnqueueResponse { job_id UUID, run_id UUID, status str, params_hash str, reused_reason?: str }
+
+- Job status: GET /jobs/{job_id}
+  Response: AcquireExtractJobStatusResponse { job_id UUID, run_id UUID, status str, params_hash?: str, params_json {}, progress_json {}, error_json?, cancel_requested bool, created_at, started_at?, finished_at? }
+
+- Cancel: POST /jobs/{job_id}:cancel
+  Response: AcquireExtractJobStatusResponse (same as status) with cancel_requested flag; errors: 404 JOB_NOT_FOUND, 409 JOB_NOT_CANCELLABLE when already terminal.
+
+- Retry: POST /jobs/{job_id}:retry?reset_attempts=false
+  Response: AcquireExtractJobStatusResponse for retried job (same id reused; status queued; attempt_count maybe reset when reset_attempts=true). Errors: 404 JOB_NOT_FOUND, 409 JOB_ACTIVE if queued/running.
+
+- Lease recovery: POST /jobs/acquire-extract:recover-leases
+  Request: AcquireExtractLeaseRecoveryRequest { stale_after_seconds int>=60<=86400 default 1800, limit int>=1<=500 default 50 }
+  Response: AcquireExtractLeaseRecoveryResponse { recovered_job_ids [UUID], recovered_count int, stale_after_seconds int }
+
+Worker claim/lease logic
+- Worker entry: AcquireExtractJobRunner.run_once() -> service.claim_next_job(worker_id, job_type="acquire_extract_async"), then execute_acquire_extract_job.
+- Repo claim_next_job filters status in queued|failed|running, attempt_count < max_attempts, next_retry_at null or <= now, and running with locked_at null or locked_at <= utc_now()-stale_after_seconds (default 1800s). If lease expired, job marked failed with last_error lease_expired and next_retry_at now, then re-locked by worker.
+- Service claim_next_job exposes stale_after_seconds parameter (default 1800 seconds).
+- execute_acquire_extract_job short-circuits if cancel_requested before or after mark_job_running.
+
+Schemas referenced: AcquireExtractRequest, AcquireExtractJobEnqueueResponse, AcquireExtractJobStatusResponse (includes cancel_requested), AcquireExtractLeaseRecoveryRequest/Response.
+
+Notes
+- Cancel endpoint cancels queued jobs immediately; running jobs set cancel_requested then worker path/execute short-circuit marks cancelled.
+- Retry endpoint requeues terminal jobs, clears last_error, optionally resets attempts.
+- Lease recovery endpoint clears stale locks for running jobs and schedules retry.

@@ -1170,9 +1170,25 @@ class AcquireExtractJobStatusResponse(BaseModel):
     params_json: Dict[str, Any] = Field(default_factory=dict)
     progress_json: Dict[str, Any] = Field(default_factory=dict)
     error_json: Optional[Dict[str, Any]] = None
+    cancel_requested: bool = False
     created_at: datetime
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
+
+
+class AcquireExtractLeaseRecoveryRequest(BaseModel):
+    """Request payload for lease recovery of acquire/extract jobs."""
+
+    stale_after_seconds: int = Field(default=1800, ge=60, le=86400)
+    limit: int = Field(default=50, ge=1, le=500)
+
+
+class AcquireExtractLeaseRecoveryResponse(BaseModel):
+    """Response payload summarizing recovered job leases."""
+
+    recovered_job_ids: List[UUID]
+    recovered_count: int
+    stale_after_seconds: int
 
 
 # ============================================================================
