@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>phase_10_5_ui_front_door - Company Research - Silver Arrow ATS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.4;
+            color: #1a1a1a;
+            background: #f5f5f5;
+        }
+        
+        /* Header */
+        .header {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #34495e;
+        }
+        
+        .header-left h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 12px;
+        }
+        
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        
+        .tenant-id {
+            color: #95a5a6;
+            font-size: 10px;
+        }
+        
+        .logout-link {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 4px 12px;
+            border: 1px solid #7f8c8d;
+            border-radius: 3px;
+        }
+        
+        .logout-link:hover {
+            background: #34495e;
+        }
+        
+        /* Layout container */
+        .container {
+            display: flex;
+            height: calc(100vh - 45px);
+        }
+        
+        /* Sidebar navigation */
+        .sidebar {
+            width: 200px;
+            background: #34495e;
+            color: #ecf0f1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+        
+        .nav-item {
+            display: block;
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-left: 3px solid transparent;
+        }
+        
+        .nav-item:hover {
+            background: #2c3e50;
+            border-left-color: #3498db;
+        }
+        
+        .nav-item.active {
+            background: #2c3e50;
+            border-left-color: #3498db;
+            font-weight: 600;
+        }
+        
+        .nav-separator {
+            height: 1px;
+            background: #2c3e50;
+            margin: 10px 0;
+        }
+        
+        /* Main content */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fff;
+        }
+        
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: #fff;
+            font-size: 12px;
+        }
+        
+        th {
+            background: #ecf0f1;
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #bdc3c7;
+            color: #2c3e50;
+        }
+        
+        td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 3px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        button,
+        .btn {
+            padding: 8px 16px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        button:hover,
+        .btn:hover {
+            background: #2980b9;
+            text-decoration: none;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        /* Filters section */
+        .filters {
+            background: #ecf0f1;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+        
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        /* Pagination */
+        .pagination {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 20px;
+        }
+        
+        /* Section headings */
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 30px 0 15px 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+        }
+        
+        /* Detail sections */
+        .detail-section {
+            margin-bottom: 30px;
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 10px 20px;
+            font-size: 13px;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .detail-value {
+            color: #2c3e50;
+        }
+        
+        /* Error/success messages */
+        .alert {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+        
+        .alert-error {
+            background: #e74c3c;
+            color: #fff;
+        }
+        
+        .alert-success {
+            background: #2ecc71;
+            color: #fff;
+        }
+        
+        /* Login page specific */
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .login-title {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+            color: #2c3e50;
+        }
+        
+        /* Dashboard cards */
+        .dashboard-section {
+            margin-bottom: 40px;
+        }
+        
+        .section-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        /* Utility classes */
+        .text-muted {
+            color: #95a5a6;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .mt-20 {
+            margin-top: 20px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: #2ecc71;
+            color: #fff;
+        }
+        
+        .badge-warning {
+            background: #f39c12;
+            color: #fff;
+        }
+        
+        .badge-danger {
+            background: #e74c3c;
+            color: #fff;
+        }
+        
+        .badge-info {
+            background: #3498db;
+            color: #fff;
+        }
+        
+        .text-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 3px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <h1>Silver Arrow ATS</h1>
+        </div>
+        <div class="header-right">
+            
+            <div class="user-info">
+                <span>proof-ui@example.com</span>
+                <span class="tenant-id">Tenant: 8b5c5d3e-8c4c-4c9d-8db7-5f6d8d7c0a11</span>
+            </div>
+            <a href="/logout" class="logout-link">Logout</a>
+            
+        </div>
+    </div>
+    
+    <!-- Main container -->
+    <div class="container">
+        
+        <!-- Sidebar navigation -->
+        <nav class="sidebar">
+            <a href="/dashboard" class="nav-item ">Dashboard</a>
+            <a href="/ui/roles" class="nav-item ">Roles</a>
+            <a href="/ui/candidates" class="nav-item ">Candidates</a>
+            <a href="/ui/companies" class="nav-item ">Companies</a>
+            <a href="/ui/bd-opportunities" class="nav-item ">BD Opportunities</a>
+            <a href="/ui/tasks" class="nav-item ">Tasks</a>
+            <a href="/ui/lists" class="nav-item ">Lists</a>
+            <a href="/ui/research" class="nav-item ">Research</a>
+            <a href="/ui/research/upload" class="nav-item ">Research Upload</a>
+            <a href="/ui/company-research" class="nav-item active">Company Research</a>
+            <div class="nav-separator"></div>
+            <a href="/ui/system-check" class="nav-item " style="font-size: 12px; color: #95a5a6;">🔧 System Check</a>
+            <div class="nav-separator"></div>
+            
+            <a href="/ui/settings" class="nav-item ">Settings</a>
+            
+        </nav>
+        
+        
+        <!-- Main content -->
+        <main class="main-content">
+            
+<!-- Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h1 class="page-title" style="margin: 0;">phase_10_5_ui_front_door</h1>
+    <div>
+        <a href="/ui/company-research?role_id=a28d43ac-3930-48e9-a6ba-e306d432c28a" class="btn btn-secondary">← Back to Research Runs</a>
+        <a href="/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/export-pack.zip" class="btn btn-primary" style="margin-left: 8px;">Download export pack (ZIP)</a>
+    </div>
+</div>
+
+<!-- Lifecycle Controls -->
+<div style="display: flex; gap: 10px; margin-bottom: 16px;">
+    <form method="post" action="/ui/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/start">
+        <button type="submit" class="btn btn-primary">Start</button>
+    </form>
+    <form method="post" action="/ui/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/retry">
+        <button type="submit" class="btn btn-secondary">Retry</button>
+    </form>
+    <form method="post" action="/ui/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/cancel">
+        <button type="submit" class="btn btn-danger">Cancel</button>
+    </form>
+</div>
+
+<!-- Success Message -->
+
+
+<!-- Error Message -->
+
+
+<!-- Run Info -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <div class="detail-grid">
+        
+        <div class="detail-label">Role/Mandate</div>
+        <div class="detail-value">
+            <a href="/ui/roles/a28d43ac-3930-48e9-a6ba-e306d432c28a">Proof Role</a> (Proof Company)
+        </div>
+        
+        
+        <div class="detail-label">Status</div>
+        <div class="detail-value">
+            
+                <span class="badge badge-success">active</span>
+            
+        </div>
+
+        <div class="detail-label">Last Error</div>
+        <div class="detail-value">-</div>
+        
+        <div class="detail-label">Created</div>
+        <div class="detail-value">2026-01-08 16:41</div>
+        
+        
+    </div>
+    
+    
+    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Description</h3>
+    <div class="text-box">Phase 10.5 UI proof run</div>
+    
+</div>
+
+<!-- Plan -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Run Plan</h2>
+    <div style="display: flex; gap: 16px; font-size: 13px; margin-bottom: 8px;">
+        <div><strong>Version:</strong> 1</div>
+        <div><strong>Locked:</strong> -</div>
+    </div>
+    <details>
+        <summary style="cursor: pointer; color: #007bff;">View Plan JSON</summary>
+        <pre style="background: #f8f9fa; padding: 12px; border: 1px solid #e5e5e5; border-radius: 4px; font-size: 12px; overflow: auto;">{
+  "run_id": "56a4d489-121b-4748-9651-7bcb979247c2",
+  "steps": [
+    {
+      "enabled": false,
+      "max_attempts": 2,
+      "rationale": "Ingest external LLM JSON discovery payloads before fetching URLs",
+      "step_key": "external_llm_company_discovery",
+      "step_order": 4
+    },
+    {
+      "enabled": false,
+      "max_attempts": 5,
+      "rationale": "Fetch URL sources before extraction",
+      "step_key": "fetch_url_sources",
+      "step_order": 10
+    },
+    {
+      "enabled": false,
+      "max_attempts": 3,
+      "rationale": "Deterministically extract text + quality flags from fetched sources",
+      "step_key": "extract_url_sources",
+      "step_order": 15
+    },
+    {
+      "enabled": false,
+      "max_attempts": 3,
+      "rationale": "Classify extracted sources for duplicates and junk before processing",
+      "step_key": "classify_sources",
+      "step_order": 17
+    },
+    {
+      "enabled": true,
+      "rationale": "Process queued research sources",
+      "step_key": "process_sources",
+      "step_order": 20
+    },
+    {
+      "enabled": true,
+      "max_attempts": 2,
+      "rationale": "Resolve run-scoped executive duplicates with evidence-first merges",
+      "step_key": "entity_resolution",
+      "step_order": 25
+    },
+    {
+      "enabled": true,
+      "max_attempts": 2,
+      "rationale": "Build tenant-wide canonical people (email-first, evidence-first)",
+      "step_key": "canonical_people_resolution",
+      "step_order": 27
+    },
+    {
+      "enabled": true,
+      "max_attempts": 2,
+      "rationale": "Build tenant-wide canonical companies (domain-first, evidence-first)",
+      "step_key": "canonical_company_resolution",
+      "step_order": 28
+    },
+    {
+      "enabled": false,
+      "rationale": "Ingest manual list sources if present",
+      "step_key": "ingest_lists",
+      "step_order": 30
+    },
+    {
+      "enabled": false,
+      "rationale": "Ingest AI proposals if provided",
+      "step_key": "ingest_proposal",
+      "step_order": 40
+    },
+    {
+      "enabled": true,
+      "rationale": "Mark run complete once all steps succeed",
+      "step_key": "finalize",
+      "step_order": 99
+    }
+  ],
+  "version": 1
+}</pre>
+    </details>
+</div>
+
+<!-- Steps -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Run Steps</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+            <tr style="background: #f8f9fa;">
+                <th style="text-align: left; padding: 8px;">Order</th>
+                <th style="text-align: left; padding: 8px;">Step</th>
+                <th style="text-align: left; padding: 8px;">Status</th>
+                <th style="text-align: left; padding: 8px;">Attempts</th>
+                <th style="text-align: left; padding: 8px;">Started</th>
+                <th style="text-align: left; padding: 8px;">Finished</th>
+                <th style="text-align: left; padding: 8px;">Next Retry</th>
+                <th style="text-align: left; padding: 8px;">Last Error</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+            
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">20</td>
+                <td style="padding: 8px;">process_sources</td>
+                <td style="padding: 8px;">pending</td>
+                <td style="padding: 8px;">0 / 2</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+            </tr>
+            
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">25</td>
+                <td style="padding: 8px;">entity_resolution</td>
+                <td style="padding: 8px;">pending</td>
+                <td style="padding: 8px;">0 / 2</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+            </tr>
+            
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">27</td>
+                <td style="padding: 8px;">canonical_people_resolution</td>
+                <td style="padding: 8px;">pending</td>
+                <td style="padding: 8px;">0 / 2</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+            </tr>
+            
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">28</td>
+                <td style="padding: 8px;">canonical_company_resolution</td>
+                <td style="padding: 8px;">pending</td>
+                <td style="padding: 8px;">0 / 2</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+            </tr>
+            
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">99</td>
+                <td style="padding: 8px;">finalize</td>
+                <td style="padding: 8px;">pending</td>
+                <td style="padding: 8px;">0 / 2</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+                <td style="padding: 8px;">-</td>
+            </tr>
+            
+            
+        </tbody>
+    </table>
+</div>
+
+<!-- Events -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Recent Events</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+            <tr style="background: #f8f9fa;">
+                <th style="text-align: left; padding: 8px;">When</th>
+                <th style="text-align: left; padding: 8px;">Type</th>
+                <th style="text-align: left; padding: 8px;">Status</th>
+                <th style="text-align: left; padding: 8px;">Message</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr><td colspan="4" style="padding: 8px;">No events yet.</td></tr>
+            
+        </tbody>
+    </table>
+</div>
+
+<!-- Source Documents -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Source Documents</h2>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+            <tr style="background: #f8f9fa;">
+                <th style="text-align: left; padding: 8px;">Title</th>
+                <th style="text-align: left; padding: 8px;">Type</th>
+                <th style="text-align: left; padding: 8px;">Status</th>
+                <th style="text-align: left; padding: 8px;">URL</th>
+                <th style="text-align: left; padding: 8px;">Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr><td colspan="5" style="padding: 8px;">No sources yet.</td></tr>
+            
+        </tbody>
+    </table>
+</div>
+
+<!-- Executive Discovery -->
+<div class="detail-section" style="margin-bottom: 24px;">
+    <h2 class="section-title">Executive Discovery</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 12px; background: #f9fafb;">
+            <h3 style="margin-top: 0; font-size: 14px;">Eligible Companies</h3>
+            
+                <p style="margin: 0; color: #666;">No companies have been accepted with executive search enabled.</p>
+            
+        </div>
+        <div style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 12px; background: #f9fafb;">
+                        <h3 style="margin-top: 0; font-size: 14px;">Run Internal Executive Stub</h3>
+                        <p style="font-size: 12px; color: #555; margin-bottom: 8px;">Runs deterministic internal discovery for eligible companies (0 eligible). Uses the same API, gating, and idempotent hashing.</p>
+                        <button type="button" class="btn btn-secondary" onclick="runInternalExecDiscovery()">Run internal stub</button>
+
+                        <h3 style="margin-top: 16px; font-size: 14px;">Run External / Both Executive Payload</h3>
+                        <p style="font-size: 12px; color: #555;">Paste the external <code>executive_discovery_v1</code> payload. Select mode + engine to drive provenance; external/both requires provider.</p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                <div style="min-width: 140px;">
+                    <label for="exec-mode" style="display: block; font-size: 12px; color: #555;">Mode</label>
+                    <select id="exec-mode" style="width: 100%; padding: 6px; font-size: 12px;">
+                        <option value="external" selected>external</option>
+                        <option value="both">both (internal + external)</option>
+                        <option value="internal">internal only</option>
+                    </select>
+                </div>
+                <div style="min-width: 140px;">
+                    <label for="exec-engine" style="display: block; font-size: 12px; color: #555;">Engine</label>
+                    <select id="exec-engine" style="width: 100%; padding: 6px; font-size: 12px;">
+                        <option value="external" selected>external</option>
+                        <option value="internal">internal</option>
+                    </select>
+                </div>
+                <div style="min-width: 160px;">
+                    <label for="exec-provider" style="display: block; font-size: 12px; color: #555;">Provider</label>
+                    <input id="exec-provider" type="text" value="external_engine" style="width: 100%; padding: 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px;" />
+                </div>
+                <div style="min-width: 140px;">
+                    <label for="exec-model" style="display: block; font-size: 12px; color: #555;">Model</label>
+                    <input id="exec-model" type="text" value="mock-model" style="width: 100%; padding: 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px;" />
+                </div>
+                <div style="min-width: 180px; flex: 1;">
+                    <label for="exec-title" style="display: block; font-size: 12px; color: #555;">Title</label>
+                    <input id="exec-title" type="text" value="Exec Discovery Payload" style="width: 100%; padding: 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px;" />
+                </div>
+            </div>
+            <textarea id="exec-payload" rows="8" style="width: 100%; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">{
+  "schema_version": "executive_discovery_v1",
+  "provider": "external_engine",
+  "model": "mock-model",
+  "companies": [
+    {"company_name": "Sample Co", "executives": [{"name": "Alex Example", "title": "CEO", "profile_url": "https://example.com"}]}
+  ]
+}</textarea>
+            <button type="button" class="btn btn-primary" style="margin-top: 8px;" onclick="runExecDiscovery()">Submit to API</button>
+            <pre id="exec-result" style="margin-top: 8px; background: #fff; padding: 8px; border: 1px solid #eee; min-height: 40px; font-size: 12px; white-space: pre-wrap;"></pre>
+        </div>
+    </div>
+
+    <div style="margin-top: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+            <h3 class="section-title" style="font-size: 15px; margin: 0;">Executive Prospects (0)</h3>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <div style="min-width: 220px;">
+                    <label for="exec-compare-company" style="display: block; font-size: 12px; color: #555;">Compare company</label>
+                    <select id="exec-compare-company" style="width: 100%; padding: 6px; font-size: 12px;">
+                        <option value="">Select company...</option>
+                        
+                    </select>
+                </div>
+                <button type="button" id="exec-compare-btn" class="btn btn-primary" onclick="loadExecCompare()">Load compare</button>
+                <a class="btn btn-secondary" href="/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/executives.json">Export executives JSON</a>
+                <a class="btn btn-secondary" href="/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/executives.csv">Export executives CSV</a>
+            </div>
+        </div>
+
+        <div id="exec-compare-panel" style="display: none; margin-bottom: 12px; padding: 10px; border: 1px solid #e5e5e5; border-radius: 4px; background: #f9fafb;">
+        </div>
+
+        <form id="exec-filter-form" method="get" action="/ui/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px;">
+            <input type="hidden" name="order_by" value="manual" />
+            <div style="min-width: 160px;">
+                <label for="exec-filter-provenance" style="display: block; font-size: 12px; color: #555;">Provenance</label>
+                <select id="exec-filter-provenance" name="exec_discovered_by" style="width: 100%; padding: 6px; font-size: 12px;">
+                    <option value="" selected>All</option>
+                    <option value="internal" >internal</option>
+                    <option value="external" >external</option>
+                    <option value="both" >both</option>
+                </select>
+            </div>
+            <div style="min-width: 180px;">
+                <label for="exec-filter-verification" style="display: block; font-size: 12px; color: #555;">Verification</label>
+                <select id="exec-filter-verification" name="exec_verification_status" style="width: 100%; padding: 6px; font-size: 12px;">
+                    <option value="" selected>All</option>
+                    <option value="unverified" >unverified</option>
+                    <option value="partial" >partial</option>
+                    <option value="verified" >verified</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="submit" class="btn btn-primary">Apply filters</button>
+                <a class="btn btn-secondary" href="/ui/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2">Reset</a>
+            </div>
+        </form>
+
+        
+            <div style="padding: 8px; border: 1px dashed #ddd;">No executive prospects yet.</div>
+        
+    </div>
+</div>
+
+<!-- Source Management (Phase 2A) -->
+<div class="detail-section" style="margin-bottom: 20px;">
+    <h2 class="section-title">Phase 1: Manual List Ingestion</h2>
+    
+    <div style="background: #f8f9fa; border: 2px solid #007bff; border-radius: 4px; padding: 20px; margin-bottom: 20px;">
+        <h3 style="font-size: 16px; font-weight: 600; margin: 0 0 15px 0; color: #007bff;">📋 Ingest Company Lists</h3>
+        <p style="font-size: 13px; color: #666; margin: 0 0 15px 0;">
+            Paste newline-separated company names. Each list will be tracked separately for evidence.
+        </p>
+        
+        <form method="post" action="/ui/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/ingest-lists">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+                <!-- List A -->
+                <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">Company List A</label>
+                    <textarea name="list_a" placeholder="Company Name 1&#10;Company Name 2&#10;Company Name 3&#10;..." rows="12"
+                              style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-family: monospace; font-size: 13px;"></textarea>
+                </div>
+                
+                <!-- List B -->
+                <div>
+                    <label style="display: block; font-weight: 600; margin-bottom: 5px;">Company List B</label>
+                    <textarea name="list_b" placeholder="Company Name 1&#10;Company Name 2&#10;Company Name 3&#10;..." rows="12"
+                              style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; font-family: monospace; font-size: 13px;"></textarea>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 16px; padding: 12px;">
+                🚀 Ingest Lists
+            </button>
+        </form>
+    </div>
+    
+    <!-- Phase 2A Features (DISABLED for Phase 1) -->
+    <details style="margin-top: 20px;">
+        <summary style="cursor: pointer; color: #6c757d; font-size: 13px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+            ⚠️ Phase 2A Features (Disabled) - URL/Web Scraping
+        </summary>
+        <div style="padding: 15px; background: #f8f9fa; margin-top: 10px; border-left: 3px solid #6c757d; opacity: 0.5;">
+            <p style="font-size: 13px; color: #666; margin: 0 0 10px 0;">
+                URL fetching and web scraping are disabled in Phase 1. Phase 1 focuses on deterministic ingestion and audit ledger.
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
+                <!-- Add URL Source (DISABLED) -->
+                <div style="border: 1px solid #ddd; border-radius: 4px; padding: 15px;">
+                    <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 10px 0; color: #999;">📎 Add URL Source (Disabled)</h3>
+                    <input type="url" placeholder="https://example.com/company-list" disabled
+                           style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5;">
+                    <button disabled class="btn btn-secondary" style="width: 100%; cursor: not-allowed;">Add URL</button>
+                </div>
+            </div>
+        </div>
+    </details>
+</div>
+
+<!-- Phase 2: AI Proposal Ingestion -->
+<div class="card" style="margin-bottom: 20px;">
+    <details>
+        <summary style="font-size: 16px; font-weight: 600; cursor: pointer; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+            🤖 Phase 2: Ingest AI-Generated Proposal (JSON)
+        </summary>
+        <div style="padding: 15px;">
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Paste AI-generated JSON proposal containing companies with metrics, aliases, rankings, and source documents.
+            </p>
+            
+            <form id="ai-proposal-form">
+                <textarea 
+                    name="proposal_json" 
+                    id="proposal_json"
+                    rows="15" 
+                    placeholder='{
+  "query": "Top 10 banks in UAE by assets",
+  "sources": [{"temp_id": "s1", "title": "...", "url": "..."}],
+  "companies": [{
+    "name": "First Abu Dhabi Bank",
+    "ai_rank": 1,
+    "ai_score": 0.98,
+    "metrics": [{"key": "total_assets", "value_number": 1071000000000, "value_currency": "AED"}]
+  }]
+}'
+                    style="width: 100%; padding: 10px; font-family: 'Courier New', monospace; font-size: 12px; border: 1px solid #ddd; border-radius: 4px;"></textarea>
+                
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button type="button" onclick="validateProposal()" class="btn btn-secondary" style="flex: 1;">
+                        ✓ Validate (No Changes)
+                    </button>
+                    <button type="button" onclick="ingestProposal()" class="btn btn-primary" style="flex: 1;">
+                        💾 Ingest Proposal
+                    </button>
+                </div>
+            </form>
+            
+            <div id="validation-result" style="margin-top: 15px; display: none;"></div>
+        </div>
+    </details>
+</div>
+
+<!-- Sort Controls -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin: 30px 0 15px 0;">
+    <div>
+        <h2 class="section-title" style="margin: 0;">Company Prospects (0)</h2>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <label style="margin: 0; font-weight: 600;">Sort by:</label>
+        <select onchange="window.location.href='/ui/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2?order_by=' + this.value" style="width: 250px; padding: 6px;">
+            <option value="manual" selected>My Manual Order</option>
+            <option value="ai" >AI Relevance</option>
+            <option value="ai_rank" >AI Rank</option>
+            
+        </select>
+    </div>
+</div>
+
+
+<p class="text-muted" style="padding: 20px; background: #f8f9fa; border-radius: 4px;">
+    No company prospects found for this research run.
+    
+    Click "Create Dummy Prospects (Dev Only)" above to generate test data.
+    
+</p>
+
+
+<script>
+function updateProspect(prospectId, isPinned) {
+    const priorityInput = document.getElementById('priority-' + prospectId);
+    const statusSelect = document.getElementById('status-' + prospectId);
+    
+    // Create form and submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/ui/company-research/prospects/' + prospectId + '/update-manual';
+    
+    // Add fields
+    const fields = {
+        'manual_priority': priorityInput.value,
+        'status': statusSelect.value,
+        'is_pinned': isPinned ? 'true' : 'false',
+        'run_id': '56a4d489-121b-4748-9651-7bcb979247c2'
+    };
+    
+    for (const [key, value] of Object.entries(fields)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Toggle pin status - called when clicking the pin icon
+function togglePin(prospectId, currentlyPinned) {
+    const priorityInput = document.getElementById('priority-' + prospectId);
+    const statusSelect = document.getElementById('status-' + prospectId);
+    
+    // Create form and submit with toggled pin status
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/ui/company-research/prospects/' + prospectId + '/update-manual';
+    
+    const fields = {
+        'manual_priority': priorityInput.value,
+        'status': statusSelect.value,
+        'is_pinned': currentlyPinned ? 'false' : 'true',  // Toggle
+        'run_id': '56a4d489-121b-4748-9651-7bcb979247c2'
+    };
+    
+    for (const [key, value] of Object.entries(fields)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+async function runExecDiscovery() {
+    const resultEl = document.getElementById('exec-result');
+    const textarea = document.getElementById('exec-payload');
+    const modeSelect = document.getElementById('exec-mode');
+    const engineSelect = document.getElementById('exec-engine');
+    const providerInput = document.getElementById('exec-provider');
+    const modelInput = document.getElementById('exec-model');
+    const titleInput = document.getElementById('exec-title');
+
+    const mode = (modeSelect?.value || 'external').toLowerCase();
+    const engine = (engineSelect?.value || (mode === 'internal' ? 'internal' : 'external')).toLowerCase();
+    const provider = providerInput?.value || (mode === 'internal' ? 'internal_stub' : 'external');
+    const model = modelInput?.value || null;
+    const title = titleInput?.value || 'Exec Discovery Payload';
+
+    let parsed = null;
+    if (mode !== 'internal') {
+        try {
+            parsed = JSON.parse(textarea.value);
+        } catch (err) {
+            resultEl.textContent = 'Invalid JSON payload';
+            return;
+        }
+    }
+
+    resultEl.textContent = 'Submitting...';
+    try {
+        const body = {
+            mode,
+            engine,
+            provider,
+            model,
+            title,
+        };
+
+        if (mode !== 'internal') {
+            body.payload = parsed;
+        }
+
+        const response = await fetch('/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/executive-discovery/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+
+        const text = await response.text();
+        try {
+            resultEl.textContent = JSON.stringify(JSON.parse(text), null, 2);
+        } catch (err) {
+            resultEl.textContent = text;
+        }
+    } catch (err) {
+        resultEl.textContent = 'Request failed: ' + err;
+    }
+}
+
+async function runInternalExecDiscovery() {
+    const resultEl = document.getElementById('exec-result');
+    resultEl.textContent = 'Running internal deterministic discovery...';
+
+    try {
+        const response = await fetch('/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/executive-discovery/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                mode: 'internal',
+                engine: 'internal',
+                provider: 'internal_stub',
+                model: 'deterministic_stub_v1',
+                title: 'Internal Executive Discovery'
+            })
+        });
+
+        const text = await response.text();
+        try {
+            resultEl.textContent = JSON.stringify(JSON.parse(text), null, 2);
+        } catch (err) {
+            resultEl.textContent = text;
+        }
+    } catch (err) {
+        resultEl.textContent = 'Request failed: ' + err;
+    }
+}
+
+function renderLeaf(leaf) {
+    if (!leaf) return '<div style="color:#888;">-</div>';
+    const evidence = leaf.evidence || {};
+    const pointers = [];
+    if (evidence.request_source_document_id) pointers.push('req:' + evidence.request_source_document_id);
+    if (evidence.response_source_document_id) pointers.push('resp:' + evidence.response_source_document_id);
+    if ((evidence.evidence_source_document_ids || []).length > 0) pointers.push('evidence:' + evidence.evidence_source_document_ids.join(','));
+    if (evidence.enrichment_record_id) pointers.push('enrichment:' + evidence.enrichment_record_id);
+    return `
+        <div style="font-weight:600;">${leaf.name || '-'}${leaf.title ? ' · ' + leaf.title : ''}</div>
+        <div style="font-size:12px; color:#555;">${leaf.company_name || '-'} · ${leaf.provenance || leaf.engine || '-'}</div>
+        <div style="font-size:12px; color:#555;">${leaf.provenance || leaf.engine || '-'} · ${leaf.verification_status || '-'}</div>
+        <div style="font-size:11px; color:#444;">${pointers.join(' | ') || '-'}</div>
+    `;
+}
+
+function renderSection(title, items) {
+    const rows = (items || []).map(item => {
+        return `<div style="padding:6px 0; border-bottom:1px solid #eee;">${renderLeaf(item)}</div>`;
+    }).join('') || '<div style="color:#666;">None</div>';
+    return `
+        <div style="flex:1; min-width:240px;">
+            <div style="font-weight:700; margin-bottom:4px;">${title}</div>
+            <div>${rows}</div>
+        </div>
+    `;
+}
+
+function renderCandidateRow(match) {
+    const internal = match.internal;
+    const external = match.external;
+    const evidenceIds = [
+        ...((internal && internal.evidence && internal.evidence.evidence_source_document_ids) || []),
+        ...((external && external.evidence && external.evidence.evidence_source_document_ids) || []),
+    ].filter(Boolean);
+    const actions = [];
+    if (internal && external) {
+        actions.push(`<button class="btn btn-primary" style="padding:4px 8px; font-size:12px;" onclick="submitExecDecision('mark_same','${internal.id}','${external.id}', ${JSON.stringify(evidenceIds)})">Mark same</button>`);
+        actions.push(`<button class="btn btn-secondary" style="padding:4px 8px; font-size:12px;" onclick="submitExecDecision('keep_separate','${internal.id}','${external.id}', ${JSON.stringify(evidenceIds)})">Keep separate</button>`);
+    }
+    const decisionLabel = match.decision ? `<div style="font-size:12px; color:#0d6efd;">decision: ${match.decision}</div>` : '';
+    const noteLabel = match.note ? `<div style="font-size:11px; color:#444;">note: ${match.note}</div>` : '';
+    return `
+        <tr>
+            <td style="padding:6px; vertical-align:top;">${renderLeaf(internal)}</td>
+            <td style="padding:6px; vertical-align:top;">${renderLeaf(external)}</td>
+            <td style="padding:6px; vertical-align:top; white-space: nowrap; display:flex; gap:6px; flex-wrap:wrap;">${actions.join('')}</td>
+            <td style="padding:6px; vertical-align:top;">${decisionLabel}${noteLabel}</td>
+        </tr>
+    `;
+}
+
+function renderCompare(data) {
+    const panel = document.getElementById('exec-compare-panel');
+    if (!panel) return;
+    const matched = data.matched_or_both || [];
+    const internalOnly = data.internal_only || [];
+    const externalOnly = data.external_only || [];
+    const candidates = data.candidate_matches || [];
+    const companyName = data.company_name || 'Selected company';
+
+    const matchedRows = matched.map(item => {
+        return `<div style="padding:6px 0; border-bottom:1px solid #eee;">
+            <div style="font-weight:700;">${item.name || '-'}${item.title ? ' · ' + item.title : ''}</div>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:4px;">
+                <div style="flex:1; min-width:220px;">${renderLeaf(item.internal)}</div>
+                <div style="flex:1; min-width:220px;">${renderLeaf(item.external)}</div>
+            </div>
+            <div style="font-size:12px; color:#0d6efd;">decision: ${item.decision || 'auto_both'}${item.note ? ' · ' + item.note : ''}</div>
+        </div>`;
+    }).join('') || '<div style="color:#666;">None</div>';
+
+    const candidateTable = candidates.length === 0 ? '<div style="color:#666;">No candidates</div>' : `
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+                <tr style="background:#f0f2f5;">
+                    <th style="text-align:left; padding:6px;">Internal</th>
+                    <th style="text-align:left; padding:6px;">External</th>
+                    <th style="text-align:left; padding:6px;">Actions</th>
+                    <th style="text-align:left; padding:6px;">Decision</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${candidates.map(renderCandidateRow).join('')}
+            </tbody>
+        </table>`;
+
+    panel.innerHTML = `
+        <div style="font-weight:700; margin-bottom:6px;">Compare snapshot for: ${companyName}</div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+            ${renderSection('Matched / Both', matched.map(m => ({...m.internal, ...m, engine: 'both'})))}
+            ${renderSection('Internal-only', internalOnly)}
+            ${renderSection('External-only', externalOnly)}
+        </div>
+        <div style="margin-top:8px;">
+            <div style="font-weight:700; margin-bottom:4px;">Candidate Matches</div>
+            ${candidateTable}
+        </div>
+    `;
+    panel.style.display = 'block';
+}
+
+async function loadExecCompare() {
+    const panel = document.getElementById('exec-compare-panel');
+    if (!panel) return;
+    const select = document.getElementById('exec-compare-company');
+    const selected = select ? select.options[select.selectedIndex] : null;
+    const canonicalCompanyId = selected ? selected.getAttribute('data-canon') : '';
+    const companyProspectId = selected ? selected.getAttribute('data-prospect') : '';
+    if (!canonicalCompanyId && !companyProspectId) {
+        panel.style.display = 'block';
+        panel.innerHTML = '<div style="color:#c00;">Select a company to load compare.</div>';
+        return;
+    }
+
+    const params = new URLSearchParams();
+    if (canonicalCompanyId) params.append('canonical_company_id', canonicalCompanyId);
+    if (companyProspectId) params.append('company_prospect_id', companyProspectId);
+    panel.style.display = 'block';
+    panel.innerHTML = '<div style="color:#666;">Loading compare view...</div>';
+    try {
+        const resp = await fetch('/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/executives-compare?' + params.toString());
+        const json = await resp.json();
+        renderCompare(json);
+    } catch (err) {
+        panel.innerHTML = '<div style="color:#c00;">Failed to load compare view: ' + err + '</div>';
+    }
+}
+
+async function submitExecDecision(decisionType, leftId, rightId, evidenceSourceIds) {
+    const panel = document.getElementById('exec-compare-panel');
+    if (panel) panel.innerHTML = '<div style="color:#666;">Submitting decision...</div>';
+    try {
+        const resp = await fetch('/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/executives-merge-decision', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                decision_type: decisionType,
+                left_executive_id: leftId,
+                right_executive_id: rightId,
+                note: '',
+                evidence_source_document_ids: evidenceSourceIds || [],
+                evidence_enrichment_ids: []
+            })
+        });
+        if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(text || ('HTTP ' + resp.status));
+        }
+        await loadExecCompare();
+    } catch (err) {
+        if (panel) panel.innerHTML = '<div style="color:#c00;">Decision failed: ' + err + '</div>';
+    }
+}
+
+// Phase 2: Validate AI Proposal
+async function validateProposal() {
+    const textarea = document.getElementById('proposal_json');
+    const resultDiv = document.getElementById('validation-result');
+    const json = textarea.value.trim();
+    
+    if (!json) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<div style="padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404;">⚠️ Please paste JSON proposal first.</div>';
+        return;
+    }
+    
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<div style="padding: 10px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px; color: #1565c0;">⏳ Validating proposal...</div>';
+    
+    try {
+        const response = await fetch('/ui/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/validate-proposal', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'proposal_json=' + encodeURIComponent(json)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            let html = '<div style="padding: 10px; background: #d4edda; border: 1px solid #28a745; border-radius: 4px; color: #155724;">';
+            html += '<strong>✅ Validation Passed!</strong><br>';
+            html += `<span style="font-size: 12px;">Companies: ${result.company_count} | Metrics: ${result.metric_count} | Sources: ${result.source_count}</span>`;
+            
+            if (result.warnings && result.warnings.length > 0) {
+                html += '<br><br><strong>⚠️ Warnings:</strong><ul style="margin: 5px 0 0 20px; font-size: 12px;">';
+                result.warnings.forEach(w => html += '<li>' + w + '</li>');
+                html += '</ul>';
+            }
+            
+            html += '</div>';
+            resultDiv.innerHTML = html;
+        } else {
+            let html = '<div style="padding: 10px; background: #f8d7da; border: 1px solid #dc3545; border-radius: 4px; color: #721c24;">';
+            html += '<strong>❌ Validation Failed</strong><br><br>';
+            html += '<strong>Errors:</strong><ul style="margin: 5px 0 0 20px; font-size: 12px;">';
+            result.errors.forEach(e => html += '<li>' + e + '</li>');
+            html += '</ul></div>';
+            resultDiv.innerHTML = html;
+        }
+    } catch (error) {
+        resultDiv.innerHTML = '<div style="padding: 10px; background: #f8d7da; border: 1px solid #dc3545; border-radius: 4px; color: #721c24;">❌ Error: ' + error.message + '</div>';
+    }
+}
+
+// Phase 2: Ingest AI Proposal
+async function ingestProposal() {
+    const textarea = document.getElementById('proposal_json');
+    const json = textarea.value.trim();
+    
+    if (!json) {
+        alert('Please paste JSON proposal first.');
+        return;
+    }
+    
+    if (!confirm('This will ingest the AI proposal and create/update company prospects. Continue?')) {
+        return;
+    }
+    
+    // Create form and submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/ui/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/ingest-proposal';
+    
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'proposal_json';
+    input.value = json;
+    form.appendChild(input);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Toggle Evidence Details
+function toggleEvidence(prospectId) {
+    const evidenceRow = document.getElementById('evidence-' + prospectId);
+    const toggleIcon = evidenceRow.previousElementSibling.querySelector('[onclick*="toggleEvidence"] span:last-child');
+    
+    if (evidenceRow.style.display === 'none') {
+        evidenceRow.style.display = 'table-row';
+        toggleIcon.textContent = '▲';
+    } else {
+        evidenceRow.style.display = 'none';
+        toggleIcon.textContent = '▼';
+    }
+}
+</script>
+
+
+        </main>
+    </div>
+    
+</body>
+</html>

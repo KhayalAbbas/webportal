@@ -1,0 +1,6 @@
+export_url=/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/export-pack.zip
+hash1=d9588fd7b630d85c34708d51a4d7915dff25cca06fefa9d665c663a273a2842d
+hash2=d9588fd7b630d85c34708d51a4d7915dff25cca06fefa9d665c663a273a2842d
+size1=2641
+size2=2641
+hashes_match=True

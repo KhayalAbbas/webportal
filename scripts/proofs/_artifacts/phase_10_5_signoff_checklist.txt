@@ -1,0 +1,9 @@
+PASS: runbook verifier (runbook_verify_log.txt)
+PASS: preflight (phase_10_5_preflight.txt)
+PASS: proof execution (phase_10_5_proof.txt)
+PASS: export hash stable (phase_10_5_export_hashes.txt)
+PASS: proof console captured (phase_10_5_proof_console.txt)
+PASS: openapi before captured (phase_10_5_openapi_before.json)
+PASS: openapi after captured (phase_10_5_openapi_after.json, phase_10_5_openapi_after_excerpt.txt)
+PASS: run detail HTML captured (phase_10_5_run_detail.html)
+RESULT=PASS

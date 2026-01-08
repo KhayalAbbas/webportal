@@ -1,0 +1,7 @@
+﻿{
+    "ATS_PYTHON_EXE":  "C:/ATS/.venv/Scripts/python.exe",
+    "ATS_GIT_EXE":  "C:/Program Files/Git/bin/git.exe",
+    "ATS_START_API_CMD":  "C:/ATS/.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "ATS_API_BASE_URL":  "http://127.0.0.1:8000",
+    "ATS_ALEMBIC_EXE":  "C:/ATS/.venv/Scripts/alembic.exe"
+}

@@ -1,0 +1,22 @@
+started: C:/ATS/.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+INFO:     Will watch for changes in these directories: ['C:\\ATS']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [6772] using WatchFiles
+INFO:     Started server process [27028]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+Starting ATS Research Engine...
+2026-01-08 17:48:50,052 INFO sqlalchemy.engine.Engine select pg_catalog.version()
+2026-01-08 17:48:50,052 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-01-08 17:48:50,059 INFO sqlalchemy.engine.Engine select current_schema()
+2026-01-08 17:48:50,059 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-01-08 17:48:50,062 INFO sqlalchemy.engine.Engine show standard_conforming_strings
+2026-01-08 17:48:50,062 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-01-08 17:48:50,064 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-01-08 17:48:50,064 INFO sqlalchemy.engine.Engine SELECT 1
+2026-01-08 17:48:50,064 INFO sqlalchemy.engine.Engine [generated in 0.00028s] ()
+2026-01-08 17:48:50,065 INFO sqlalchemy.engine.Engine SELECT version_num FROM alembic_version
+2026-01-08 17:48:50,065 INFO sqlalchemy.engine.Engine [generated in 0.00015s] ()
+2026-01-08 17:48:50,097 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:61198 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61198 - "GET /openapi.json HTTP/1.1" 200 OK
