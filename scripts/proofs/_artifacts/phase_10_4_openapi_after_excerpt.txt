@@ -1,312 +1,84 @@
 {
-  "paths": {
-    "/company-research/jobs/{job_id}": {
-      "get": {
-        "description": "Fetch async job status for company research operations.",
-        "operationId": "get_company_research_job_company_research_jobs__job_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "job_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Job Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-tenant-id",
-            "required": false,
-            "schema": {
-              "title": "X-Tenant-Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AcquireExtractJobStatusResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+  "path": {
+    "post": {
+      "description": "Run the market-test orchestration (Phase 10.4).",
+      "operationId": "run_market_test_company_research_runs__run_id__market_test_post",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "run_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
+        {
+          "in": "header",
+          "name": "x-tenant-id",
+          "required": false,
+          "schema": {
+            "title": "X-Tenant-Id",
+            "type": "string"
           }
-        ],
-        "summary": "Get Company Research Job",
-        "tags": [
-          "company-research"
-        ]
-      }
-    },
-    "/company-research/runs/{run_id}/export-pack.zip": {
-      "get": {
-        "description": "Export a deterministic run pack (JSON + CSVs + optional HTML) as a ZIP.",
-        "operationId": "export_run_pack_company_research_runs__run_id__export_pack_zip_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "run_id",
-            "required": true,
+        }
+      ],
+      "requestBody": {
+        "content": {
+          "application/json": {
             "schema": {
-              "format": "uuid",
-              "title": "Run Id",
-              "type": "string"
+              "$ref": "#/components/schemas/MarketTestRequest"
             }
-          },
-          {
-            "description": "Include an HTML print view in the archive",
-            "in": "query",
-            "name": "include_html",
-            "required": false,
-            "schema": {
-              "default": false,
-              "description": "Include an HTML print view in the archive",
-              "title": "Include Html",
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "Maximum companies to include in the pack",
-            "in": "query",
-            "name": "max_companies",
-            "required": false,
-            "schema": {
-              "default": 500,
-              "description": "Maximum companies to include in the pack",
-              "maximum": 2000,
-              "minimum": 1,
-              "title": "Max Companies",
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Maximum executives to include in the pack",
-            "in": "query",
-            "name": "max_executives",
-            "required": false,
-            "schema": {
-              "default": 2000,
-              "description": "Maximum executives to include in the pack",
-              "maximum": 5000,
-              "minimum": 1,
-              "title": "Max Executives",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-tenant-id",
-            "required": false,
-            "schema": {
-              "title": "X-Tenant-Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Export Run Pack",
-        "tags": [
-          "company-research"
-        ]
-      }
-    },
-    "/company-research/runs/{run_id}/market-test": {
-      "post": {
-        "description": "Run the market-test orchestration (Phase 10.4).",
-        "operationId": "run_market_test_company_research_runs__run_id__market_test_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "run_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Run Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-tenant-id",
-            "required": false,
-            "schema": {
-              "title": "X-Tenant-Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
+        "required": true
+      },
+      "responses": {
+        "200": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MarketTestRequest"
+                "$ref": "#/components/schemas/MarketTestResponse"
               }
             }
           },
-          "required": true
+          "description": "Successful Response"
         },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MarketTestResponse"
-                }
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
               }
-            },
-            "description": "Successful Response"
+            }
           },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Run Market Test",
-        "tags": [
-          "company-research"
-        ]
-      }
+          "description": "Validation Error"
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "summary": "Run Market Test",
+      "tags": [
+        "company-research"
+      ]
     }
   },
   "schemas": {
-    "AcquireExtractJobStatusResponse": {
+    "HTTPValidationError": {
       "properties": {
-        "cancel_requested": {
-          "default": false,
-          "title": "Cancel Requested",
-          "type": "boolean"
-        },
-        "created_at": {
-          "format": "date-time",
-          "title": "Created At",
-          "type": "string"
-        },
-        "error_json": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Error Json"
-        },
-        "finished_at": {
-          "anyOf": [
-            {
-              "format": "date-time",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Finished At"
-        },
-        "job_id": {
-          "format": "uuid",
-          "title": "Job Id",
-          "type": "string"
-        },
-        "params_hash": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Params Hash"
-        },
-        "params_json": {
-          "title": "Params Json",
-          "type": "object"
-        },
-        "progress_json": {
-          "title": "Progress Json",
-          "type": "object"
-        },
-        "run_id": {
-          "format": "uuid",
-          "title": "Run Id",
-          "type": "string"
-        },
-        "started_at": {
-          "anyOf": [
-            {
-              "format": "date-time",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Started At"
-        },
-        "status": {
-          "title": "Status",
-          "type": "string"
+        "detail": {
+          "items": {
+            "$ref": "#/components/schemas/ValidationError"
+          },
+          "title": "Detail",
+          "type": "array"
         }
       },
-      "required": [
-        "job_id",
-        "run_id",
-        "status",
-        "created_at"
-      ],
-      "title": "AcquireExtractJobStatusResponse",
+      "title": "HTTPValidationError",
       "type": "object"
     },
     "MarketTestRequest": {
@@ -449,70 +221,6 @@
         "run_id"
       ],
       "title": "MarketTestResponse",
-      "type": "object"
-    },
-    "MarketTestStepResult": {
-      "description": "Per-step outcome for market-test orchestration.",
-      "properties": {
-        "counts": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Counts"
-        },
-        "error": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Error"
-        },
-        "ids": {
-          "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Ids"
-        },
-        "job_id": {
-          "anyOf": [
-            {
-              "format": "uuid",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Job Id"
-        },
-        "name": {
-          "title": "Name",
-          "type": "string"
-        },
-        "status": {
-          "title": "Status",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "status"
-      ],
-      "title": "MarketTestStepResult",
       "type": "object"
     }
   }

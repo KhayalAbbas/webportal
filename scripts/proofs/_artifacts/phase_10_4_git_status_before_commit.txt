@@ -1,5 +1,14 @@
-﻿## master...origin/master
- M app/routers/company_research.py
- M app/schemas/company_research.py
- M app/services/company_research_service.py
-?? scripts/proofs/phase_10_4_market_test_orchestration_proof.py
+## master...origin/master
+ M scripts/proofs/_artifacts/phase_10_4_compare_snapshot.json
+ M scripts/proofs/_artifacts/phase_10_4_db_excerpt.txt
+ M scripts/proofs/_artifacts/phase_10_4_export.zip
+ M scripts/proofs/_artifacts/phase_10_4_export_hash.txt
+ M scripts/proofs/_artifacts/phase_10_4_first_call.json
+ M scripts/proofs/_artifacts/phase_10_4_job_statuses.json
+ M scripts/proofs/_artifacts/phase_10_4_openapi_after_excerpt.txt
+ M scripts/proofs/_artifacts/phase_10_4_openapi_before.json
+ M scripts/proofs/_artifacts/phase_10_4_preflight.txt
+ M scripts/proofs/_artifacts/phase_10_4_promote.json
+ M scripts/proofs/_artifacts/phase_10_4_proof.txt
+ M scripts/proofs/_artifacts/phase_10_4_proof_console.txt
+ M scripts/proofs/_artifacts/phase_10_4_second_call.json

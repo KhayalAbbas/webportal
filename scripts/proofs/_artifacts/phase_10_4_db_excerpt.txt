@@ -1,21 +1,21 @@
 -- company prospects
-{'id': UUID('c899af63-4c26-4544-84d1-b8fb5c8fac6f'), 'review_status': 'accepted', 'exec_search_enabled': True, 'discovered_by': 'seed_list'}
-{'id': UUID('c1a780f1-f2c0-4b60-a8a9-346ce70587ad'), 'review_status': 'accepted', 'exec_search_enabled': True, 'discovered_by': 'internal'}
+{'id': UUID('6048ed0e-fa3a-4a25-93a8-c1959bb501f5'), 'review_status': 'accepted', 'exec_search_enabled': True, 'discovered_by': 'seed_list'}
+{'id': UUID('05a7afca-de8b-46ce-91ac-253252c96dad'), 'review_status': 'accepted', 'exec_search_enabled': True, 'discovered_by': 'internal'}
 -- source documents
-{'id': UUID('50fb74ce-1738-4c70-85b0-360cd895f23b'), 'source_type': 'url', 'title': 'seed_url', 'content_hash': '754a027835f38c71273993e5962ead92364bbca2562c58ddc401120f0e711742'}
-{'id': UUID('a1df4f9b-eda2-4bf0-9d5f-e300a3584151'), 'source_type': 'seed_input', 'title': 'Seed input (seed_list)', 'content_hash': '9c0bc7d7f6e59071d57a393f0ed33c8b78539bf31e7016278661bbf7ff8565af'}
-{'id': UUID('110a9eeb-9094-4e30-ad3e-85d159e4aca2'), 'source_type': 'discovery_provider', 'title': 'Discovery provider: seed_list', 'content_hash': 'd2e41001ff7760df86fd37867450f8f9fa5c81240fd065712b2e3df84c721c53'}
-{'id': UUID('9a85132f-bb20-4e98-82f9-35c3bb659b28'), 'source_type': 'llm_json', 'title': 'External Executive Discovery', 'content_hash': 'c2ace0ebba4b5af7c1a17f2dbca534ed2b94d44706672adaa08f4ddbb16a464f'}
-{'id': UUID('311c84d2-5258-4c6c-8109-614525781139'), 'source_type': 'llm_json', 'title': 'Internal Executive Discovery', 'content_hash': 'ae3ac116814b99353c879327195dfbf1782d8953c6e8599b510f1659cdcd1aff'}
-{'id': UUID('60dc3560-109d-468d-8ec4-4d8566a85cf5'), 'source_type': 'llm_json', 'title': 'External Executive Discovery', 'content_hash': '5ce1698659201639cdc933170045a2172adbe264e378d75df9160f45a2ef30b3'}
-{'id': UUID('22b17e3b-ee03-4ce7-bdf5-90b5bd86f00e'), 'source_type': 'url', 'title': 'Internal stub leadership page', 'content_hash': None}
-{'id': UUID('472e7af5-4137-4585-9b0a-ba79816cfb9c'), 'source_type': 'llm_json', 'title': 'Internal Executive Discovery', 'content_hash': 'd67ea3cb819adeb21e64afc3a727be86a88dd31ebb71c460514dcc38e5b17f42'}
-{'id': UUID('94f8dbf3-3514-4e12-99cc-5397c9896d19'), 'source_type': 'llm_json', 'title': 'Internal Executive Discovery', 'content_hash': '05f11016d5f563305c0e713148aef63a21c64eca37278e4d090565176a3820a2'}
-{'id': UUID('ce444b5e-dcdd-43b9-b0fe-d227b92176ba'), 'source_type': 'url', 'title': 'Internal stub leadership page', 'content_hash': None}
+{'id': UUID('20b66b4b-b99e-4f1d-a16d-4ecfda52e5ef'), 'source_type': 'seed_input', 'title': 'Seed input (seed_list)', 'content_hash': '9c0bc7d7f6e59071d57a393f0ed33c8b78539bf31e7016278661bbf7ff8565af'}
+{'id': UUID('a3c1c507-4f7a-47a9-9a3b-810f27da83e1'), 'source_type': 'url', 'title': 'seed_url', 'content_hash': '754a027835f38c71273993e5962ead92364bbca2562c58ddc401120f0e711742'}
+{'id': UUID('0bf89a0d-7800-4a85-99a3-0d3dc3708f41'), 'source_type': 'discovery_provider', 'title': 'Discovery provider: seed_list', 'content_hash': 'd2e41001ff7760df86fd37867450f8f9fa5c81240fd065712b2e3df84c721c53'}
+{'id': UUID('fadc7e2f-20f0-4302-a101-e96d92b2a2e5'), 'source_type': 'llm_json', 'title': 'Internal Executive Discovery', 'content_hash': 'f22d87ec82b82d1b3e5d772e627b846a191ea2857b9799d9facfaeb5d8fad30a'}
+{'id': UUID('8e95d6c8-7694-4cdd-be7d-a85edeac4311'), 'source_type': 'llm_json', 'title': 'External Executive Discovery', 'content_hash': 'c2ace0ebba4b5af7c1a17f2dbca534ed2b94d44706672adaa08f4ddbb16a464f'}
+{'id': UUID('0583925c-008e-4514-af39-f55b43b0fa43'), 'source_type': 'url', 'title': 'Internal stub leadership page', 'content_hash': None}
+{'id': UUID('7b3633aa-c6b8-4a7b-950b-02d6e3f32d0d'), 'source_type': 'llm_json', 'title': 'Internal Executive Discovery', 'content_hash': '0827d4bc193bffd9356cb48ac2ea53fd9bf129e488d189fc8587bce1c85866d8'}
+{'id': UUID('a7d8aead-3994-41b9-adcc-1ee3b54af6d5'), 'source_type': 'llm_json', 'title': 'External Executive Discovery', 'content_hash': '5ce1698659201639cdc933170045a2172adbe264e378d75df9160f45a2ef30b3'}
+{'id': UUID('0357440a-95a8-4382-9a92-76f9d2361449'), 'source_type': 'llm_json', 'title': 'Internal Executive Discovery', 'content_hash': '7fc089766db127b063d304a4c3175efe115f5fed40f55bad73d961a16e9e073b'}
+{'id': UUID('7b43707a-ed06-4c74-977f-24aaca148ebd'), 'source_type': 'url', 'title': 'Internal stub leadership page', 'content_hash': None}
 -- executives
-{'id': UUID('44c4a21f-b1ec-426c-8724-3bfa9f5b50d7'), 'company_prospect_id': UUID('c899af63-4c26-4544-84d1-b8fb5c8fac6f'), 'discovered_by': 'internal', 'review_status': 'new', 'verification_status': 'unverified'}
-{'id': UUID('e16bb234-f810-4998-b565-9ed8f49245f2'), 'company_prospect_id': UUID('c899af63-4c26-4544-84d1-b8fb5c8fac6f'), 'discovered_by': 'external', 'review_status': 'new', 'verification_status': 'unverified'}
-{'id': UUID('570693ae-d3a6-41ff-9e0d-3de2ad998ba1'), 'company_prospect_id': UUID('c899af63-4c26-4544-84d1-b8fb5c8fac6f'), 'discovered_by': 'both', 'review_status': 'accepted', 'verification_status': 'unverified'}
-{'id': UUID('f29b16d0-b267-41cc-b28f-51fea1aef360'), 'company_prospect_id': UUID('c1a780f1-f2c0-4b60-a8a9-346ce70587ad'), 'discovered_by': 'both', 'review_status': 'new', 'verification_status': 'unverified'}
-{'id': UUID('e04736f2-31f6-4b6c-a7b3-2c4fdffaba9f'), 'company_prospect_id': UUID('c1a780f1-f2c0-4b60-a8a9-346ce70587ad'), 'discovered_by': 'internal', 'review_status': 'new', 'verification_status': 'unverified'}
-{'id': UUID('6d89511c-442c-4596-8c7d-12a187ba6452'), 'company_prospect_id': UUID('c1a780f1-f2c0-4b60-a8a9-346ce70587ad'), 'discovered_by': 'external', 'review_status': 'new', 'verification_status': 'unverified'}
+{'id': UUID('7bedc6b1-7e91-46b1-bbcb-85d2ee67c484'), 'company_prospect_id': UUID('6048ed0e-fa3a-4a25-93a8-c1959bb501f5'), 'discovered_by': 'both', 'review_status': 'new', 'verification_status': 'unverified'}
+{'id': UUID('019c664f-675e-414e-95c2-d9980bd58c1c'), 'company_prospect_id': UUID('6048ed0e-fa3a-4a25-93a8-c1959bb501f5'), 'discovered_by': 'external', 'review_status': 'new', 'verification_status': 'unverified'}
+{'id': UUID('77506a1a-fe6a-4d38-b1de-c09e65c14309'), 'company_prospect_id': UUID('6048ed0e-fa3a-4a25-93a8-c1959bb501f5'), 'discovered_by': 'internal', 'review_status': 'accepted', 'verification_status': 'unverified'}
+{'id': UUID('19a518d7-d4cf-4764-8b3b-42c50139a419'), 'company_prospect_id': UUID('05a7afca-de8b-46ce-91ac-253252c96dad'), 'discovered_by': 'both', 'review_status': 'new', 'verification_status': 'unverified'}
+{'id': UUID('fce1c3d1-8660-4427-978b-91e80b6c5e0c'), 'company_prospect_id': UUID('05a7afca-de8b-46ce-91ac-253252c96dad'), 'discovered_by': 'internal', 'review_status': 'new', 'verification_status': 'unverified'}
+{'id': UUID('d1614400-8db6-4171-9259-c1d6f85599dc'), 'company_prospect_id': UUID('05a7afca-de8b-46ce-91ac-253252c96dad'), 'discovered_by': 'external', 'review_status': 'new', 'verification_status': 'unverified'}

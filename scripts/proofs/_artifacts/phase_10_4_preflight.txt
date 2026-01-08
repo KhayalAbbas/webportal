@@ -1,20 +1,60 @@
-=== GET /health ===
-status=200
-body={"api_ok":true,"db_ok":true,"alembic_head_ok":true,"alembic_current":"8c7b1a2d4f2a","alembic_head":"8c7b1a2d4f2a"}
+﻿
 
-=== GET /openapi.json ===
-status=200
-length=361765
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"status":"ok","message":"API is running"}
+RawContent        : HTTP/1.1 200 OK
+                    Content-Length: 42
+                    Content-Type: application/json
+                    Date: Thu, 08 Jan 2026 11:16:04 GMT
+                    Server: uvicorn
+                    
+                    {"status":"ok","message":"API is running"}
+Forms             : 
+Headers           : {[Content-Length, 42], [Content-Type, application/json], [Date, Thu, 08 Jan 2026 
+                    11:16:04 GMT], [Server, uvicorn]}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 42
 
-=== alembic current ===
+
+
+
+
+
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"openapi":"3.1.0","info":{"title":"ATS Research Engine","description":"Backend 
+                    API for SaaS ATS + Agentic Research Engine","version":"0.1.0"},"paths":{"/health":{
+                    "get":{"tags":["Health"],"summary":"H...
+RawContent        : HTTP/1.1 200 OK
+                    Content-Length: 294507
+                    Content-Type: application/json
+                    Date: Thu, 08 Jan 2026 11:16:04 GMT
+                    Server: uvicorn
+                    
+                    {"openapi":"3.1.0","info":{"title":"ATS Research Engine","description":...
+Forms             : 
+Headers           : {[Content-Length, 294507], [Content-Type, application/json], [Date, Thu, 08 Jan 
+                    2026 11:16:04 GMT], [Server, uvicorn]}
+Images            : {}
+InputFields       : {}
+Links             : {}
+ParsedHtml        : 
+RawContentLength  : 294507
+
+
+
+
 8c7b1a2d4f2a (head)
-=== alembic heads ===
 8c7b1a2d4f2a (head)
-=== git status -sb ===
 ## master...origin/master
-=== git log -1 --decorate ===
-commit 8ea1a347bc8c2932809c647e003ac7d1ffc2b00a (HEAD -> master, tag: phase_10_3_signed_off, origin/master, origin/HEAD)
+ M scripts/proofs/_artifacts/phase_10_4_openapi_before.json
+ M scripts/proofs/_artifacts/phase_10_4_preflight.txt
+commit 7341db991ae717f98789bb1269460138eeda3d9b (HEAD -> master, tag: phase_10_4_signed_off, origin/master, origin/HEAD)
 Author: ATS Local <local@ats>
-Date:   Thu Jan 8 13:51:33 2026 +0400
+Date:   Thu Jan 8 15:12:29 2026 +0400
 
-    Phase 10.3: final commit log snapshot
+    Phase 10.4: settle tag artifacts

@@ -2,7 +2,7 @@ Phase 10.4 signoff checklist
 
 [ x ] Preflight: health, openapi before, alembic, git status/log captured (phase_10_4_preflight.txt)
 [ x ] Discovery + design notes recorded (phase_10_4_discovery_notes.txt, phase_10_4_design_notes.txt)
-[ x ] Proof PASS for market-test orchestration (phase_10_4_market_test_orchestration_proof.py + artifacts)
+[ x ] Proof PASS for market-test orchestration (idempotent second call, stable export hash) with artifacts
 [ x ] Job status snapshot, compare snapshot, promote and export artifacts captured
 [ x ] OpenAPI after + excerpt captured (phase_10_4_openapi_after*.json/txt)
 [ x ] DB excerpt recorded for run (phase_10_4_db_excerpt.txt)

@@ -1,4 +1,15 @@
-﻿ app/routers/company_research.py          |  33 ++++
- app/schemas/company_research.py          |  58 +++++++
- app/services/company_research_service.py | 263 +++++++++++++++++++++++++++++++
- 3 files changed, 354 insertions(+)
+ .../_artifacts/phase_10_4_compare_snapshot.json    |    56 +-
+ .../proofs/_artifacts/phase_10_4_db_excerpt.txt    |    36 +-
+ scripts/proofs/_artifacts/phase_10_4_export.zip    |   Bin 5545 -> 5539 bytes
+ .../proofs/_artifacts/phase_10_4_export_hash.txt   |     2 +-
+ .../proofs/_artifacts/phase_10_4_first_call.json   |    36 +-
+ .../phase_10_4_git_status_before_commit.txt        |    19 +-
+ .../proofs/_artifacts/phase_10_4_job_statuses.json |    66 +-
+ .../phase_10_4_openapi_after_excerpt.txt           |   408 +-
+ .../_artifacts/phase_10_4_openapi_before.json      | 30194 +------------------
+ scripts/proofs/_artifacts/phase_10_4_preflight.txt |    66 +-
+ scripts/proofs/_artifacts/phase_10_4_promote.json  |     2 +-
+ scripts/proofs/_artifacts/phase_10_4_proof.txt     |     2 +-
+ .../proofs/_artifacts/phase_10_4_proof_console.txt |     2 +-
+ .../proofs/_artifacts/phase_10_4_second_call.json  |    42 +-
+ 14 files changed, 248 insertions(+), 30683 deletions(-)

@@ -1,34 +1,34 @@
 [
   {
     "cancel_requested": false,
-    "created_at": "2026-01-08T10:58:52.312283Z",
+    "created_at": "2026-01-08T11:16:24.483732Z",
     "error_json": null,
     "finished_at": null,
-    "job_id": "84046689-5de5-49af-b266-c109b5da8b8d",
+    "job_id": "5b2dfe5c-55c6-407b-85c2-91d54cb9f81f",
     "params_hash": "30da24cf95379b6dcb02f87f2488f9306969548a902e4f2362814de58908c407",
     "params_json": {
       "force": false,
       "max_urls": 4
     },
     "progress_json": {},
-    "run_id": "b8b96e33-74bb-4994-a72e-311e78d59c98",
+    "run_id": "83f33ab6-c3d3-4d1a-ba4c-b935c6a6a3b8",
     "started_at": null,
     "status": "queued"
   },
   {
     "attempt_count": 1,
     "cancel_requested": false,
-    "job_id": "84046689-5de5-49af-b266-c109b5da8b8d",
+    "job_id": "5b2dfe5c-55c6-407b-85c2-91d54cb9f81f",
     "last_error": null,
     "params_hash": "30da24cf95379b6dcb02f87f2488f9306969548a902e4f2362814de58908c407",
     "status": "succeeded"
   },
   {
     "cancel_requested": false,
-    "created_at": "2026-01-08T10:58:52.312283Z",
+    "created_at": "2026-01-08T11:16:24.483732Z",
     "error_json": null,
-    "finished_at": "2026-01-08T10:58:59.346844Z",
-    "job_id": "84046689-5de5-49af-b266-c109b5da8b8d",
+    "finished_at": "2026-01-08T11:16:30.580565Z",
+    "job_id": "5b2dfe5c-55c6-407b-85c2-91d54cb9f81f",
     "params_hash": "30da24cf95379b6dcb02f87f2488f9306969548a902e4f2362814de58908c407",
     "params_json": {
       "force": false,
@@ -53,13 +53,13 @@
         "sources": [
           {
             "decision": "accept",
-            "id": "50fb74ce-1738-4c70-85b0-360cd895f23b",
+            "id": "a3c1c507-4f7a-47a9-9a3b-810f27da83e1",
             "reason_codes": [],
             "word_count": 402
           },
           {
             "decision": "flag",
-            "id": "311c84d2-5258-4c6c-8109-614525781139",
+            "id": "7b3633aa-c6b8-4a7b-950b-02d6e3f32d0d",
             "reason_codes": [
               "FLAG_THIN_CONTENT",
               "FLAG_UNSUPPORTED_TYPE"
@@ -68,7 +68,7 @@
           },
           {
             "decision": "flag",
-            "id": "60dc3560-109d-468d-8ec4-4d8566a85cf5",
+            "id": "a7d8aead-3994-41b9-adcc-1ee3b54af6d5",
             "reason_codes": [
               "FLAG_THIN_CONTENT",
               "FLAG_UNSUPPORTED_TYPE"
@@ -84,7 +84,7 @@
             "error": null,
             "meta": {
               "attempt": 1,
-              "canonical_source_id": "50fb74ce-1738-4c70-85b0-360cd895f23b",
+              "canonical_source_id": "a3c1c507-4f7a-47a9-9a3b-810f27da83e1",
               "canonical_url": "http://127.0.0.1:8899/content_html",
               "deduped": false,
               "extraction_method": "generic_html",
@@ -97,7 +97,7 @@
                 "headers": {
                   "content-length": "3073",
                   "content-type": "text/html",
-                  "date": "Thu, 08 Jan 2026 10:58:56 GMT",
+                  "date": "Thu, 08 Jan 2026 11:16:27 GMT",
                   "server": "Phase4_13Fixture/1.0 Python/3.11.9"
                 },
                 "status_code": 200
@@ -106,7 +106,7 @@
               "max_attempts": 3
             },
             "next_retry_at": null,
-            "source_id": "50fb74ce-1738-4c70-85b0-360cd895f23b",
+            "source_id": "a3c1c507-4f7a-47a9-9a3b-810f27da83e1",
             "status": "fetched",
             "url": "http://127.0.0.1:8899/content_html"
           },
@@ -126,13 +126,13 @@
                 "content_type": "text/html",
                 "final_url": "https://example.com/fixture-seed",
                 "headers": {
-                  "age": "266",
+                  "age": "94",
                   "cf-cache-status": "HIT",
-                  "cf-ray": "9bab2ecf1a065e30-KIV",
+                  "cf-ray": "9bab4875cf635e2e-KIV",
                   "connection": "keep-alive",
                   "content-encoding": "gzip",
                   "content-type": "text/html",
-                  "date": "Thu, 08 Jan 2026 10:58:59 GMT",
+                  "date": "Thu, 08 Jan 2026 11:16:29 GMT",
                   "server": "cloudflare",
                   "transfer-encoding": "chunked",
                   "vary": "Accept-Encoding"
@@ -141,11 +141,11 @@
               },
               "items_found": 0,
               "max_attempts": 3,
-              "next_retry_at": "2026-01-08T10:59:28.997710+00:00",
+              "next_retry_at": "2026-01-08T11:17:00.339062+00:00",
               "retry_reason": "http_error_or_status"
             },
-            "next_retry_at": "2026-01-08T10:59:28.997710+00:00",
-            "source_id": "22b17e3b-ee03-4ce7-bdf5-90b5bd86f00e",
+            "next_retry_at": "2026-01-08T11:17:00.339062+00:00",
+            "source_id": "0583925c-008e-4514-af39-f55b43b0fa43",
             "status": "failed",
             "url": "https://example.com/fixture-seed"
           }
@@ -154,7 +154,7 @@
         "fetched": 1,
         "force": false,
         "limited": false,
-        "next_retry_at": "2026-01-08T10:59:28.997710+00:00",
+        "next_retry_at": "2026-01-08T11:17:00.339062+00:00",
         "pending_recheck": false,
         "pending_recheck_next_retry_at": null,
         "processed": 2,
@@ -180,17 +180,8 @@
             "extracted": 1,
             "lines": 3,
             "new": 1,
-            "source_id": "50fb74ce-1738-4c70-85b0-360cd895f23b",
+            "source_id": "a3c1c507-4f7a-47a9-9a3b-810f27da83e1",
             "title": "seed_url"
-          },
-          {
-            "chars": 1075,
-            "existing": 0,
-            "extracted": 0,
-            "lines": 1,
-            "new": 0,
-            "source_id": "60dc3560-109d-468d-8ec4-4d8566a85cf5",
-            "title": "External Executive Discovery"
           },
           {
             "chars": 1175,
@@ -198,21 +189,30 @@
             "extracted": 0,
             "lines": 1,
             "new": 0,
-            "source_id": "311c84d2-5258-4c6c-8109-614525781139",
+            "source_id": "7b3633aa-c6b8-4a7b-950b-02d6e3f32d0d",
             "title": "Internal Executive Discovery"
+          },
+          {
+            "chars": 1075,
+            "existing": 0,
+            "extracted": 0,
+            "lines": 1,
+            "new": 0,
+            "source_id": "a7d8aead-3994-41b9-adcc-1ee3b54af6d5",
+            "title": "External Executive Discovery"
           }
         ]
       },
       "source_ids_touched": [
-        "22b17e3b-ee03-4ce7-bdf5-90b5bd86f00e",
-        "311c84d2-5258-4c6c-8109-614525781139",
-        "50fb74ce-1738-4c70-85b0-360cd895f23b",
-        "60dc3560-109d-468d-8ec4-4d8566a85cf5"
+        "0583925c-008e-4514-af39-f55b43b0fa43",
+        "7b3633aa-c6b8-4a7b-950b-02d6e3f32d0d",
+        "a3c1c507-4f7a-47a9-9a3b-810f27da83e1",
+        "a7d8aead-3994-41b9-adcc-1ee3b54af6d5"
       ],
       "status": "warn"
     },
-    "run_id": "b8b96e33-74bb-4994-a72e-311e78d59c98",
-    "started_at": "2026-01-08T10:58:54.773158Z",
+    "run_id": "83f33ab6-c3d3-4d1a-ba4c-b935c6a6a3b8",
+    "started_at": "2026-01-08T11:16:26.783471Z",
     "status": "succeeded"
   }
 ]
