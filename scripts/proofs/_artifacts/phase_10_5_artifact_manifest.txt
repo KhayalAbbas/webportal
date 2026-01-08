@@ -38,6 +38,7 @@ phase_10_5_git_log_pre_v4.txt (5 lines)
 phase_10_5_tag_v4.txt (0 lines)
 phase_10_5_push_v4.txt (10 lines)
 phase_10_5_git_after_v4.txt (12 lines)
+phase_10_5_git_status_clean_master.txt (1 line)
 phase_10_5_release_bundle.zip
 runbook_verify_log.txt
 runbook_verify_openapi.json
