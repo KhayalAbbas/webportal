@@ -18,6 +18,7 @@ phase_10_6_git_diff_stat.txt
 phase_10_6_git_log_before_commit.txt
 phase_10_6_master_ahead_behind.txt
 phase_10_6_release_notes.md
+phase_10_6_commit.txt
 phase_10_6_signoff_checklist.txt
 phase_10_6_git_status_before.txt
 phase_10_6_git_log_head.txt
