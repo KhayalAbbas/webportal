@@ -1520,8 +1520,8 @@ class CompanyResearchService:
     # Job Queue Operations
     # ====================================================================
 
-    async def claim_next_job(self, worker_id: str) -> Optional[CompanyResearchJob]:
-        return await self.repo.claim_next_job(worker_id)
+    async def claim_next_job(self, worker_id: str, job_type: Optional[str] = None) -> Optional[CompanyResearchJob]:
+        return await self.repo.claim_next_job(worker_id, job_type=job_type)
 
     async def mark_job_running(self, job_id: UUID, worker_id: str) -> Optional[CompanyResearchJob]:
         return await self.repo.mark_job_running(job_id, worker_id)
@@ -4456,7 +4456,13 @@ class CompanyResearchService:
             "params": params,
         }
 
-    async def execute_acquire_extract_job(self, tenant_id: str, job_id: UUID) -> CompanyResearchJob:
+    async def execute_acquire_extract_job(
+        self,
+        tenant_id: str,
+        job_id: UUID,
+        *,
+        worker_id: str = "acquire_extract_inline",
+    ) -> CompanyResearchJob:
         job = await self.get_job_for_tenant(tenant_id, job_id)
         if not job or job.job_type != "acquire_extract_async":
             raise ValueError("job_not_found")
@@ -4464,8 +4470,6 @@ class CompanyResearchService:
         params = job.params_json or {}
         max_urls = params.get("max_urls")
         force = bool(params.get("force"))
-        worker_id = "acquire_extract_inline"
-
         job = await self.mark_job_running(job.id, worker_id)
         if not job:
             raise ValueError("job_not_found")

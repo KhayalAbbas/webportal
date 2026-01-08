@@ -2073,9 +2073,9 @@ class CompanyResearchRepository:
         await self.db.flush()
         return True
 
-    async def claim_next_job(self, worker_id: str) -> Optional[CompanyResearchJob]:
+    async def claim_next_job(self, worker_id: str, job_type: Optional[str] = None) -> Optional[CompanyResearchJob]:
         now = func.now()
-        result = await self.db.execute(
+        query = (
             select(CompanyResearchJob)
             .where(
                 CompanyResearchJob.status.in_(["queued", "failed", "running"]),
@@ -2093,6 +2093,11 @@ class CompanyResearchRepository:
             .limit(1)
             .with_for_update(skip_locked=True)
         )
+
+        if job_type:
+            query = query.where(CompanyResearchJob.job_type == job_type)
+
+        result = await self.db.execute(query)
         job = result.scalar_one_or_none()
         if not job:
             return None
