@@ -1722,6 +1722,83 @@ class CompanyResearchRepository:
     # Job Queue Operations
     # ====================================================================
 
+    async def get_job_by_params(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        job_type: str,
+        params_hash: str,
+    ) -> Optional[CompanyResearchJob]:
+        result = await self.db.execute(
+            select(CompanyResearchJob)
+            .where(
+                CompanyResearchJob.tenant_id == tenant_id,
+                CompanyResearchJob.run_id == run_id,
+                CompanyResearchJob.job_type == job_type,
+                CompanyResearchJob.params_hash == params_hash,
+            )
+            .order_by(CompanyResearchJob.created_at.desc())
+        )
+        return result.scalar_one_or_none()
+
+    async def enqueue_parametrized_job(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        job_type: str,
+        params_json: dict,
+        params_hash: str,
+        max_attempts: int = 3,
+    ) -> CompanyResearchJob:
+        stmt = (
+            insert(CompanyResearchJob)
+            .values(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                run_id=run_id,
+                job_type=job_type,
+                status="queued",
+                params_json=params_json,
+                params_hash=params_hash,
+                progress_json={},
+                error_json=None,
+                attempt_count=0,
+                max_attempts=max_attempts,
+                next_retry_at=None,
+            )
+            .on_conflict_do_nothing(
+                index_elements=[
+                    CompanyResearchJob.tenant_id,
+                    CompanyResearchJob.run_id,
+                    CompanyResearchJob.job_type,
+                    CompanyResearchJob.params_hash,
+                ],
+                index_where=text("params_hash IS NOT NULL AND job_type='acquire_extract_async'"),
+            )
+            .returning(CompanyResearchJob)
+        )
+
+        result = await self.db.execute(stmt)
+        job = result.scalar_one_or_none()
+        if job:
+            return job
+
+        existing = await self.get_job_by_params(tenant_id, run_id, job_type, params_hash)
+        if existing:
+            return existing
+
+        result = await self.db.execute(
+            select(CompanyResearchJob)
+            .where(
+                CompanyResearchJob.tenant_id == tenant_id,
+                CompanyResearchJob.run_id == run_id,
+                CompanyResearchJob.job_type == job_type,
+            )
+            .order_by(CompanyResearchJob.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one()
+
     async def enqueue_run_job(
         self,
         tenant_id: str,
@@ -2038,6 +2115,8 @@ class CompanyResearchRepository:
         job.status = "running"
         if increment_attempt:
             job.attempt_count = job.attempt_count + 1
+        if not job.started_at:
+            job.started_at = utc_now()
         job.locked_by = worker_id
         job.locked_at = utc_now()
         job.next_retry_at = None
@@ -2045,7 +2124,12 @@ class CompanyResearchRepository:
         await self.db.refresh(job)
         return job
 
-    async def mark_job_succeeded(self, job_id: UUID) -> Optional[CompanyResearchJob]:
+    async def mark_job_succeeded(
+        self,
+        job_id: UUID,
+        *,
+        progress_json: Optional[dict] = None,
+    ) -> Optional[CompanyResearchJob]:
         result = await self.db.execute(
             select(CompanyResearchJob).where(CompanyResearchJob.id == job_id).with_for_update()
         )
@@ -2057,6 +2141,11 @@ class CompanyResearchRepository:
         job.locked_by = None
         job.cancel_requested = False
         job.last_error = None
+        job.error_json = None
+        job.next_retry_at = None
+        job.finished_at = utc_now()
+        if progress_json is not None:
+            job.progress_json = progress_json
         await self.db.flush()
         await self.db.refresh(job)
         return job
@@ -2081,6 +2170,9 @@ class CompanyResearchRepository:
         job_id: UUID,
         last_error: str,
         backoff_seconds: int = 30,
+        *,
+        error_json: Optional[dict] = None,
+        progress_json: Optional[dict] = None,
     ) -> Optional[CompanyResearchJob]:
         result = await self.db.execute(
             select(CompanyResearchJob).where(CompanyResearchJob.id == job_id).with_for_update()
@@ -2091,8 +2183,12 @@ class CompanyResearchRepository:
 
         job.status = "failed"
         job.last_error = last_error
+        job.error_json = error_json
+        if progress_json is not None:
+            job.progress_json = progress_json
         job.locked_at = None
         job.locked_by = None
+        job.finished_at = utc_now()
         job.next_retry_at = utc_now() + timedelta(seconds=backoff_seconds)
         await self.db.flush()
         await self.db.refresh(job)

@@ -71,6 +71,8 @@ from app.schemas.company_research import (
     ExecutiveDiscoveryRunResponse,
     AcquireExtractRequest,
     AcquireExtractResponse,
+    AcquireExtractJobEnqueueResponse,
+    AcquireExtractJobStatusResponse,
 )
 from app.schemas.contact_enrichment import ContactEnrichmentRequest
 from app.schemas.executive_contact_enrichment import (
@@ -413,6 +415,72 @@ async def acquire_and_extract_run(
 
     await db.commit()
     return AcquireExtractResponse.model_validate(summary)
+
+
+@router.post(
+    "/runs/{run_id}/acquire-extract:enqueue",
+    response_model=AcquireExtractJobEnqueueResponse,
+)
+async def enqueue_acquire_and_extract_run(
+    run_id: UUID,
+    payload: Optional[AcquireExtractRequest] = None,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enqueue async acquire+extract job for a run."""
+
+    service = CompanyResearchService(db)
+    try:
+        result = await service.enqueue_acquire_extract_job(
+            tenant_id=current_user.tenant_id,
+            run_id=run_id,
+            max_urls=(payload.max_urls if payload else None),
+            force=(payload.force if payload else False),
+        )
+    except ValueError as exc:  # noqa: BLE001
+        if str(exc) == "run_not_found":
+            raise_app_error(404, "RUN_NOT_FOUND", "Research run not found", {"run_id": str(run_id)})
+        raise
+
+    await db.commit()
+    job = result["job"]
+    return AcquireExtractJobEnqueueResponse(
+        job_id=job.id,
+        run_id=job.run_id,
+        status=job.status,
+        params_hash=result["params_hash"],
+        reused_reason=result.get("reused_reason"),
+    )
+
+
+@router.get(
+    "/jobs/{job_id}",
+    response_model=AcquireExtractJobStatusResponse,
+)
+async def get_company_research_job(
+    job_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch async job status for company research operations."""
+
+    service = CompanyResearchService(db)
+    job = await service.get_job_for_tenant(current_user.tenant_id, job_id)
+    if not job or job.job_type != "acquire_extract_async":
+        raise_app_error(404, "JOB_NOT_FOUND", "Job not found", {"job_id": str(job_id)})
+
+    return AcquireExtractJobStatusResponse(
+        job_id=job.id,
+        run_id=job.run_id,
+        status=job.status,
+        params_hash=job.params_hash,
+        params_json=job.params_json or {},
+        progress_json=job.progress_json or {},
+        error_json=job.error_json,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+    )
 
 
 @router.get("/runs/{run_id}/sources", response_model=List[SourceDocumentRead])

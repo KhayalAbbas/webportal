@@ -1368,6 +1368,29 @@ class CompanyResearchJob(TenantScopedModel):
         index=True,
     )  # queued|running|succeeded|failed|cancelled
 
+    params_json: Mapped[Optional[dict]] = mapped_column(
+        JSONB,
+        nullable=True,
+        server_default='{}',
+    )
+
+    params_hash: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True,
+    )
+
+    progress_json: Mapped[Optional[dict]] = mapped_column(
+        JSONB,
+        nullable=True,
+        server_default='{}',
+    )
+
+    error_json: Mapped[Optional[dict]] = mapped_column(
+        JSONB,
+        nullable=True,
+    )
+
     attempt_count: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -1401,6 +1424,16 @@ class CompanyResearchJob(TenantScopedModel):
         default=False,
     )
 
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    finished_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     last_error: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
@@ -1421,6 +1454,15 @@ class CompanyResearchJob(TenantScopedModel):
             "job_type",
             unique=True,
             postgresql_where=text("status IN ('queued','running')"),
+        ),
+        Index(
+            "uq_company_research_jobs_params",
+            "tenant_id",
+            "run_id",
+            "job_type",
+            "params_hash",
+            unique=True,
+            postgresql_where=text("params_hash IS NOT NULL AND job_type = 'acquire_extract_async'"),
         ),
     )
 

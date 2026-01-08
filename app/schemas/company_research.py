@@ -957,6 +957,12 @@ class CompanyResearchJobRead(TenantScopedRead):
     locked_by: Optional[str] = None
     cancel_requested: bool
     last_error: Optional[str] = None
+    params_hash: Optional[str] = None
+    params_json: Dict[str, Any] = Field(default_factory=dict)
+    progress_json: Dict[str, Any] = Field(default_factory=dict)
+    error_json: Optional[Dict[str, Any]] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
 
 
 # ============================================================================
@@ -1146,6 +1152,27 @@ class AcquireExtractResponse(BaseModel):
     process: AcquireExtractProcessingSummary
     source_ids_touched: List[UUID] = Field(default_factory=list)
     status: str
+
+
+class AcquireExtractJobEnqueueResponse(BaseModel):
+    job_id: UUID
+    run_id: UUID
+    status: str
+    params_hash: str
+    reused_reason: Optional[str] = None
+
+
+class AcquireExtractJobStatusResponse(BaseModel):
+    job_id: UUID
+    run_id: UUID
+    status: str
+    params_hash: Optional[str] = None
+    params_json: Dict[str, Any] = Field(default_factory=dict)
+    progress_json: Dict[str, Any] = Field(default_factory=dict)
+    error_json: Optional[Dict[str, Any]] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
 
 
 # ============================================================================

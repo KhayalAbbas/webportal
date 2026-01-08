@@ -1526,11 +1526,30 @@ class CompanyResearchService:
     async def mark_job_running(self, job_id: UUID, worker_id: str) -> Optional[CompanyResearchJob]:
         return await self.repo.mark_job_running(job_id, worker_id)
 
-    async def mark_job_succeeded(self, job_id: UUID) -> Optional[CompanyResearchJob]:
-        return await self.repo.mark_job_succeeded(job_id)
+    async def mark_job_succeeded(
+        self,
+        job_id: UUID,
+        *,
+        progress_json: Optional[dict] = None,
+    ) -> Optional[CompanyResearchJob]:
+        return await self.repo.mark_job_succeeded(job_id, progress_json=progress_json)
 
-    async def mark_job_failed(self, job_id: UUID, last_error: str, backoff_seconds: int = 30) -> Optional[CompanyResearchJob]:
-        return await self.repo.mark_job_failed(job_id, last_error, backoff_seconds)
+    async def mark_job_failed(
+        self,
+        job_id: UUID,
+        last_error: str,
+        backoff_seconds: int = 30,
+        *,
+        error_json: Optional[dict] = None,
+        progress_json: Optional[dict] = None,
+    ) -> Optional[CompanyResearchJob]:
+        return await self.repo.mark_job_failed(
+            job_id,
+            last_error,
+            backoff_seconds,
+            error_json=error_json,
+            progress_json=progress_json,
+        )
 
     async def mark_job_cancelled(self, job_id: UUID, last_error: Optional[str] = None) -> Optional[CompanyResearchJob]:
         return await self.repo.mark_job_cancelled(job_id, last_error)
@@ -1545,6 +1564,14 @@ class CompanyResearchService:
         status: str = "ok",
     ) -> CompanyResearchEvent:
         return await self.repo.append_research_event(tenant_id, run_id, event_type, message, meta_json, status)
+
+    async def get_job_for_tenant(self, tenant_id: str, job_id: UUID) -> Optional[CompanyResearchJob]:
+        job = await self.repo.get_job(job_id)
+        if not job:
+            return None
+        if str(job.tenant_id) != str(tenant_id):
+            return None
+        return job
     
     # ========================================================================
     # Evidence Operations
@@ -4369,6 +4396,153 @@ class CompanyResearchService:
             "source_ids_touched": source_ids_sorted,
             "status": status,
         }
+
+    def _hash_job_params(self, params: dict) -> str:
+        normalized = json.dumps(params, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    async def enqueue_acquire_extract_job(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        *,
+        max_urls: Optional[int] = None,
+        force: bool = False,
+    ) -> dict:
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        params = {"max_urls": max_urls, "force": bool(force)}
+        params_hash = self._hash_job_params(params)
+        job_type = "acquire_extract_async"
+
+        reused_reason: Optional[str] = None
+        job = await self.repo.get_job_by_params(tenant_id, run_id, job_type, params_hash)
+        if job:
+            if job.status in {"queued", "running"}:
+                reused_reason = "inflight"
+            elif job.status == "succeeded":
+                reused_reason = "duplicate_succeeded"
+            elif job.status == "failed":
+                reused_reason = "failed_reuse"
+        else:
+            job = await self.repo.enqueue_parametrized_job(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                job_type=job_type,
+                params_json=params,
+                params_hash=params_hash,
+                max_attempts=3,
+            )
+
+        await self.repo.create_research_event(
+            tenant_id=tenant_id,
+            data=RunResearchEventCreate(
+                company_research_run_id=run_id,
+                event_type="acquire_extract_enqueued",
+                status="ok",
+                input_json={"job_id": str(job.id), "params": params, "params_hash": params_hash},
+                output_json={"job_status": job.status, "reused_reason": reused_reason},
+                error_message=None,
+            ),
+        )
+        await self.db.flush()
+
+        return {
+            "job": job,
+            "params_hash": params_hash,
+            "reused_reason": reused_reason,
+            "params": params,
+        }
+
+    async def execute_acquire_extract_job(self, tenant_id: str, job_id: UUID) -> CompanyResearchJob:
+        job = await self.get_job_for_tenant(tenant_id, job_id)
+        if not job or job.job_type != "acquire_extract_async":
+            raise ValueError("job_not_found")
+
+        params = job.params_json or {}
+        max_urls = params.get("max_urls")
+        force = bool(params.get("force"))
+        worker_id = "acquire_extract_inline"
+
+        job = await self.mark_job_running(job.id, worker_id)
+        if not job:
+            raise ValueError("job_not_found")
+
+        await self.repo.create_research_event(
+            tenant_id=tenant_id,
+            data=RunResearchEventCreate(
+                company_research_run_id=job.run_id,
+                event_type="acquire_extract_started",
+                status="ok",
+                input_json={"job_id": str(job.id), "params": params},
+                output_json=None,
+                error_message=None,
+            ),
+        )
+        await self.db.flush()
+
+        progress: dict[str, Any] = {
+            "inputs": {"max_urls": max_urls, "force": force},
+            "source_ids_touched": [],
+        }
+
+        try:
+            summary = await self.run_acquire_extract(
+                tenant_id=tenant_id,
+                run_id=job.run_id,
+                max_urls=max_urls,
+                force=force,
+            )
+
+            progress.update(
+                {
+                    "fetch": summary.get("fetch", {}),
+                    "extract": summary.get("extract", {}),
+                    "classify": summary.get("classify", {}),
+                    "process": summary.get("process", {}),
+                    "source_ids_touched": summary.get("source_ids_touched", []),
+                    "status": summary.get("status"),
+                }
+            )
+
+            job = await self.mark_job_succeeded(job.id, progress_json=progress)
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=RunResearchEventCreate(
+                    company_research_run_id=job.run_id,
+                    event_type="acquire_extract_finished",
+                    status="ok",
+                    input_json={"job_id": str(job.id), "params": params},
+                    output_json=progress,
+                    error_message=None,
+                ),
+            )
+            await self.db.commit()
+            return job
+        except Exception as exc:  # noqa: BLE001
+            error_payload = {"message": str(exc), "type": type(exc).__name__}
+            await self.mark_job_failed(
+                job_id=job.id,
+                last_error=str(exc),
+                backoff_seconds=0,
+                error_json=error_payload,
+                progress_json=progress,
+            )
+            await self.repo.create_research_event(
+                tenant_id=tenant_id,
+                data=RunResearchEventCreate(
+                    company_research_run_id=job.run_id,
+                    event_type="acquire_extract_finished",
+                    status="failed",
+                    input_json={"job_id": str(job.id), "params": params},
+                    output_json=progress,
+                    error_message=str(exc),
+                ),
+            )
+            await self.db.commit()
+            raise
 
     # ========================================================================
     # Entity Resolution (Stage 6.1)
