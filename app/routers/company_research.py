@@ -902,6 +902,9 @@ async def run_executive_discovery(
     def http_error(code: str, message: str, status_code: int = 400) -> None:
         raise HTTPException(status_code=status_code, detail={"error": {"code": code, "message": message}})
 
+    def gate_error(message: str) -> None:
+        http_error("EXEC_DISCOVERY_NOT_ALLOWED", message, 409)
+
     run = await service.get_research_run(current_user.tenant_id, run_id)
     if not run:
         http_error("run_not_found", "Research run not found", 404)
@@ -914,6 +917,9 @@ async def run_executive_discovery(
     eligible_norms = {
         service._normalize_company_name(p.name_normalized or p.name_raw) for p in eligible_companies  # noqa: SLF001
     }
+
+    if eligible_company_count == 0:
+        gate_error("No accepted companies with exec_search_enabled=true")
 
     def empty_response(reason: str) -> dict:
         return {
@@ -952,9 +958,6 @@ async def run_executive_discovery(
             },
         }
 
-    if eligible_company_count == 0:
-        return empty_response("no_eligible_companies")
-
     external_payload = payload.payload
     external_fixture_requested = bool(payload.external_fixture)
 
@@ -991,7 +994,7 @@ async def run_executive_discovery(
 
             missing = sorted({norm for norm in requested_norms if norm not in eligible_norms})
             if missing:
-                http_error("ineligible_companies", ",".join(missing), 400)
+                gate_error(f"Ineligible companies: {','.join(missing)}")
 
     internal_result = None
     external_result = None
@@ -1018,9 +1021,13 @@ async def run_executive_discovery(
         except ValueError as exc:  # noqa: BLE001
             message = str(exc)
             status_code = 400
+            code = message
             if message == "run_not_found":
                 status_code = 404
-            http_error(message, message, status_code)
+            if message.startswith("ineligible_companies"):
+                status_code = 409
+                code = "EXEC_DISCOVERY_NOT_ALLOWED"
+            http_error(code, message, status_code)
 
     await db.commit()
 

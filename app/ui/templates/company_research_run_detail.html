@@ -232,7 +232,13 @@
 
 <!-- Executive Discovery -->
 <div class="detail-section" style="margin-bottom: 24px;">
+    {% set exec_allowed = (eligible_exec_companies|length) > 0 %}
     <h2 class="section-title">Executive Discovery</h2>
+    {% if not exec_allowed %}
+    <div style="margin: 0 0 12px 0; padding: 10px 12px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; color: #8a6d3b; font-size: 13px;">
+        Accept a company and enable exec search to run executive discovery. Controls are disabled until at least one company is eligible.
+    </div>
+    {% endif %}
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         <div style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 12px; background: #f9fafb;">
             <h3 style="margin-top: 0; font-size: 14px;">Eligible Companies</h3>
@@ -252,7 +258,7 @@
         <div style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 12px; background: #f9fafb;">
                         <h3 style="margin-top: 0; font-size: 14px;">Run Internal Executive Stub</h3>
                         <p style="font-size: 12px; color: #555; margin-bottom: 8px;">Runs deterministic internal discovery for eligible companies ({{ eligible_exec_companies|length }} eligible). Uses the same API, gating, and idempotent hashing.</p>
-                        <button type="button" class="btn btn-secondary" onclick="runInternalExecDiscovery()">Run internal stub</button>
+                        <button type="button" class="btn btn-secondary" onclick="runInternalExecDiscovery()" {% if not exec_allowed %}disabled title="Enable exec search on an accepted company to run discovery"{% endif %}>Run internal stub</button>
 
                         <h3 style="margin-top: 16px; font-size: 14px;">Run External / Both Executive Payload</h3>
                         <p style="font-size: 12px; color: #555;">Paste the external <code>executive_discovery_v1</code> payload. Select mode + engine to drive provenance; external/both requires provider.</p>
@@ -293,7 +299,7 @@
     {"company_name": "Sample Co", "executives": [{"name": "Alex Example", "title": "CEO", "profile_url": "https://example.com"}]}
   ]
 }</textarea>
-            <button type="button" class="btn btn-primary" style="margin-top: 8px;" onclick="runExecDiscovery()">Submit to API</button>
+            <button type="button" class="btn btn-primary" style="margin-top: 8px;" onclick="runExecDiscovery()" {% if not exec_allowed %}disabled title="Enable exec search on an accepted company to run discovery"{% endif %}>Submit to API</button>
             <pre id="exec-result" style="margin-top: 8px; background: #fff; padding: 8px; border: 1px solid #eee; min-height: 40px; font-size: 12px; white-space: pre-wrap;"></pre>
         </div>
     </div>
@@ -853,8 +859,21 @@ function togglePin(prospectId, currentlyPinned) {
     form.submit();
 }
 
+const EXEC_DISCOVERY_ALLOWED = {{ 'true' if exec_allowed else 'false' }};
+
+function ensureExecDiscoveryAllowed(resultEl) {
+    if (EXEC_DISCOVERY_ALLOWED) {
+        return true;
+    }
+    if (resultEl) {
+        resultEl.textContent = 'Executive discovery is disabled until a company is accepted and exec search is enabled.';
+    }
+    return false;
+}
+
 async function runExecDiscovery() {
     const resultEl = document.getElementById('exec-result');
+    if (!ensureExecDiscoveryAllowed(resultEl)) return;
     const textarea = document.getElementById('exec-payload');
     const modeSelect = document.getElementById('exec-mode');
     const engineSelect = document.getElementById('exec-engine');
@@ -911,6 +930,7 @@ async function runExecDiscovery() {
 
 async function runInternalExecDiscovery() {
     const resultEl = document.getElementById('exec-result');
+    if (!ensureExecDiscoveryAllowed(resultEl)) return;
     resultEl.textContent = 'Running internal deterministic discovery...';
 
     try {

@@ -570,9 +570,11 @@ class CompanyResearchService:
                 role_id=prospect.role_mandate_id,
                 type="PROSPECT_REVIEW_STATUS",
                 message=(
-                    f"prospect_id={prospect_id} run_id={prospect.company_research_run_id} "
-                    f"review_status {old_status}->{review_status} "
-                    f"exec_search_enabled {prospect.exec_search_enabled}"
+                    f"company_prospect_id={prospect_id} "
+                    f"run_id={prospect.company_research_run_id} "
+                    f"action=review_status_change "
+                    f"from={old_status} to={review_status} "
+                    f"exec_search_enabled={prospect.exec_search_enabled}"
                 ),
                 created_by=actor or "system",
             )
