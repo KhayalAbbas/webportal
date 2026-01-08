@@ -27,3 +27,4 @@ Phase 10.4 artifact manifest
 - scripts/proofs/_artifacts/phase_10_4_commit.txt
 - scripts/proofs/_artifacts/phase_10_4_tag.txt
 - scripts/proofs/_artifacts/phase_10_4_push.txt
+- scripts/proofs/_artifacts/phase_10_4_git_after.txt

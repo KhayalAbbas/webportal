@@ -1,1 +1,10 @@
-﻿Push pending: origin master + tags
+git push origin master
+Everything up-to-date
+
+git push origin phase_10_4_signed_off
+Enumerating objects: 1, done.
+Counting objects: 100% (1/1), done.
+Writing objects: 100% (1/1), 171 bytes | 57.00 KiB/s, done.
+Total 1 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
+To https://github.com/iuliantpg/ats.git
+ * [new tag]         phase_10_4_signed_off -> phase_10_4_signed_off
