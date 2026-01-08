@@ -1,0 +1,24 @@
+Tracked-modified (pre-clean state):
+- app/ui/templates/company_research_run_detail.html
+- scripts/proofs/_artifacts/phase_10_4_commit.txt
+- scripts/proofs/_artifacts/phase_10_4_git_after.txt
+- scripts/proofs/_artifacts/phase_10_4_push.txt
+- scripts/proofs/_artifacts/phase_10_4_tag.txt
+- scripts/proofs/_artifacts/phase_10_5_artifact_manifest.txt
+- scripts/proofs/_artifacts/phase_10_5_export_hashes.txt
+- scripts/proofs/_artifacts/phase_10_5_preflight.txt
+- scripts/proofs/_artifacts/phase_10_5_proof.txt
+- scripts/proofs/_artifacts/phase_10_5_proof_console.txt
+- scripts/proofs/_artifacts/phase_10_5_release_notes.md
+- scripts/proofs/_artifacts/phase_10_5_release_bundle.zip
+- scripts/proofs/_artifacts/phase_10_5_runbook_excerpt.txt
+- scripts/proofs/_artifacts/phase_10_5_signoff_checklist.txt
+- scripts/proofs/_artifacts/phase_9_9_db_excerpt.txt
+- scripts/proofs/_artifacts/phase_9_9_export_first.zip
+- scripts/proofs/_artifacts/phase_9_9_export_json_snippets.json
+- scripts/proofs/_artifacts/phase_9_9_export_second.zip
+- scripts/proofs/_artifacts/phase_9_9_proof.txt
+- scripts/proofs/_artifacts/phase_9_9_proof_console.txt
+
+Untracked:
+- (none observed)

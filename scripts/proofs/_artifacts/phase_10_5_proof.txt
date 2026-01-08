@@ -4,12 +4,10 @@ ASSERT: export-pack.zip SHA256 stable across two pulls
 tenant_id=8b5c5d3e-8c4c-4c9d-8db7-5f6d8d7c0a11 (existing)
 health_status=200
 openapi_status=200
-openapi_after=phase_10_5_openapi_after.json (captured after proof)
 export_url=/company-research/runs/56a4d489-121b-4748-9651-7bcb979247c2/export-pack.zip
-hash1=d9588fd7b630d85c34708d51a4d7915dff25cca06fefa9d665c663a273a2842d
-hash2=d9588fd7b630d85c34708d51a4d7915dff25cca06fefa9d665c663a273a2842d
+hash1=632346cd38bba5dd8fd8116c06bfd0af0ef92dce19cf7731c7677742c0805c6f
+hash2=632346cd38bba5dd8fd8116c06bfd0af0ef92dce19cf7731c7677742c0805c6f
 size1=2641
 size2=2641
 hashes_match=True
 RESULT=PASS
-PASS_FOOTER: verifier=PASS; proof=PASS; export_hash_stable=True

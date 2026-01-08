@@ -8,6 +8,7 @@
     <h1 class="page-title" style="margin: 0;">{{ run.name }}</h1>
     <div>
         <a href="/ui/company-research?role_id={{ role_info.id if role_info else '' }}" class="btn btn-secondary">← Back to Research Runs</a>
+        <a href="/company-research/runs/{{ run.id }}/export-pack.zip" class="btn btn-primary" style="margin-left: 8px;">Download export pack (ZIP)</a>
     </div>
 </div>
 

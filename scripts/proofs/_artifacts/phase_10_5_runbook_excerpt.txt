@@ -3,5 +3,6 @@
   "ATS_PYTHON_EXE": "C:/ATS/.venv/Scripts/python.exe",
   "ATS_ALEMBIC_EXE": "C:/ATS/.venv/Scripts/alembic.exe",
   "ATS_GIT_EXE": "C:/Program Files/Git/bin/git.exe",
-  "ATS_START_API_CMD": "C:/ATS/.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
+  "ATS_START_API_CMD": "C:/ATS/.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload",
+  "__loaded_from": "scripts\\runbook\\LOCAL_COMMANDS.ps1"
 }

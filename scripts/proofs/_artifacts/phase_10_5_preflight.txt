@@ -1,3 +1,4 @@
+runbook_loaded_from=scripts\runbook\LOCAL_COMMANDS.ps1
 api_base_url=http://127.0.0.1:8000
 health_status=200
 openapi_status=200

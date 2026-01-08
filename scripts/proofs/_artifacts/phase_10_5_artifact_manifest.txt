@@ -23,6 +23,21 @@ phase_10_5_git_after.txt
 phase_10_5_tag_v2.txt
 phase_10_5_push_v2.txt
 phase_10_5_git_after_v2.txt
+phase_10_5_git_status_pre_v3.txt (20 lines)
+phase_10_5_git_log_pre_v3.txt (5 lines)
+phase_10_5_tag_v3.txt (0 lines)
+phase_10_5_push_v3.txt (11 lines)
+phase_10_5_git_after_v3.txt (56 lines)
+phase_10_5_git_status_final.txt (20 lines)
+phase_10_5_dirty_files_list.txt (24 lines)
+phase_10_5_dirty_files_classification.txt (26 lines)
+phase_10_5_wip_branch_push.txt (17 lines)
+phase_10_5_git_status_pre_v4.txt (11 lines)
+phase_10_5_git_diff_stat_pre_v4.txt (11 lines)
+phase_10_5_git_log_pre_v4.txt (5 lines)
+phase_10_5_tag_v4.txt (placeholder)
+phase_10_5_push_v4.txt (placeholder)
+phase_10_5_git_after_v4.txt (placeholder)
 phase_10_5_release_bundle.zip
 runbook_verify_log.txt
 runbook_verify_openapi.json
