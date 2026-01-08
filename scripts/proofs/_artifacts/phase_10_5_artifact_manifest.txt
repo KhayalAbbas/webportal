@@ -13,10 +13,16 @@ phase_10_5_signoff_checklist.txt
 phase_10_5_git_status_before_commit.txt
 phase_10_5_git_diff_stat.txt
 phase_10_5_git_log_before_commit.txt
+phase_10_5_hygiene_git_status_before_commit.txt
+phase_10_5_hygiene_git_diff_stat.txt
+phase_10_5_hygiene_git_log_before_commit.txt
 phase_10_5_commit.txt
 phase_10_5_tag.txt
 phase_10_5_push.txt
 phase_10_5_git_after.txt
+phase_10_5_tag_v2.txt
+phase_10_5_push_v2.txt
+phase_10_5_git_after_v2.txt
 phase_10_5_release_bundle.zip
 runbook_verify_log.txt
 runbook_verify_openapi.json
