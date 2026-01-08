@@ -1,0 +1,68 @@
+commit 3c223564f6a6a05e3ea44dc470f2c29b3045827d
+Author: ATS Local <local@ats>
+Date:   Thu Jan 8 13:47:08 2026 +0400
+
+    Phase 10.3: finalize push/tag artifacts
+
+ scripts/proofs/_artifacts/phase_10_3_push.txt | 4 ----
+ scripts/proofs/_artifacts/phase_10_3_tag.txt  | 6 ++++--
+ 2 files changed, 4 insertions(+), 6 deletions(-)
+
+commit bd37397f914e276ffe79ee95a13037eccbe5680d
+Author: ATS Local <local@ats>
+Date:   Thu Jan 8 13:43:02 2026 +0400
+
+    Phase 10.3: update push/tag artifacts
+
+ scripts/proofs/_artifacts/phase_10_3_push.txt | 8 +++++---
+ scripts/proofs/_artifacts/phase_10_3_tag.txt  | 2 +-
+ 2 files changed, 6 insertions(+), 4 deletions(-)
+
+commit e5809ff69f9006e55d3fac12beed377ba2a41510
+Author: ATS Local <local@ats>
+Date:   Thu Jan 8 13:41:58 2026 +0400
+
+    Phase 10.3: push/tag/signoff artifacts
+
+ scripts/proofs/_artifacts/phase_10_3_git_after.txt         | Bin 0 -> 56 bytes
+ scripts/proofs/_artifacts/phase_10_3_push.txt              |   7 +++++++
+ scripts/proofs/_artifacts/phase_10_3_signoff_checklist.txt |   2 +-
+ scripts/proofs/_artifacts/phase_10_3_tag.txt               |   4 ++++
+ 4 files changed, 12 insertions(+), 1 deletion(-)
+
+commit 51deeda1a881eef56dbd4d12d7d52bddd8ae9a7b
+Author: ATS Local <local@ats>
+Date:   Thu Jan 8 13:31:41 2026 +0400
+
+    Phase 10.3: job cancel/retry/lease controls + proof
+
+ app/repositories/company_research_repo.py          |   115 +-
+ app/routers/company_research.py                    |   106 +
+ app/schemas/company_research.py                    |    16 +
+ app/services/company_research_service.py           |   155 +-
+ .../_artifacts/phase_10_3_artifact_manifest.txt    |    29 +
+ scripts/proofs/_artifacts/phase_10_3_cancel.json   |    19 +
+ .../proofs/_artifacts/phase_10_3_db_excerpt.txt    |    17 +
+ .../_artifacts/phase_10_3_discovery_notes.txt      |    32 +
+ .../proofs/_artifacts/phase_10_3_enqueue_fail.json |    10 +
+ .../_artifacts/phase_10_3_enqueue_for_cancel.json  |    10 +
+ .../_artifacts/phase_10_3_enqueue_reclaim.json     |    10 +
+ .../proofs/_artifacts/phase_10_3_git_diff_stat.txt |   Bin 0 -> 666 bytes
+ .../phase_10_3_git_log_before_commit.txt           |   Bin 0 -> 888 bytes
+ .../phase_10_3_git_status_before_commit.txt        |     8 +
+ .../_artifacts/phase_10_3_openapi_after.json       | 30193 +++++++++++++++++++
+ .../phase_10_3_openapi_after_excerpt.txt           |    19 +
+ .../_artifacts/phase_10_3_openapi_before.json      |     1 +
+ scripts/proofs/_artifacts/phase_10_3_preflight.txt |    48 +
+ scripts/proofs/_artifacts/phase_10_3_proof.txt     |    13 +
+ .../proofs/_artifacts/phase_10_3_proof_console.txt |     4 +
+ .../proofs/_artifacts/phase_10_3_release_notes.md  |    26 +
+ scripts/proofs/_artifacts/phase_10_3_retry.json    |    28 +
+ .../proofs/_artifacts/phase_10_3_seed_urls.json    |   116 +
+ .../_artifacts/phase_10_3_signoff_checklist.txt    |    10 +
+ .../_artifacts/phase_10_3_status_cancelled.json    |    16 +
+ .../_artifacts/phase_10_3_status_failed.json       |    25 +
+ .../_artifacts/phase_10_3_status_reclaimed.json    |   106 +
+ .../phase_10_3_status_retried_succeeded.json       |   163 +
+ scripts/proofs/phase_10_3_job_controls_proof.py    |   334 +
+ 29 files changed, 31626 insertions(+), 3 deletions(-)
