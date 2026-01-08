@@ -69,6 +69,8 @@ from app.schemas.company_research import (
     ExternalLLMDiscoveryIngestResponse,
     RunPack,
     ExecutiveDiscoveryRunResponse,
+    AcquireExtractRequest,
+    AcquireExtractResponse,
 )
 from app.schemas.contact_enrichment import ContactEnrichmentRequest
 from app.schemas.executive_contact_enrichment import (
@@ -381,6 +383,36 @@ async def start_research_run(
         raise HTTPException(status_code=404, detail="Research run not found")
     await db.commit()
     return CompanyResearchJobRead.model_validate(job)
+
+
+@router.post(
+    "/runs/{run_id}/acquire-extract",
+    response_model=AcquireExtractResponse,
+)
+async def acquire_and_extract_run(
+    run_id: UUID,
+    payload: Optional[AcquireExtractRequest] = None,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Synchronously acquire (fetch) and extract sources for a run."""
+
+    service = CompanyResearchService(db)
+
+    try:
+        summary = await service.run_acquire_extract(
+            tenant_id=current_user.tenant_id,
+            run_id=run_id,
+            max_urls=(payload.max_urls if payload else None),
+            force=(payload.force if payload else False),
+        )
+    except ValueError as exc:  # noqa: BLE001
+        if str(exc) == "run_not_found":
+            raise_app_error(404, "RUN_NOT_FOUND", "Research run not found", {"run_id": str(run_id)})
+        raise
+
+    await db.commit()
+    return AcquireExtractResponse.model_validate(summary)
 
 
 @router.get("/runs/{run_id}/sources", response_model=List[SourceDocumentRead])

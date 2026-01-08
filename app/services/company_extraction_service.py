@@ -697,6 +697,7 @@ class CompanyExtractionService:
                 
                 # Track per-source detail
                 sources_detail.append({
+                    "source_id": str(source.id),
                     "title": source.title or "Text source",
                     "chars": text_length,
                     "lines": line_count,
@@ -748,12 +749,44 @@ class CompanyExtractionService:
         self,
         tenant_id: str,
         run_id: UUID,
+        *,
+        max_urls: Optional[int] = None,
+        force: bool = False,
     ) -> dict:
         """Fetch URL sources ahead of extraction."""
-        sources = await self.repo.get_url_sources_to_fetch(tenant_id, run_id)
+        limit_int: Optional[int]
+        try:
+            limit_int = None if max_urls is None else max(0, int(max_urls))
+        except (TypeError, ValueError):
+            limit_int = None
+
+        all_sources = await self.repo.get_url_sources_to_fetch(tenant_id, run_id, force=force)
+        if limit_int is None:
+            sources = all_sources
+            limited = False
+        else:
+            sources = all_sources[:limit_int]
+            limited = len(all_sources) > len(sources)
+
+        selected = len(sources)
 
         if not sources:
-            return {"processed": 0, "fetched": 0, "failed": 0, "skipped": True}
+            return {
+                "processed": 0,
+                "fetched": 0,
+                "failed": 0,
+                "terminal_failures": 0,
+                "retry_scheduled": False,
+                "next_retry_at": None,
+                "retry_backoff_seconds": None,
+                "pending_recheck": False,
+                "pending_recheck_next_retry_at": None,
+                "selected": selected,
+                "limited": limited,
+                "force": force,
+                "skipped": True,
+                "details": [],
+            }
 
         fetched = 0
         failed = 0
@@ -1046,6 +1079,10 @@ class CompanyExtractionService:
             "retry_backoff_seconds": retry_backoff_seconds,
             "pending_recheck": pending_recheck,
             "pending_recheck_next_retry_at": pending_recheck_next_retry_at.isoformat() if pending_recheck_next_retry_at else None,
+            "selected": selected,
+            "limited": limited,
+            "force": force,
+            "skipped": False,
             "details": details,
         }
     

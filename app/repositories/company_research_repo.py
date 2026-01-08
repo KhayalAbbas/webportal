@@ -1059,42 +1059,63 @@ class CompanyResearchRepository:
         self,
         tenant_id: str,
         run_id: UUID,
+        *,
+        limit: Optional[int] = None,
+        force: bool = False,
     ) -> List[ResearchSourceDocument]:
-        """Return URL sources needing fetch attempts.
+        """Return URL sources ready for fetch attempts.
 
         Includes fetched sources that explicitly request a conditional recheck via
-        meta.validators.pending_recheck, while preserving the original queue
-        semantics for queued/failed sources.
+        meta.validators.pending_recheck. When ``force`` is true, backoff windows and
+        pending recheck flags are ignored so callers can intentionally re-pull all
+        URL sources (useful for deterministic proofs).
         """
 
-        result = await self.db.execute(
+        query = (
             select(ResearchSourceDocument)
             .where(
                 ResearchSourceDocument.tenant_id == tenant_id,
                 ResearchSourceDocument.company_research_run_id == run_id,
                 ResearchSourceDocument.source_type == 'url',
                 ResearchSourceDocument.status.in_(['queued', 'fetch_failed', 'failed', 'fetched']),
+            )
+            .order_by(ResearchSourceDocument.created_at)
+        )
+
+        if not force:
+            query = query.where(
                 or_(
                     ResearchSourceDocument.next_retry_at.is_(None),
                     ResearchSourceDocument.next_retry_at <= func.now(),
                 ),
             )
-            .order_by(ResearchSourceDocument.created_at)
-        )
+
+        result = await self.db.execute(query)
 
         sources = list(result.scalars().all())
         filtered: list[ResearchSourceDocument] = []
+
         for source in sources:
+            attempts_exhausted = (source.attempt_count or 0) >= (source.max_attempts or 0)
+
             if source.status != 'fetched':
-                if (source.attempt_count or 0) >= (source.max_attempts or 0):
+                if attempts_exhausted and not force:
                     continue
                 filtered.append(source)
                 continue
 
             meta = source.meta or {}
             validators = (meta.get("validators") or {}) if isinstance(meta, dict) else {}
-            if validators.get("pending_recheck"):
+            if validators.get("pending_recheck") or force:
                 filtered.append(source)
+
+        if limit is not None:
+            try:
+                limit_int = int(limit)
+                if limit_int >= 0:
+                    filtered = filtered[:limit_int]
+            except (TypeError, ValueError):
+                pass
 
         return filtered
 

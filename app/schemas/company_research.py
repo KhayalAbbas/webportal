@@ -1043,6 +1043,112 @@ class SourceDocumentRead(TenantScopedRead):
 
 
 # ============================================================================
+# Acquire + Extract Summaries
+# ============================================================================
+
+
+class AcquireExtractRequest(BaseModel):
+    """Input payload for the acquire+extract front-door endpoint."""
+
+    max_urls: Optional[int] = Field(default=None, ge=0, le=500)
+    force: bool = Field(default=False)
+
+
+class AcquireExtractFetchDetail(BaseModel):
+    source_id: UUID
+    url: Optional[str] = None
+    status: str
+    error: Optional[str] = None
+    attempt: Optional[int] = None
+    next_retry_at: Optional[datetime] = None
+    meta: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AcquireExtractFetchSummary(BaseModel):
+    processed: int
+    fetched: int
+    failed: int
+    terminal_failures: int
+    retry_scheduled: bool
+    next_retry_at: Optional[datetime] = None
+    retry_backoff_seconds: Optional[int] = None
+    pending_recheck: bool = False
+    pending_recheck_next_retry_at: Optional[datetime] = None
+    selected: int
+    limited: bool = False
+    force: bool = False
+    skipped: Optional[bool] = None
+    details: List[AcquireExtractFetchDetail] = Field(default_factory=list)
+
+
+class AcquireExtractExtractedSource(BaseModel):
+    id: UUID
+    decision: Optional[str] = None
+    reason_codes: List[str] = Field(default_factory=list)
+    word_count: Optional[int] = None
+
+
+class AcquireExtractExtractionSummary(BaseModel):
+    count: int
+    processed: int
+    skipped: int
+    accepted: int
+    flagged: int
+    rejected: int
+    sources: List[AcquireExtractExtractedSource] = Field(default_factory=list)
+
+
+class AcquireExtractClassifiedSource(BaseModel):
+    id: UUID
+    decision: Optional[str] = None
+    duplicate: Optional[bool] = None
+    group: Optional[str] = None
+    primary: Optional[str] = None
+
+
+class AcquireExtractClassificationSummary(BaseModel):
+    count: int
+    processed: int
+    skipped: int
+    duplicates: int
+    updated: int
+    sources: List[AcquireExtractClassifiedSource] = Field(default_factory=list)
+
+
+class AcquireExtractProcessedSource(BaseModel):
+    source_id: Optional[UUID] = None
+    title: Optional[str] = None
+    chars: Optional[int] = None
+    lines: Optional[int] = None
+    extracted: Optional[int] = None
+    new: Optional[int] = None
+    existing: Optional[int] = None
+    status: Optional[str] = None
+    error: Optional[str] = None
+    extraction_method: Optional[str] = None
+    deduped_to: Optional[str] = None
+
+
+class AcquireExtractProcessingSummary(BaseModel):
+    processed: int
+    companies_found: int
+    companies_new: int
+    companies_existing: int
+    sources_detail: List[AcquireExtractProcessedSource] = Field(default_factory=list)
+
+
+class AcquireExtractResponse(BaseModel):
+    run_id: UUID
+    inputs: AcquireExtractRequest
+    fetch: AcquireExtractFetchSummary
+    extract: AcquireExtractExtractionSummary
+    classify: AcquireExtractClassificationSummary
+    process: AcquireExtractProcessingSummary
+    source_ids_touched: List[UUID] = Field(default_factory=list)
+    status: str
+
+
+# ============================================================================
 # Research Event Schemas
 # ============================================================================
 

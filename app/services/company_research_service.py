@@ -50,6 +50,8 @@ from app.models.company_research import (
 from app.models.ai_enrichment_record import AIEnrichmentRecord
 from app.models.activity_log import ActivityLog
 from app.services.ai_proposal_service import AIProposalService
+from app.services.company_extraction_service import CompanyExtractionService
+from app.services.company_source_extraction_service import CompanySourceExtractionService
 from app.services.entity_resolution_service import EntityResolutionService
 from app.services.canonical_people_service import CanonicalPeopleService
 from app.services.canonical_company_service import CanonicalCompanyService
@@ -4267,10 +4269,106 @@ class CompanyResearchService:
         self,
         tenant_id: str,
         run_id: UUID,
+        *,
+        max_urls: Optional[int] = None,
+        force: bool = False,
     ) -> dict:
         """Fetch pending URL sources for a run."""
         extractor = CompanyExtractionService(self.db)
-        return await extractor.fetch_url_sources(tenant_id=tenant_id, run_id=run_id)
+        return await extractor.fetch_url_sources(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            max_urls=max_urls,
+            force=force,
+        )
+
+    async def run_acquire_extract(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        *,
+        max_urls: Optional[int] = None,
+        force: bool = False,
+    ) -> dict:
+        """Run front-door acquisition and extraction for a research run.
+
+        This runs URL fetch -> content extraction -> classification -> processing in a
+        single call and returns normalized stats for deterministic proofs.
+        """
+
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("run_not_found")
+
+        fetcher = CompanyExtractionService(self.db)
+        extractor = CompanySourceExtractionService(self.db)
+
+        fetch_summary = await fetcher.fetch_url_sources(
+            tenant_id=tenant_id,
+            run_id=run_id,
+            max_urls=max_urls,
+            force=force,
+        )
+        await self.db.commit()
+
+        extract_summary = await extractor.extract_sources(
+            tenant_id=tenant_id,
+            run_id=run_id,
+        )
+
+        classify_summary = await extractor.classify_sources(
+            tenant_id=tenant_id,
+            run_id=run_id,
+        )
+
+        process_summary = await fetcher.process_sources(
+            tenant_id=tenant_id,
+            run_id=run_id,
+        )
+        await self.db.commit()
+
+        source_ids: set[str] = set()
+        for item in fetch_summary.get("details", []):
+            sid = item.get("source_id") if isinstance(item, dict) else None
+            if sid:
+                source_ids.add(str(sid))
+
+        for item in extract_summary.get("sources", []):
+            sid = item.get("id") if isinstance(item, dict) else None
+            if sid:
+                source_ids.add(str(sid))
+
+        for item in classify_summary.get("sources", []):
+            sid = item.get("id") if isinstance(item, dict) else None
+            if sid:
+                source_ids.add(str(sid))
+
+        for item in process_summary.get("sources_detail", []):
+            sid = item.get("source_id") if isinstance(item, dict) else None
+            if sid:
+                source_ids.add(str(sid))
+
+        source_ids_sorted: list[str] = sorted(source_ids)
+
+        status = "ok"
+        if fetch_summary.get("terminal_failures"):
+            status = "warn"
+        elif fetch_summary.get("failed"):
+            status = "warn"
+
+        return {
+            "run_id": str(run_id),
+            "inputs": {
+                "max_urls": max_urls,
+                "force": force,
+            },
+            "fetch": fetch_summary,
+            "extract": extract_summary,
+            "classify": classify_summary,
+            "process": process_summary,
+            "source_ids_touched": source_ids_sorted,
+            "status": status,
+        }
 
     # ========================================================================
     # Entity Resolution (Stage 6.1)
