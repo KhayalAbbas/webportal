@@ -6,4 +6,5 @@ PASS: proof console captured (phase_10_5_proof_console.txt)
 PASS: openapi before captured (phase_10_5_openapi_before.json)
 PASS: openapi after captured (phase_10_5_openapi_after.json, phase_10_5_openapi_after_excerpt.txt)
 PASS: run detail HTML captured (phase_10_5_run_detail.html)
+TAG: phase_10_5_signed_off_v2 (clean push, supersedes forced phase_10_5_signed_off)
 RESULT=PASS

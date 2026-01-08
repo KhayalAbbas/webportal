@@ -4,6 +4,7 @@
 - Hardened VERIFY_RUNBOOK.ps1: self-sources runbook, validates required paths/commands, uses basic parsing, and captures health/openapi snapshots.
 - Deterministic tenant/user/setup for Phase 10.5 proof with fixed tenant UUID and stable export hash validation.
 - Captured fresh OpenAPI (before/after), proof console, and run detail HTML.
+- Tagging hygiene: canonical tag is `phase_10_5_signed_off_v2` (no force); original `phase_10_5_signed_off` was forced and is superseded.
 
 ## How to run the verifier
 ```powershell
@@ -29,3 +30,4 @@ $env:ALLOW_START_API="1"
 - phase_10_5_run_detail.html
 - phase_10_5_runbook_excerpt.txt (redacted)
 - runbook_verify_log.txt / runbook_verify_openapi.json / runbook_verify_health.txt
+- Tag artifacts: phase_10_5_tag_v2.txt, phase_10_5_push_v2.txt, phase_10_5_git_after_v2.txt

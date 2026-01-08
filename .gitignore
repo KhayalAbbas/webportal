@@ -49,6 +49,8 @@ node_modules/
 # Generated API specs
 openapi.json
 scripts/proofs/_artifacts/
+# Local runbook override (keep untracked; copy from template)
+scripts/runbook/LOCAL_COMMANDS.ps1
 
 # Alembic
 *.pyc

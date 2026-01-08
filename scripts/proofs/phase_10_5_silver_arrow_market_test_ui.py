@@ -51,6 +51,7 @@ RUN_DETAIL_HTML_ARTIFACT = ARTIFACTS_DIR / "phase_10_5_run_detail.html"
 PROOF_ARTIFACT = ARTIFACTS_DIR / "phase_10_5_proof.txt"
 TENANT_FIXED_ID = UUID("8b5c5d3e-8c4c-4c9d-8db7-5f6d8d7c0a11")
 RUNBOOK_PATH = Path("scripts/runbook/LOCAL_COMMANDS.ps1")
+RUNBOOK_TEMPLATE_PATH = Path("scripts/runbook/LOCAL_COMMANDS.template.ps1")
 
 
 class RunbookError(RuntimeError):
@@ -66,11 +67,16 @@ def _write_artifact(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def _parse_runbook_vars(path: Path) -> Dict[str, str]:
-    if not path.exists():
-        _fail("Runbook missing: scripts/runbook/LOCAL_COMMANDS.ps1")
+def _parse_runbook_vars(path: Path, template: Path) -> Dict[str, str]:
+    loaded_from = None
+    if path.exists():
+        loaded_from = path
+    elif template.exists():
+        loaded_from = template
+    else:
+        _fail("Runbook missing: expected LOCAL_COMMANDS.ps1 or LOCAL_COMMANDS.template.ps1 under scripts/runbook/.")
 
-    content = path.read_text(encoding="utf-8")
+    content = loaded_from.read_text(encoding="utf-8")
     keys = [
         "ATS_API_BASE_URL",
         "ATS_PYTHON_EXE",
@@ -90,7 +96,11 @@ def _parse_runbook_vars(path: Path) -> Dict[str, str]:
             values[key] = match.group(1)
     missing = [k for k in keys if k not in values]
     if missing:
-        _fail(f"Runbook variables missing: {', '.join(missing)}. Update LOCAL_COMMANDS.ps1 or set env vars.")
+        suffix = "Create LOCAL_COMMANDS.ps1 from the template and fill the missing values."
+        _fail(f"Runbook variables missing: {', '.join(missing)}. {suffix}")
+    values["__loaded_from"] = str(loaded_from)
+    if loaded_from == template:
+        _fail("LOCAL_COMMANDS.ps1 is missing. Copy scripts/runbook/LOCAL_COMMANDS.template.ps1 to scripts/runbook/LOCAL_COMMANDS.ps1 and edit for your machine.")
     return values
 
 
@@ -294,7 +304,7 @@ async def _download_and_hash(client: httpx.AsyncClient, url: str) -> Tuple[str, 
 
 
 async def run_proof() -> None:
-    rb = _parse_runbook_vars(RUNBOOK_PATH)
+    rb = _parse_runbook_vars(RUNBOOK_PATH, RUNBOOK_TEMPLATE_PATH)
     redacted = {k: _redact(v) for k, v in rb.items()}
     _write_artifact(RUNBOOK_EXCERPT_ARTIFACT, json.dumps(redacted, indent=2))
 
@@ -306,6 +316,7 @@ async def run_proof() -> None:
         _write_artifact(OPENAPI_BEFORE_ARTIFACT, json.dumps(openapi_resp.json(), indent=2))
 
         preflight_lines = [
+            f"runbook_loaded_from={rb.get('__loaded_from','unknown')}",
             f"api_base_url={base_url}",
             f"health_status={health.status_code}",
             f"openapi_status={openapi_resp.status_code}",

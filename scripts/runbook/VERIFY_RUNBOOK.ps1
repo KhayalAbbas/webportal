@@ -3,8 +3,16 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $runbookPath = Join-Path $PSScriptRoot 'LOCAL_COMMANDS.ps1'
-if (-not (Test-Path $runbookPath)) {
-    throw 'Runbook missing: scripts/runbook/LOCAL_COMMANDS.ps1'
+$templatePath = Join-Path $PSScriptRoot 'LOCAL_COMMANDS.template.ps1'
+$loadedPath = $null
+$requireLocalCopy = $false
+if (Test-Path $runbookPath) {
+    $loadedPath = $runbookPath
+} elseif (Test-Path $templatePath) {
+    $loadedPath = $templatePath
+    $requireLocalCopy = $true
+} else {
+    throw 'Runbook missing: expected LOCAL_COMMANDS.ps1 or LOCAL_COMMANDS.template.ps1 under scripts/runbook/.'
 }
 
 # Paths
@@ -44,8 +52,11 @@ function Get-PathHead([string]$value) {
 }
 
 try {
-    Write-Log 'Sourcing LOCAL_COMMANDS.ps1'
-    . $runbookPath
+    Write-Log "Loading runbook file: $loadedPath"
+    . $loadedPath
+    if ($requireLocalCopy) {
+        throw 'LOCAL_COMMANDS.ps1 is missing. Copy scripts/runbook/LOCAL_COMMANDS.template.ps1 to scripts/runbook/LOCAL_COMMANDS.ps1 and edit for your machine.'
+    }
 
     $required = @('ATS_API_BASE_URL','ATS_PYTHON_EXE','ATS_GIT_EXE','ATS_ALEMBIC_EXE','ATS_START_API_CMD')
     foreach ($name in $required) {
