@@ -11,7 +11,9 @@ import io
 import json
 import os
 import re
+import uuid
 import zipfile
+from pathlib import Path, PurePosixPath
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone
@@ -113,6 +115,7 @@ class CompanyResearchService:
     EXPORT_DEFAULT_MAX_EXECUTIVES = settings.EXPORT_PACK_DEFAULT_MAX_EXECUTIVES
     EXPORT_MAX_COMPANIES = settings.EXPORT_PACK_MAX_COMPANIES
     EXPORT_MAX_EXECUTIVES = settings.EXPORT_PACK_MAX_EXECUTIVES
+    EXPORT_STORAGE_ROOT = settings.EXPORT_PACK_STORAGE_ROOT
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -2061,6 +2064,67 @@ class CompanyResearchService:
     # ====================================================================
     # Export Pack (Phase 8.1)
     # ====================================================================
+
+    def _export_storage_root(self) -> Path:
+        root = Path(self.EXPORT_STORAGE_ROOT)
+        resolved_root = root if root.is_absolute() else (Path.cwd() / root).resolve()
+        resolved_root.mkdir(parents=True, exist_ok=True)
+        return resolved_root
+
+    def _validate_storage_pointer(self, pointer: str) -> PurePosixPath:
+        path = PurePosixPath(pointer)
+        if path.is_absolute():
+            raise ValueError("export_pointer_invalid")
+        for part in path.parts:
+            if part in {"..", ""}:
+                raise ValueError("export_pointer_invalid")
+        return path
+
+    def _resolve_storage_path(self, pointer: str) -> Path:
+        relative_pointer = self._validate_storage_pointer(pointer)
+        root = self._export_storage_root().resolve()
+        resolved = (root / Path(relative_pointer)).resolve()
+        if root != resolved and root not in resolved.parents:
+            raise ValueError("export_pointer_escape")
+        return resolved
+
+    async def register_export_pack(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        file_name: str,
+        zip_bytes: bytes,
+        sha256: str,
+    ) -> "CompanyResearchExportPack":
+        export_id = uuid.uuid4()
+        pointer = PurePosixPath("company_research") / str(tenant_id) / "runs" / str(run_id) / f"export_{export_id}.zip"
+        storage_path = self._resolve_storage_path(pointer.as_posix())
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        storage_path.write_bytes(zip_bytes)
+
+        return await self.repo.create_export_pack_record(
+            export_id=export_id,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            file_name=file_name,
+            storage_pointer=pointer.as_posix(),
+            sha256=sha256,
+            size_bytes=len(zip_bytes),
+        )
+
+    async def list_export_packs_for_run(self, tenant_id: str, run_id: UUID):
+        return await self.repo.list_export_packs_for_run(tenant_id=tenant_id, run_id=run_id)
+
+    async def get_export_pack_for_download(self, tenant_id: str, export_id: UUID):
+        record = await self.repo.get_export_pack_by_id(tenant_id=tenant_id, export_id=export_id)
+        if not record:
+            return None, None
+        storage_path = self._resolve_storage_path(record.storage_pointer)
+        if not storage_path.exists():
+            raise ValueError("export_file_missing")
+        data = storage_path.read_bytes()
+        return record, data
 
     async def _company_evidence_map(self, tenant_id: str, prospect_ids: List[UUID]) -> Dict[UUID, List[UUID]]:
         if not prospect_ids:

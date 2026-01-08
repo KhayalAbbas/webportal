@@ -24,6 +24,7 @@ from app.models.company_research import (
     CompanyResearchJob,
     CompanyResearchRunPlan,
     CompanyResearchRunStep,
+    CompanyResearchExportPack,
     RobotsPolicyCache,
     ExecutiveProspect,
     ExecutiveProspectEvidence,
@@ -2336,4 +2337,63 @@ class CompanyResearchRepository:
                 error_message=message if status == "failed" else None,
             ),
         )
+
+    # ====================================================================
+    # Export Pack Registry
+    # ====================================================================
+
+    async def create_export_pack_record(
+        self,
+        *,
+        export_id: UUID,
+        tenant_id: str,
+        run_id: UUID,
+        file_name: str,
+        storage_pointer: str,
+        sha256: str,
+        size_bytes: int,
+    ) -> CompanyResearchExportPack:
+        record = CompanyResearchExportPack(
+            id=export_id,
+            tenant_id=tenant_id,
+            run_id=run_id,
+            file_name=file_name,
+            storage_pointer=storage_pointer,
+            sha256=sha256,
+            size_bytes=size_bytes,
+        )
+        self.db.add(record)
+        await self.db.flush()
+        await self.db.refresh(record)
+        return record
+
+    async def list_export_packs_for_run(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+    ) -> List[CompanyResearchExportPack]:
+        result = await self.db.execute(
+            select(CompanyResearchExportPack)
+            .where(
+                CompanyResearchExportPack.tenant_id == tenant_id,
+                CompanyResearchExportPack.run_id == run_id,
+            )
+            .order_by(desc(CompanyResearchExportPack.created_at), desc(CompanyResearchExportPack.id))
+        )
+        return list(result.scalars().all())
+
+    async def get_export_pack_by_id(
+        self,
+        *,
+        tenant_id: str,
+        export_id: UUID,
+    ) -> Optional[CompanyResearchExportPack]:
+        result = await self.db.execute(
+            select(CompanyResearchExportPack).where(
+                CompanyResearchExportPack.id == export_id,
+                CompanyResearchExportPack.tenant_id == tenant_id,
+            )
+        )
+        return result.scalar_one_or_none()
 

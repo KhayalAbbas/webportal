@@ -23,6 +23,7 @@ from sqlalchemy import (
     text,
     LargeBinary,
     func,
+    BigInteger,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -148,6 +149,12 @@ class CompanyResearchRun(TenantScopedModel):
     
     research_events: Mapped[List["CompanyResearchEvent"]] = relationship(
         "CompanyResearchEvent",
+        back_populates="research_run",
+        cascade="all, delete-orphan",
+    )
+
+    export_packs: Mapped[List["CompanyResearchExportPack"]] = relationship(
+        "CompanyResearchExportPack",
         back_populates="research_run",
         cascade="all, delete-orphan",
     )
@@ -1526,6 +1533,40 @@ class CompanyResearchRunStep(TenantScopedModel):
         UniqueConstraint("tenant_id", "run_id", "step_key", name="uq_company_research_run_steps_key"),
         Index("ix_company_research_run_steps_order", "tenant_id", "run_id", "step_order"),
         Index("ix_company_research_run_steps_status_retry", "tenant_id", "status", "next_retry_at"),
+    )
+
+
+class CompanyResearchExportPack(TenantScopedModel):
+    """Registered export pack for a research run."""
+
+    __tablename__ = "company_research_export_packs"
+
+    run_id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_research_runs.id"),
+        nullable=False,
+        index=True,
+    )
+
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    storage_pointer: Mapped[str] = mapped_column(String(500), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    research_run: Mapped["CompanyResearchRun"] = relationship(
+        "CompanyResearchRun",
+        back_populates="export_packs",
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_company_research_export_packs_tenant_run_created",
+            "tenant_id",
+            "run_id",
+            "created_at",
+        ),
+        Index("ix_company_research_export_packs_tenant_sha", "tenant_id", "sha256"),
+        Index("ix_company_research_export_packs_pointer", "tenant_id", "storage_pointer", unique=True),
     )
 
 

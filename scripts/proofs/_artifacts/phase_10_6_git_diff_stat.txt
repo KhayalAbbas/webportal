@@ -1,0 +1,12 @@
+﻿ app/core/config.py                                 |   1 +
+ app/models/company_research.py                     |  41 +++++++++++++
+ app/repositories/company_research_repo.py          |  60 +++++++++++++++++++
+ app/routers/company_research.py                    |  50 ++++++++++++++++
+ app/schemas/company_research.py                    |  11 ++++
+ app/services/company_research_service.py           |  64 +++++++++++++++++++++
+ app/ui/routes/company_research.py                  |  14 +++++
+ app/ui/templates/company_research_run_detail.html  |  31 ++++++++++
+ .../_artifacts/phase_10_5_artifact_manifest.txt    |   5 ++
+ .../_artifacts/phase_10_5_release_bundle.zip       | Bin 135680 -> 4139115 bytes
+ .../_artifacts/phase_10_5_signoff_checklist.txt    |   1 +
+ 11 files changed, 278 insertions(+)

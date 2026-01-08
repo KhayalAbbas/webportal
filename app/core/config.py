@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     EXPORT_PACK_DEFAULT_MAX_EXECUTIVES: int = 2000
     EXPORT_PACK_MAX_COMPANIES: int = 2000
     EXPORT_PACK_MAX_EXECUTIVES: int = 5000
+    EXPORT_PACK_STORAGE_ROOT: str = "artifacts/export_packs"
     BULK_ENRICH_MAX_EXECUTIVES: int = 20
 
     # External search providers (Phase 9.3)

@@ -984,6 +984,17 @@ class RunPack(BaseModel):
     audit_summary: PackAuditSummary
 
 
+class ExportPackRead(TenantScopedRead):
+    """Metadata for a stored export pack."""
+
+    run_id: UUID
+    file_name: str
+    storage_pointer: str
+    sha256: str
+    size_bytes: int
+    created_at: datetime
+
+
 class CompanyResearchRunSummary(BaseModel):
     """Summary schema for research run with prospect count."""
     

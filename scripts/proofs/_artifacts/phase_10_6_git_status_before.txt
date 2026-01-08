@@ -1,0 +1,4 @@
+﻿## master...origin/master
+ M scripts/proofs/_artifacts/phase_10_5_artifact_manifest.txt
+ M scripts/proofs/_artifacts/phase_10_5_release_bundle.zip
+ M scripts/proofs/_artifacts/phase_10_5_signoff_checklist.txt

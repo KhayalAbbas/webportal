@@ -1,0 +1,5 @@
+PASS: preflight (port, health, openapi, db, alembic head, git)
+PASS: export pack registry created rows (count=2) with stable ordering
+PASS: list endpoint matches DB ordering (created_at desc, id desc)
+PASS: download-by-id hashes match registry sha256 (relative pointers enforced)
+PASS: UI export history rendered

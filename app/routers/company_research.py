@@ -8,6 +8,7 @@ Phase 1: Backend structures, no external AI orchestration yet.
 import base64
 import binascii
 import csv
+import hashlib
 import io
 import os
 from typing import List, Optional
@@ -77,6 +78,7 @@ from app.schemas.company_research import (
     AcquireExtractJobStatusResponse,
     AcquireExtractLeaseRecoveryRequest,
     AcquireExtractLeaseRecoveryResponse,
+    ExportPackRead,
 )
 from app.schemas.contact_enrichment import ContactEnrichmentRequest
 from app.schemas.executive_contact_enrichment import (
@@ -2295,8 +2297,56 @@ async def export_run_pack(
         raise
 
     filename = f"run_{run_id}_pack.zip"
+    sha_value = hashlib.sha256(zip_bytes).hexdigest()
+
+    export_record = await service.register_export_pack(
+        tenant_id=current_user.tenant_id,
+        run_id=run_id,
+        file_name=filename,
+        zip_bytes=zip_bytes,
+        sha256=sha_value,
+    )
+    await db.commit()
+
     headers = {"Content-Disposition": f"attachment; filename={filename}"}
     return StreamingResponse(io.BytesIO(zip_bytes), media_type="application/zip", headers=headers)
+
+
+@router.get("/runs/{run_id}/export-packs", response_model=List[ExportPackRead])
+async def list_export_packs(
+    run_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    service = CompanyResearchService(db)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise_app_error(404, "RUN_NOT_FOUND", "Research run not found", {"run_id": str(run_id)})
+
+    records = await service.list_export_packs_for_run(current_user.tenant_id, run_id)
+    return [ExportPackRead.model_validate(rec) for rec in records]
+
+
+@router.get("/export-packs/{export_id}", response_class=StreamingResponse)
+async def download_export_pack(
+    export_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    service = CompanyResearchService(db)
+    try:
+        record, data = await service.get_export_pack_for_download(current_user.tenant_id, export_id)
+    except ValueError as exc:  # noqa: BLE001
+        if str(exc) in {"export_file_missing", "export_pointer_escape", "export_pointer_invalid"}:
+            raise_app_error(404, "EXPORT_NOT_FOUND", "Export pack not found", {"export_id": str(export_id)})
+        raise
+
+    if not record:
+        raise_app_error(404, "EXPORT_NOT_FOUND", "Export pack not found", {"export_id": str(export_id)})
+
+    filename = record.file_name or f"export_{export_id}.zip"
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
+    return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
 
 
 @router.patch("/runs/{run_id}", response_model=CompanyResearchRunRead)

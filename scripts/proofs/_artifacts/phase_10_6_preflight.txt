@@ -1,0 +1,21 @@
+PORT_OK host=127.0.0.1 port=8000
+HEALTH status=200
+OPENAPI status=200 length=365630
+ALEMBIC version_rows=['b6f20f1d5a7c']
+ALEMBIC_AT_HEAD=True
+DB_OK select1
+GIT_STATUS ## master...origin/master
+ M app/core/config.py
+ M app/models/company_research.py
+ M app/repositories/company_research_repo.py
+ M app/routers/company_research.py
+ M app/schemas/company_research.py
+ M app/services/company_research_service.py
+ M app/ui/routes/company_research.py
+ M app/ui/templates/company_research_run_detail.html
+ M scripts/proofs/_artifacts/phase_10_5_artifact_manifest.txt
+ M scripts/proofs/_artifacts/phase_10_5_release_bundle.zip
+ M scripts/proofs/_artifacts/phase_10_5_signoff_checklist.txt
+?? alembic/versions/b6f20f1d5a7c_phase_10_6_export_pack_registry.py
+?? scripts/proofs/phase_10_6_export_pack_registry.py
+GIT_LOG commit 742628915174e5e5c2362b2dc3933c3896cfc761 (HEAD -> master, tag: phase_10_5_signed_off_v4, origin/master, origin/HEAD)

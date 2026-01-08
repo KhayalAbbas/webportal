@@ -516,6 +516,8 @@ async def company_research_run_detail(
         limit=50,
     )
 
+    export_packs = await service.list_export_packs_for_run(current_user.tenant_id, run_id)
+
     plan, run_steps = await service.ensure_plan_and_steps(current_user.tenant_id, run_id)
     steps_sorted = sorted(run_steps, key=lambda s: s.step_order)
     
@@ -772,6 +774,17 @@ async def company_research_run_detail(
             if v not in {None, ""}
         }
     )
+
+    export_pack_rows = [
+        {
+            "id": str(rec.id),
+            "created_at": rec.created_at,
+            "sha256": rec.sha256,
+            "size_bytes": rec.size_bytes,
+            "file_name": rec.file_name,
+        }
+        for rec in export_packs
+    ]
     
     return templates.TemplateResponse(
         "company_research_run_detail.html",
@@ -824,6 +837,7 @@ async def company_research_run_detail(
             "executives": executives_flat,
             "executive_groups": executive_groups,
             "executive_total_count": executive_total_count,
+            "export_packs": export_pack_rows,
         }
     )
 

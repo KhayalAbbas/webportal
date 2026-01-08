@@ -1,0 +1,204 @@
+{
+  "/company-research/export-packs/{export_id}": {
+    "get": {
+      "operationId": "download_export_pack_company_research_export_packs__export_id__get",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "export_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "title": "Export Id",
+            "type": "string"
+          }
+        },
+        {
+          "in": "header",
+          "name": "x-tenant-id",
+          "required": false,
+          "schema": {
+            "title": "X-Tenant-Id",
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response"
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          },
+          "description": "Validation Error"
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "summary": "Download Export Pack",
+      "tags": [
+        "company-research"
+      ]
+    }
+  },
+  "/company-research/runs/{run_id}/export-pack.zip": {
+    "get": {
+      "description": "Export a deterministic run pack (JSON + CSVs + optional HTML) as a ZIP.",
+      "operationId": "export_run_pack_company_research_runs__run_id__export_pack_zip_get",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "run_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        {
+          "description": "Include an HTML print view in the archive",
+          "in": "query",
+          "name": "include_html",
+          "required": false,
+          "schema": {
+            "default": false,
+            "description": "Include an HTML print view in the archive",
+            "title": "Include Html",
+            "type": "boolean"
+          }
+        },
+        {
+          "description": "Maximum companies to include in the pack",
+          "in": "query",
+          "name": "max_companies",
+          "required": false,
+          "schema": {
+            "default": 500,
+            "description": "Maximum companies to include in the pack",
+            "maximum": 2000,
+            "minimum": 1,
+            "title": "Max Companies",
+            "type": "integer"
+          }
+        },
+        {
+          "description": "Maximum executives to include in the pack",
+          "in": "query",
+          "name": "max_executives",
+          "required": false,
+          "schema": {
+            "default": 2000,
+            "description": "Maximum executives to include in the pack",
+            "maximum": 5000,
+            "minimum": 1,
+            "title": "Max Executives",
+            "type": "integer"
+          }
+        },
+        {
+          "in": "header",
+          "name": "x-tenant-id",
+          "required": false,
+          "schema": {
+            "title": "X-Tenant-Id",
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Successful Response"
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          },
+          "description": "Validation Error"
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "summary": "Export Run Pack",
+      "tags": [
+        "company-research"
+      ]
+    }
+  },
+  "/company-research/runs/{run_id}/export-packs": {
+    "get": {
+      "operationId": "list_export_packs_company_research_runs__run_id__export_packs_get",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "run_id",
+          "required": true,
+          "schema": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        {
+          "in": "header",
+          "name": "x-tenant-id",
+          "required": false,
+          "schema": {
+            "title": "X-Tenant-Id",
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/ExportPackRead"
+                },
+                "title": "Response List Export Packs Company Research Runs  Run Id  Export Packs Get",
+                "type": "array"
+              }
+            }
+          },
+          "description": "Successful Response"
+        },
+        "422": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HTTPValidationError"
+              }
+            }
+          },
+          "description": "Validation Error"
+        }
+      },
+      "security": [
+        {
+          "HTTPBearer": []
+        }
+      ],
+      "summary": "List Export Packs",
+      "tags": [
+        "company-research"
+      ]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+=== Phase 10.6 export pack registry ===
+Tenant: e33214cc-7d12-4350-ab1d-9b1b824e24cb
+Run: fec61161-bf80-4b84-9b28-5de5acf25d33
+Export1 bytes=2974 sha=8510710fee93b97f441d1b7b2854e0901267f06e4efa56541d71fd8c4eda25cf
+Export2 bytes=2974 sha=2f2fc2a0ad0431b6c491e38b669ef552b68cf3b331d5400b48e1920d79939b6a
+DB export ids (ordered): ['d75e88e9-7c1d-45fa-8948-2467a04c7090', '105bea7e-4161-4d6c-8d59-3a5fee6ddd86']

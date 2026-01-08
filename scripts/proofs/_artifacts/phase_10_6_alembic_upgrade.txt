@@ -1,0 +1,11 @@
+﻿alembic.exe : INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+At line:1 char:122
++ ... lembic_upgrade.txt'; & $env:ATS_ALEMBIC_EXE upgrade head *>&1 | Out-F 
+...
++                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (INFO  [alembic....PostgresqlImp 
+   l.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+RESULT=PASS CODE=0
