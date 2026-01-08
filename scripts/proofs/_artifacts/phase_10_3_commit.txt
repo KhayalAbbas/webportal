@@ -1,3 +1,22 @@
+commit c6a3bf06fd5eec1f5f2d7dad22b29aa4ab099fd0
+Author: ATS Local <local@ats>
+Date:   Thu Jan 8 13:48:50 2026 +0400
+
+    Phase 10.3: stabilize tag artifact
+
+ scripts/proofs/_artifacts/phase_10_3_tag.txt | 1 -
+ 1 file changed, 1 deletion(-)
+
+commit 6579cd0a7e7052345477c50da3c59edb4066ea9c
+Author: ATS Local <local@ats>
+Date:   Thu Jan 8 13:48:30 2026 +0400
+
+    Phase 10.3: finalize tag record
+
+ scripts/proofs/_artifacts/phase_10_3_commit.txt | 47 ++++++-------------------
+ scripts/proofs/_artifacts/phase_10_3_tag.txt    |  2 +-
+ 2 files changed, 11 insertions(+), 38 deletions(-)
+
 commit 11d908e2c3325ead4cb0832d49eba081a0afa707
 Author: ATS Local <local@ats>
 Date:   Thu Jan 8 13:48:06 2026 +0400
@@ -27,25 +46,3 @@ Date:   Thu Jan 8 13:47:08 2026 +0400
  scripts/proofs/_artifacts/phase_10_3_push.txt | 4 ----
  scripts/proofs/_artifacts/phase_10_3_tag.txt  | 6 ++++--
  2 files changed, 4 insertions(+), 6 deletions(-)
-
-commit bd37397f914e276ffe79ee95a13037eccbe5680d
-Author: ATS Local <local@ats>
-Date:   Thu Jan 8 13:43:02 2026 +0400
-
-    Phase 10.3: update push/tag artifacts
-
- scripts/proofs/_artifacts/phase_10_3_push.txt | 8 +++++---
- scripts/proofs/_artifacts/phase_10_3_tag.txt  | 2 +-
- 2 files changed, 6 insertions(+), 4 deletions(-)
-
-commit e5809ff69f9006e55d3fac12beed377ba2a41510
-Author: ATS Local <local@ats>
-Date:   Thu Jan 8 13:41:58 2026 +0400
-
-    Phase 10.3: push/tag/signoff artifacts
-
- scripts/proofs/_artifacts/phase_10_3_git_after.txt         | Bin 0 -> 56 bytes
- scripts/proofs/_artifacts/phase_10_3_push.txt              |   7 +++++++
- scripts/proofs/_artifacts/phase_10_3_signoff_checklist.txt |   2 +-
- scripts/proofs/_artifacts/phase_10_3_tag.txt               |   4 ++++
- 4 files changed, 12 insertions(+), 1 deletion(-)
