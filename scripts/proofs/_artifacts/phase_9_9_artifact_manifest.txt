@@ -1,0 +1,16 @@
+phase_9_9_preflight.txt
+phase_9_9_openapi_before.json
+phase_9_9_openapi_after.json
+phase_9_9_openapi_after_excerpt.txt
+phase_9_9_proof.txt
+phase_9_9_proof_console.txt
+phase_9_9_export_first.zip
+phase_9_9_export_second.zip
+phase_9_9_export_file_list_first.txt
+phase_9_9_export_file_list_second.txt
+phase_9_9_export_json_snippets.json
+phase_9_9_db_excerpt.txt
+phase_9_9_discovery_notes.txt
+phase_9_9_signoff_checklist.txt
+phase_9_9_release_notes.md
+phase_9_9_artifact_manifest.txt (this file)

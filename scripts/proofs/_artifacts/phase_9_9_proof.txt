@@ -1,0 +1,4 @@
+phase_9_9_export_pack_canonical_execs_proof PASS
+tenant=860500aa-0076-4210-a16b-53eef8e3ffb7
+run=895edc2f-4449-4152-a28f-6c57f87ba856
+Assertions: dual-engine discovery succeeded; mark_same and keep_separate recorded; promotion resolved to canonical and populated ATS linkage; export pack deterministic across passes; new artifacts present with canonical/resolution/decision data; legacy artifacts preserved.

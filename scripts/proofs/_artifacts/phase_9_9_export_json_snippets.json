@@ -1,0 +1,205 @@
+{
+  "canonical_executives": [
+    {
+      "assignment_id": "a5232657-fe43-477b-86f0-ee163828272e",
+      "assignment_status": "sourced",
+      "candidate_id": "6555f7ab-c529-4d40-9773-a05b69cee0a2",
+      "canonical_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "company_prospect_id": "44625421-5bd9-4649-a217-aed57d5d1864",
+      "component_size": 2,
+      "display_name": "helio labs cfo",
+      "member_executive_ids": [
+        "36680815-d0c0-4bc7-8701-976a527b1c23",
+        "3943b5e5-edb0-4c3e-962f-5165f449d8a1"
+      ],
+      "members": [
+        {
+          "discovered_by": "both",
+          "executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+          "resolution_sources": [
+            "merge_decision"
+          ],
+          "review_status": "accepted",
+          "verification_status": "unverified"
+        },
+        {
+          "discovered_by": "both",
+          "executive_id": "3943b5e5-edb0-4c3e-962f-5165f449d8a1",
+          "resolution_sources": [
+            "merge_decision"
+          ],
+          "review_status": "new",
+          "verification_status": "unverified"
+        }
+      ],
+      "pipeline_stage_id": "c1111406-3a80-4a41-821a-44a4ded9dfb1",
+      "pipeline_stage_name": "Sourced",
+      "provenance": "both",
+      "resolution_sources": [
+        "merge_decision"
+      ],
+      "review_status": "accepted",
+      "role_id": "45a00716-0fec-4de7-9ccf-26f14eb5f5fb",
+      "title": "Chief Financial Officer",
+      "verification_status": "unverified"
+    },
+    {
+      "canonical_executive_id": "692de0d3-ef5d-4b7c-9711-cd9d39debbad",
+      "company_prospect_id": "44625421-5bd9-4649-a217-aed57d5d1864",
+      "component_size": 1,
+      "display_name": "helio labs ceo",
+      "member_executive_ids": [
+        "692de0d3-ef5d-4b7c-9711-cd9d39debbad"
+      ],
+      "members": [
+        {
+          "discovered_by": "both",
+          "executive_id": "692de0d3-ef5d-4b7c-9711-cd9d39debbad",
+          "resolution_sources": [
+            "self"
+          ],
+          "review_status": "new",
+          "verification_status": "unverified"
+        }
+      ],
+      "provenance": "both",
+      "resolution_sources": [
+        "self"
+      ],
+      "review_status": "new",
+      "title": "Chief Executive Officer",
+      "verification_status": "unverified"
+    }
+  ],
+  "decisions": [
+    {
+      "action": "mark_same",
+      "canonical_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "company_prospect_id": "44625421-5bd9-4649-a217-aed57d5d1864",
+      "decided_by": "proof@example.com",
+      "decision_id": "279f1136-5da6-47cb-b451-38c8494c2000",
+      "evidence_enrichment_ids": [],
+      "evidence_source_document_ids": [],
+      "left_canonical_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "left_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "right_canonical_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "right_executive_id": "3943b5e5-edb0-4c3e-962f-5165f449d8a1"
+    },
+    {
+      "action": "keep_separate",
+      "company_prospect_id": "44625421-5bd9-4649-a217-aed57d5d1864",
+      "decided_by": "proof@example.com",
+      "decision_id": "eaba6563-2306-491a-b858-933e51ea9386",
+      "evidence_enrichment_ids": [],
+      "evidence_source_document_ids": [],
+      "left_canonical_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "left_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "right_canonical_executive_id": "692de0d3-ef5d-4b7c-9711-cd9d39debbad",
+      "right_executive_id": "692de0d3-ef5d-4b7c-9711-cd9d39debbad"
+    }
+  ],
+  "hashes": {
+    "first_zip_sha256": "473799355485ba9adb7763d48cb6c3a39de95454b6e8017d94d1367b84640113",
+    "second_zip_sha256": "473799355485ba9adb7763d48cb6c3a39de95454b6e8017d94d1367b84640113"
+  },
+  "promotion_result": {
+    "assignment_id": "a5232657-fe43-477b-86f0-ee163828272e",
+    "assignment_status": "sourced",
+    "candidate_id": "6555f7ab-c529-4d40-9773-a05b69cee0a2",
+    "contact_id": null,
+    "evidence_source_document_ids": [
+      "87ccae59-aa39-4e5e-92bb-bc3d4432a568"
+    ],
+    "idempotent": false,
+    "pipeline_stage_id": "c1111406-3a80-4a41-821a-44a4ded9dfb1",
+    "pipeline_stage_name": "Sourced",
+    "promoted_count": 1,
+    "research_event_id": "2f9c390d-7145-42c8-8197-1ae847ff75c7",
+    "results": [
+      {
+        "assignment_id": "a5232657-fe43-477b-86f0-ee163828272e",
+        "assignment_status": "sourced",
+        "candidate_id": "6555f7ab-c529-4d40-9773-a05b69cee0a2",
+        "canonical_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+        "component_executive_ids": [
+          "36680815-d0c0-4bc7-8701-976a527b1c23",
+          "3943b5e5-edb0-4c3e-962f-5165f449d8a1"
+        ],
+        "component_size": 2,
+        "contact_id": null,
+        "evidence_source_document_ids": [
+          "87ccae59-aa39-4e5e-92bb-bc3d4432a568"
+        ],
+        "idempotent": false,
+        "outcome": "created",
+        "pipeline_stage_id": "c1111406-3a80-4a41-821a-44a4ded9dfb1",
+        "pipeline_stage_name": "Sourced",
+        "requested_executive_id": "3943b5e5-edb0-4c3e-962f-5165f449d8a1",
+        "research_event_id": "2f9c390d-7145-42c8-8197-1ae847ff75c7",
+        "resolution_sources": [
+          "merge_decision"
+        ],
+        "resolved_to_canonical": true,
+        "reuse_reason": null,
+        "review_status": "accepted",
+        "role_id": "45a00716-0fec-4de7-9ccf-26f14eb5f5fb",
+        "source_document_id": "da071675-1fa9-48ec-96bf-d85c62729dfb"
+      }
+    ],
+    "reused_count": 0,
+    "review_status": "accepted",
+    "role_id": "45a00716-0fec-4de7-9ccf-26f14eb5f5fb",
+    "source_document_id": "da071675-1fa9-48ec-96bf-d85c62729dfb"
+  },
+  "resolution_map": [
+    {
+      "canonical_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "component_member_ids": [
+        "36680815-d0c0-4bc7-8701-976a527b1c23",
+        "3943b5e5-edb0-4c3e-962f-5165f449d8a1"
+      ],
+      "component_size": 2,
+      "discovered_by": "both",
+      "executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "resolution_sources": [
+        "merge_decision"
+      ],
+      "review_status": "accepted",
+      "verification_status": "unverified"
+    },
+    {
+      "canonical_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+      "component_member_ids": [
+        "36680815-d0c0-4bc7-8701-976a527b1c23",
+        "3943b5e5-edb0-4c3e-962f-5165f449d8a1"
+      ],
+      "component_size": 2,
+      "discovered_by": "both",
+      "executive_id": "3943b5e5-edb0-4c3e-962f-5165f449d8a1",
+      "resolution_sources": [
+        "merge_decision"
+      ],
+      "review_status": "new",
+      "verification_status": "unverified"
+    },
+    {
+      "canonical_executive_id": "692de0d3-ef5d-4b7c-9711-cd9d39debbad",
+      "component_member_ids": [
+        "692de0d3-ef5d-4b7c-9711-cd9d39debbad"
+      ],
+      "component_size": 1,
+      "discovered_by": "both",
+      "executive_id": "692de0d3-ef5d-4b7c-9711-cd9d39debbad",
+      "resolution_sources": [
+        "self"
+      ],
+      "review_status": "new",
+      "verification_status": "unverified"
+    }
+  ],
+  "row_counts": {
+    "canonical_executives": 2,
+    "executive_decisions": 2,
+    "executive_resolutions": 3
+  }
+}

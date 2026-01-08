@@ -1,0 +1,37 @@
+Phase 9.9 export-pack discovery (from live OpenAPI + code)
+
+Endpoint
+- GET /company-research/runs/{run_id}/export-pack.zip (StreamingResponse)
+- Query params: include_html (bool, default false), max_companies (default CompanyResearchService.EXPORT_DEFAULT_MAX_COMPANIES, ge=1, le=EXPORT_MAX_COMPANIES), max_executives (default EXPORT_DEFAULT_MAX_EXECUTIVES, ge=1, le=EXPORT_MAX_EXECUTIVES)
+- Router prefix /company-research; served under API root (FastAPI app main mounts routers under /api)
+- Content-Disposition: attachment; filename=run_{run_id}_pack.zip
+
+Export creation location
+- Router calls CompanyResearchService.build_run_export_pack; builds pack in memory and returns zip_bytes (io.BytesIO -> zipfile.ZIP_DEFLATED). No filesystem writes; pack streamed directly from memory.
+
+Legacy files preserved (per _serialize_pack_csvs and run_pack.json)
+- run_pack.json
+- companies.csv
+- executives.csv
+- merge_decisions.csv (also aliased to executive_decisions.csv)
+- audit_summary.csv
+- README.txt (lists contents; optional print_view.html when include_html=true)
+- print_view.html (optional via include_html)
+
+New Phase 9.9 files (added in service build/serialization)
+- canonical_executives.json
+- canonical_executives.csv
+- executive_resolution_map.json
+- executive_resolution_map.csv
+- executive_decisions.json (JSON mirror of merge_decisions)
+- executive_decisions.csv (alias of merge_decisions.csv)
+
+Key schema additions
+- RunPack now includes canonical_executives[] and executive_resolutions[] collections
+- PackMergeDecision includes left/right canonical IDs + canonical_executive_id
+- Canonical exec entries carry component members, resolution_sources, reuse_reason, and ATS linkage fields (candidate/contact/assignment/pipeline stage)
+- Resolution map entries provide member->canonical mapping with component membership and provenance
+
+Notes on determinism
+- generated_at excluded from RunPack
+- Sorting applied for companies (rank), executives (company, rank), merge decisions (company/id), canonical execs (canonical_executive_id), resolution entries (executive_id)

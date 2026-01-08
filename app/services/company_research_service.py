@@ -72,6 +72,9 @@ from app.schemas.company_research import (
     RunPack,
     PackCompany,
     PackExecutive,
+    PackCanonicalExecutive,
+    PackCanonicalExecutiveMember,
+    PackExecutiveResolution,
     PackMergeDecision,
     PackAuditEvent,
     PackAuditSummary,
@@ -2207,6 +2210,61 @@ class CompanyResearchService:
             )
         files["executives.csv"] = exec_rows.getvalue().encode("utf-8")
 
+        canonical_rows = io.StringIO()
+        canonical_writer = csv.writer(canonical_rows)
+        canonical_writer.writerow(
+            [
+                "canonical_executive_id",
+                "company_prospect_id",
+                "canonical_company_id",
+                "display_name",
+                "title",
+                "provenance",
+                "review_status",
+                "verification_status",
+                "component_size",
+                "member_executive_ids",
+                "member_resolution_sources",
+                "candidate_id",
+                "contact_id",
+                "role_id",
+                "assignment_id",
+                "assignment_status",
+                "pipeline_stage_id",
+                "pipeline_stage_name",
+                "reuse_reason",
+            ]
+        )
+        for canonical in sorted(pack.canonical_executives, key=lambda c: str(c.canonical_executive_id)):
+            member_ids_text = "|".join(str(mid) for mid in canonical.member_executive_ids)
+            member_sources_text = ";".join(
+                f"{member.executive_id}:{'|'.join(member.resolution_sources)}" for member in canonical.members
+            )
+            canonical_writer.writerow(
+                [
+                    canonical.canonical_executive_id,
+                    canonical.company_prospect_id,
+                    canonical.canonical_company_id,
+                    canonical.display_name or "",
+                    canonical.title or "",
+                    canonical.provenance or "",
+                    canonical.review_status or "",
+                    canonical.verification_status or "",
+                    canonical.component_size,
+                    member_ids_text,
+                    member_sources_text,
+                    canonical.candidate_id,
+                    canonical.contact_id,
+                    canonical.role_id,
+                    canonical.assignment_id,
+                    canonical.assignment_status or "",
+                    canonical.pipeline_stage_id,
+                    canonical.pipeline_stage_name or "",
+                    canonical.reuse_reason or "",
+                ]
+            )
+        files["canonical_executives.csv"] = canonical_rows.getvalue().encode("utf-8")
+
         merge_rows = io.StringIO()
         merge_writer = csv.writer(merge_rows)
         merge_writer.writerow(
@@ -2216,6 +2274,9 @@ class CompanyResearchService:
                 "canonical_company_id",
                 "left_executive_id",
                 "right_executive_id",
+                    "left_canonical_executive_id",
+                    "right_canonical_executive_id",
+                    "canonical_executive_id",
                 "action",
                 "decided_by",
                 "evidence_source_document_ids",
@@ -2230,6 +2291,9 @@ class CompanyResearchService:
                     decision.canonical_company_id,
                     decision.left_executive_id,
                     decision.right_executive_id,
+                    decision.left_canonical_executive_id,
+                    decision.right_canonical_executive_id,
+                    decision.canonical_executive_id,
                     decision.action,
                     decision.decided_by,
                     "|".join(str(eid) for eid in decision.evidence_source_document_ids),
@@ -2237,6 +2301,38 @@ class CompanyResearchService:
                 ]
             )
         files["merge_decisions.csv"] = merge_rows.getvalue().encode("utf-8")
+        files["executive_decisions.csv"] = files["merge_decisions.csv"]
+
+        resolution_rows = io.StringIO()
+        resolution_writer = csv.writer(resolution_rows)
+        resolution_writer.writerow(
+            [
+                "executive_id",
+                "canonical_executive_id",
+                "component_size",
+                "component_member_ids",
+                "resolution_sources",
+                "review_status",
+                "verification_status",
+                "discovered_by",
+                "reuse_reason",
+            ]
+        )
+        for resolution in pack.executive_resolutions:
+            resolution_writer.writerow(
+                [
+                    resolution.executive_id,
+                    resolution.canonical_executive_id,
+                    resolution.component_size,
+                    "|".join(str(mid) for mid in resolution.component_member_ids),
+                    "|".join(resolution.resolution_sources),
+                    resolution.review_status or "",
+                    resolution.verification_status or "",
+                    resolution.discovered_by or "",
+                    resolution.reuse_reason or "",
+                ]
+            )
+        files["executive_resolution_map.csv"] = resolution_rows.getvalue().encode("utf-8")
 
         audit_rows = io.StringIO()
         audit_writer = csv.writer(audit_rows)
@@ -2394,8 +2490,15 @@ class CompanyResearchService:
         )
         exec_map: Dict[UUID, dict] = {UUID(str(row["id"])): row for row in exec_rows}
 
+        canonical_map, component_map, source_map, exec_obj_map = await self._build_exec_canonical_maps(
+            tenant_id,
+            run_id,
+        )
+
+        all_exec_ids = list(exec_map.keys())
+
         contact_map = await self._latest_exec_contact_enrichment_map(tenant_id, exec_ids)
-        pipeline_map = await self._pipeline_map(tenant_id, exec_ids)
+        pipeline_map = await self._pipeline_map(tenant_id, all_exec_ids)
 
         executives_by_company: Dict[str, List[PackExecutive]] = defaultdict(list)
         flat_execs: List[PackExecutive] = []
@@ -2437,6 +2540,9 @@ class CompanyResearchService:
         decisions = await self.repo.list_merge_decisions_for_run(tenant_id, run_id)
         pack_decisions: List[PackMergeDecision] = []
         for dec in decisions:
+            left_canonical = canonical_map.get(dec.left_executive_id, dec.left_executive_id)
+            right_canonical = canonical_map.get(dec.right_executive_id, dec.right_executive_id)
+            canonical_exec_id = left_canonical if dec.decision_type == "mark_same" else None
             pack_decisions.append(
                 PackMergeDecision(
                     decision_id=dec.id,
@@ -2444,6 +2550,9 @@ class CompanyResearchService:
                     canonical_company_id=dec.canonical_company_id,
                     left_executive_id=dec.left_executive_id,
                     right_executive_id=dec.right_executive_id,
+                    left_canonical_executive_id=left_canonical,
+                    right_canonical_executive_id=right_canonical,
+                    canonical_executive_id=canonical_exec_id,
                     action=dec.decision_type,  # mark_same | keep_separate
                     decided_by=dec.created_by,
                     evidence_source_document_ids=sorted({UUID(str(e)) for e in (dec.evidence_source_document_ids or [])}, key=lambda v: str(v)),
@@ -2453,18 +2562,130 @@ class CompanyResearchService:
 
         audit_summary = self._build_pack_audit_summary(pack_companies, flat_execs, pipeline_map)
 
+        canonical_executives: List[PackCanonicalExecutive] = []
+        seen_canonical: set[UUID] = set()
+        canonical_ids_sorted = sorted({canonical_map.get(exec_id, exec_id) for exec_id in exec_map.keys()}, key=lambda v: str(v))
+
+        def _exec_value(member_id: UUID, key: str) -> Optional[Any]:
+            row = exec_map.get(member_id, {})
+            if key in row:
+                return row.get(key)
+            obj = exec_obj_map.get(member_id)
+            return getattr(obj, key, None) if obj else None
+
+        for canonical_id in canonical_ids_sorted:
+            if canonical_id in seen_canonical:
+                continue
+            component_ids = sorted({*component_map.get(canonical_id, [canonical_id])}, key=lambda v: str(v))
+            seen_canonical.update(component_ids)
+
+            canonical_row = exec_map.get(canonical_id, {})
+            canonical_obj = exec_obj_map.get(canonical_id)
+            pipeline_info = None
+            for member_id in component_ids:
+                if member_id in pipeline_map:
+                    pipeline_info = pipeline_map.get(member_id)
+                    break
+
+            provenance = None
+            for member_id in component_ids:
+                provenance = self._merge_provenance(provenance, _exec_value(member_id, "provenance") or _exec_value(member_id, "discovered_by"))
+
+            members: List[PackCanonicalExecutiveMember] = []
+            component_sources: set[str] = set()
+            for member_id in component_ids:
+                member_sources = source_map.get(member_id) or {"self"}
+                component_sources.update(member_sources)
+                members.append(
+                    PackCanonicalExecutiveMember(
+                        executive_id=member_id,
+                        review_status=_exec_value(member_id, "review_status"),
+                        verification_status=_exec_value(member_id, "verification_status"),
+                        discovered_by=_exec_value(member_id, "discovered_by"),
+                        resolution_sources=sorted(member_sources),
+                        reuse_reason=_exec_value(member_id, "reuse_reason"),
+                    )
+                )
+
+            canonical_executives.append(
+                PackCanonicalExecutive(
+                    canonical_executive_id=canonical_id,
+                    company_prospect_id=canonical_row.get("company_prospect_id") or getattr(canonical_obj, "company_prospect_id", None),
+                    canonical_company_id=canonical_row.get("canonical_company_id") or getattr(canonical_obj, "canonical_company_id", None),
+                    display_name=canonical_row.get("display_name")
+                    or canonical_row.get("name_normalized")
+                    or canonical_row.get("name_raw")
+                    or getattr(canonical_obj, "name_normalized", None)
+                    or getattr(canonical_obj, "name_raw", None),
+                    title=canonical_row.get("title") or getattr(canonical_obj, "title", None) or getattr(canonical_obj, "current_title", None),
+                    provenance=provenance or canonical_row.get("provenance") or getattr(canonical_obj, "discovered_by", None),
+                    review_status=canonical_row.get("review_status") or getattr(canonical_obj, "review_status", None),
+                    verification_status=canonical_row.get("verification_status") or getattr(canonical_obj, "verification_status", None),
+                    component_size=len(component_ids),
+                    member_executive_ids=component_ids,
+                    members=members,
+                    resolution_sources=sorted(component_sources) if component_sources else ["self"],
+                    candidate_id=(pipeline_info or {}).get("candidate_id"),
+                    contact_id=(pipeline_info or {}).get("contact_id"),
+                    role_id=(pipeline_info or {}).get("role_id"),
+                    assignment_id=(pipeline_info or {}).get("assignment_id"),
+                    assignment_status=(pipeline_info or {}).get("assignment_status"),
+                    pipeline_stage_id=(pipeline_info or {}).get("pipeline_stage_id"),
+                    pipeline_stage_name=(pipeline_info or {}).get("pipeline_stage_name"),
+                    reuse_reason=canonical_row.get("reuse_reason") or getattr(canonical_obj, "reuse_reason", None),
+                )
+            )
+
+        executive_resolutions: List[PackExecutiveResolution] = []
+        for exec_id in sorted(exec_map.keys(), key=lambda v: str(v)):
+            canonical_id = canonical_map.get(exec_id, exec_id)
+            component_ids = sorted({*component_map.get(exec_id, [exec_id])}, key=lambda v: str(v))
+            resolution_sources = source_map.get(exec_id) or {"self"}
+            exec_row = exec_map.get(exec_id, {})
+            exec_obj = exec_obj_map.get(exec_id)
+            executive_resolutions.append(
+                PackExecutiveResolution(
+                    executive_id=exec_id,
+                    canonical_executive_id=canonical_id,
+                    component_size=len(component_ids),
+                    component_member_ids=component_ids,
+                    resolution_sources=sorted(resolution_sources),
+                    review_status=exec_row.get("review_status") or getattr(exec_obj, "review_status", None),
+                    verification_status=exec_row.get("verification_status") or getattr(exec_obj, "verification_status", None),
+                    discovered_by=exec_row.get("discovered_by") or getattr(exec_obj, "discovered_by", None),
+                    reuse_reason=exec_row.get("reuse_reason") or getattr(exec_obj, "reuse_reason", None),
+                )
+            )
+
         pack = RunPack(
             run_id=run_id,
-            tenant_id=tenant_id,
+            tenant_id=str(tenant_id),
             generated_at=None,  # excluded from export for determinism
             companies=pack_companies,
             executives_by_company={key: value for key, value in sorted(executives_by_company.items(), key=lambda pair: pair[0])},
             merge_decisions=sorted(pack_decisions, key=lambda d: (str(d.company_prospect_id or ""), str(d.decision_id))),
+            canonical_executives=sorted(canonical_executives, key=lambda c: str(c.canonical_executive_id)),
+            executive_resolutions=executive_resolutions,
             audit_summary=audit_summary,
         )
 
         pack_json_bytes = json.dumps(pack.model_dump(mode="json", exclude_none=True), sort_keys=True, indent=2).encode("utf-8")
         files = self._serialize_pack_csvs(pack)
+        files["canonical_executives.json"] = json.dumps(
+            [item.model_dump(mode="json", exclude_none=True) for item in pack.canonical_executives],
+            sort_keys=True,
+            indent=2,
+        ).encode("utf-8")
+        files["executive_resolution_map.json"] = json.dumps(
+            [item.model_dump(mode="json", exclude_none=True) for item in pack.executive_resolutions],
+            sort_keys=True,
+            indent=2,
+        ).encode("utf-8")
+        files["executive_decisions.json"] = json.dumps(
+            [item.model_dump(mode="json", exclude_none=True) for item in pack.merge_decisions],
+            sort_keys=True,
+            indent=2,
+        ).encode("utf-8")
         files["run_pack.json"] = pack_json_bytes
 
         if include_html:
@@ -2473,9 +2694,15 @@ class CompanyResearchService:
         readme = [
             "Export pack contents:",
             "- run_pack.json",
+            "- canonical_executives.json",
+            "- executive_resolution_map.json",
+            "- executive_decisions.json",
             "- companies.csv",
             "- executives.csv",
+            "- canonical_executives.csv",
             "- merge_decisions.csv",
+            "- executive_resolution_map.csv",
+            "- executive_decisions.csv",
             "- audit_summary.csv",
         ]
         if include_html:

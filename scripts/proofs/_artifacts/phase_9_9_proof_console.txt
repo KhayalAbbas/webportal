@@ -1,0 +1,7 @@
+run=895edc2f-4449-4152-a28f-6c57f87ba856 tenant=860500aa-0076-4210-a16b-53eef8e3ffb7 seed_status=200
+eligible_before=200 eligible_after=200 gate=200
+exec_discovery_status=200
+mark_same=200 left=36680815-d0c0-4bc7-8701-976a527b1c23 right=3943b5e5-edb0-4c3e-962f-5165f449d8a1
+keep_separate=200 left=692de0d3-ef5d-4b7c-9711-cd9d39debbad right=36680815-d0c0-4bc7-8701-976a527b1c23
+accept_canonical status=200 canonical=36680815-d0c0-4bc7-8701-976a527b1c23
+promotion status=200 resolved_to_canonical=True

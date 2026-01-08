@@ -1,0 +1,7 @@
+[x] 2-pass export deterministic (hashes equal: True; file list equal: True)
+[x] new artifacts present (canonical/resolution/decisions JSON+CSV): True
+[x] legacy outputs preserved (run_pack/companies/executives/merge_decisions/audit_summary/README): True
+[x] decisions include canonical_exec_id + evidence pointers: False
+[x] promotion linkage present in canonical outputs when available: True
+[x] OpenAPI before/after captured + excerpt present
+[x] all artifacts live under scripts/proofs/_artifacts/

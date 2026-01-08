@@ -830,10 +830,63 @@ class PackMergeDecision(BaseModel):
     canonical_company_id: Optional[UUID] = None
     left_executive_id: UUID
     right_executive_id: UUID
+    left_canonical_executive_id: Optional[UUID] = None
+    right_canonical_executive_id: Optional[UUID] = None
+    canonical_executive_id: Optional[UUID] = None
     action: Literal["mark_same", "keep_separate"]
     decided_by: Optional[str] = None
     evidence_source_document_ids: List[UUID] = Field(default_factory=list)
     evidence_enrichment_ids: List[UUID] = Field(default_factory=list)
+
+
+class PackCanonicalExecutiveMember(BaseModel):
+    """Member metadata for a canonical executive component."""
+
+    executive_id: UUID
+    review_status: Optional[str] = None
+    verification_status: Optional[str] = None
+    discovered_by: Optional[str] = None
+    resolution_sources: List[str] = Field(default_factory=list)
+    reuse_reason: Optional[str] = None
+
+
+class PackCanonicalExecutive(BaseModel):
+    """Canonical executive with component membership and ATS linkage."""
+
+    canonical_executive_id: UUID
+    company_prospect_id: Optional[UUID] = None
+    canonical_company_id: Optional[UUID] = None
+    display_name: Optional[str] = None
+    title: Optional[str] = None
+    provenance: Optional[str] = None
+    review_status: Optional[str] = None
+    verification_status: Optional[str] = None
+    component_size: int
+    member_executive_ids: List[UUID] = Field(default_factory=list)
+    members: List[PackCanonicalExecutiveMember] = Field(default_factory=list)
+    resolution_sources: List[str] = Field(default_factory=list)
+    candidate_id: Optional[UUID] = None
+    contact_id: Optional[UUID] = None
+    role_id: Optional[UUID] = None
+    assignment_id: Optional[UUID] = None
+    assignment_status: Optional[str] = None
+    pipeline_stage_id: Optional[UUID] = None
+    pipeline_stage_name: Optional[str] = None
+    reuse_reason: Optional[str] = None
+
+
+class PackExecutiveResolution(BaseModel):
+    """Resolution mapping entry for an executive prospect."""
+
+    executive_id: UUID
+    canonical_executive_id: UUID
+    component_size: int
+    component_member_ids: List[UUID] = Field(default_factory=list)
+    resolution_sources: List[str] = Field(default_factory=list)
+    review_status: Optional[str] = None
+    verification_status: Optional[str] = None
+    discovered_by: Optional[str] = None
+    reuse_reason: Optional[str] = None
 
 
 class PackAuditEvent(BaseModel):
@@ -868,6 +921,8 @@ class RunPack(BaseModel):
     companies: List[PackCompany] = Field(default_factory=list)
     executives_by_company: Dict[str, List[PackExecutive]] = Field(default_factory=dict)
     merge_decisions: List[PackMergeDecision] = Field(default_factory=list)
+    canonical_executives: List[PackCanonicalExecutive] = Field(default_factory=list)
+    executive_resolutions: List[PackExecutiveResolution] = Field(default_factory=list)
     audit_summary: PackAuditSummary
 
 

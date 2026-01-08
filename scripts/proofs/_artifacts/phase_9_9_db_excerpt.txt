@@ -1,0 +1,60 @@
+canonical_component_ids:
+{
+  "36680815-d0c0-4bc7-8701-976a527b1c23": "36680815-d0c0-4bc7-8701-976a527b1c23",
+  "3943b5e5-edb0-4c3e-962f-5165f449d8a1": "36680815-d0c0-4bc7-8701-976a527b1c23"
+}
+executive_prospects:
+{
+  "candidate_assignment_id": null,
+  "candidate_id": null,
+  "company_prospect_id": "44625421-5bd9-4649-a217-aed57d5d1864",
+  "contact_id": null,
+  "discovered_by": "both",
+  "id": "692de0d3-ef5d-4b7c-9711-cd9d39debbad",
+  "name_normalized": "helio labs ceo",
+  "review_status": "new",
+  "verification_status": "unverified"
+}
+{
+  "candidate_assignment_id": "a5232657-fe43-477b-86f0-ee163828272e",
+  "candidate_id": "6555f7ab-c529-4d40-9773-a05b69cee0a2",
+  "company_prospect_id": "44625421-5bd9-4649-a217-aed57d5d1864",
+  "contact_id": null,
+  "discovered_by": "both",
+  "id": "3943b5e5-edb0-4c3e-962f-5165f449d8a1",
+  "name_normalized": "helio labs coo",
+  "review_status": "new",
+  "verification_status": "unverified"
+}
+{
+  "candidate_assignment_id": "a5232657-fe43-477b-86f0-ee163828272e",
+  "candidate_id": "6555f7ab-c529-4d40-9773-a05b69cee0a2",
+  "company_prospect_id": "44625421-5bd9-4649-a217-aed57d5d1864",
+  "contact_id": null,
+  "discovered_by": "both",
+  "id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+  "name_normalized": "helio labs cfo",
+  "review_status": "accepted",
+  "verification_status": "unverified"
+}
+merge_decisions:
+{
+  "canonical_company_id": null,
+  "company_prospect_id": "44625421-5bd9-4649-a217-aed57d5d1864",
+  "decision_type": "mark_same",
+  "evidence_enrichment_ids": [],
+  "evidence_source_document_ids": [],
+  "id": "279f1136-5da6-47cb-b451-38c8494c2000",
+  "left_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+  "right_executive_id": "3943b5e5-edb0-4c3e-962f-5165f449d8a1"
+}
+{
+  "canonical_company_id": null,
+  "company_prospect_id": "44625421-5bd9-4649-a217-aed57d5d1864",
+  "decision_type": "keep_separate",
+  "evidence_enrichment_ids": [],
+  "evidence_source_document_ids": [],
+  "id": "eaba6563-2306-491a-b858-933e51ea9386",
+  "left_executive_id": "36680815-d0c0-4bc7-8701-976a527b1c23",
+  "right_executive_id": "692de0d3-ef5d-4b7c-9711-cd9d39debbad"
+}
