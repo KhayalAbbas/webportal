@@ -12,6 +12,7 @@ from app.db.session import AsyncSessionLocal
 from app.core.jwt import decode_access_token
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
+from app.errors import raise_app_error
 
 # Security scheme for JWT bearer tokens
 security = HTTPBearer()
@@ -33,9 +34,10 @@ async def get_tenant_id(x_tenant_id: str = Header(None)) -> str:
     Raises 400 if X-Tenant-ID header is missing.
     """
     if not x_tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="X-Tenant-ID header is required"
+        raise_app_error(
+            status.HTTP_400_BAD_REQUEST,
+            "TENANT_HEADER_REQUIRED",
+            "X-Tenant-ID header is required",
         )
     return x_tenant_id
 
@@ -112,9 +114,11 @@ async def verify_user_tenant_access(
         403: If user doesn't belong to the requested tenant
     """
     if str(user.tenant_id) != tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"User does not have access to tenant {tenant_id}"
+        raise_app_error(
+            status.HTTP_403_FORBIDDEN,
+            "TENANT_FORBIDDEN",
+            "User does not have access to tenant",
+            {"tenant_id": tenant_id},
         )
     
     return user

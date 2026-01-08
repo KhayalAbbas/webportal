@@ -1,0 +1,59 @@
+{
+  "download_not_found": {
+    "body": {
+      "error": {
+        "code": "EXPORT_NOT_FOUND",
+        "details": {
+          "export_id": "ba3babc9-a6f6-4ee0-8f4c-19a85a8dc3ff"
+        },
+        "message": "Export pack not found"
+      }
+    },
+    "status": 404
+  },
+  "download_traversal": {
+    "body": {
+      "error": {
+        "code": "EXPORT_NOT_FOUND",
+        "details": {
+          "export_id": "111673d0-7101-431b-98db-97404d58adfa"
+        },
+        "message": "Export pack not found"
+      }
+    },
+    "status": 404
+  },
+  "download_wrong_tenant": {
+    "body": {
+      "error": {
+        "code": "TENANT_FORBIDDEN",
+        "details": {
+          "tenant_id": "00000000-0000-0000-0000-000000000001"
+        },
+        "message": "User does not have access to tenant"
+      }
+    },
+    "status": 403
+  },
+  "list_missing_header": {
+    "body": {
+      "error": {
+        "code": "TENANT_HEADER_REQUIRED",
+        "message": "X-Tenant-ID header is required"
+      }
+    },
+    "status": 400
+  },
+  "list_wrong_tenant": {
+    "body": {
+      "error": {
+        "code": "TENANT_FORBIDDEN",
+        "details": {
+          "tenant_id": "00000000-0000-0000-0000-000000000001"
+        },
+        "message": "User does not have access to tenant"
+      }
+    },
+    "status": 403
+  }
+}

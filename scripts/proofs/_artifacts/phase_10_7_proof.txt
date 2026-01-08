@@ -1,0 +1,6 @@
+PASS: preflight (port, health, openapi, alembic, git)
+PASS: export pack baseline created for negative tests
+PASS: authz failures return structured errors for list/download
+PASS: missing tenant header rejected
+PASS: traversal pointer rejected
+PASS: not-found export returns structured 404

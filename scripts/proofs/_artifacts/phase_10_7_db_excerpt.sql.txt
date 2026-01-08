@@ -1,0 +1,2 @@
+{"id": "111673d0-7101-431b-98db-97404d58adfa", "run_id": "61a560bc-9ac2-4e51-89d7-7240e1008cf5", "sha256": "deadbeef", "size_bytes": 1, "storage_pointer": "../evil.zip"}
+{"id": "ae2c88d4-8c6f-4197-ad9a-b873a66c372d", "run_id": "61a560bc-9ac2-4e51-89d7-7240e1008cf5", "sha256": "3fb50f1a49dc7939ec28e8a80675b6be6c68b0b0e63ef83db5deb97d8181a2bd", "size_bytes": 2972, "storage_pointer": "company_research/e651217b-4fb9-4621-8a75-c7adb08c8968/runs/61a560bc-9ac2-4e51-89d7-7240e1008cf5/export_ae2c88d4-8c6f-4197-ad9a-b873a66c372d.zip"}

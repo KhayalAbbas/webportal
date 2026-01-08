@@ -1,0 +1,35 @@
+Phase 10.7 Plan - Hardening (negative tests)
+
+Scope:
+- Verify export-pack authz denies list/download for wrong/missing tenant/user.
+- Verify path traversal rejected for storage pointers.
+- Verify 404 responses consistent for missing run/export IDs; error envelope stable.
+- Ensure responses deterministic (status/body schemas, ordering).
+
+Approach:
+- Use ASGITransport with overridden auth user to simulate tenant/non-tenant requests.
+- Seed minimal fixtures (reuse Phase 7.10 run) and create exports to get IDs.
+- Exercise endpoints:
+  * GET /company-research/runs/{run_id}/export-packs with wrong tenant header -> 403/401 expected.
+  * GET /company-research/export-packs/{id} with wrong tenant -> 403.
+  * GET /company-research/export-packs/{nonexistent} -> 404 with error structure.
+  * Inject traversal pointer and ensure service rejects (assert 400/422 + message) via crafted record.
+- Capture deterministic assertions on status codes and response JSON keys.
+
+Artifacts (UTF-8 under scripts/proofs/_artifacts):
+- phase_10_7_preflight.txt (port/health/openapi/alembic/git, same pattern as 10.6)
+- phase_10_7_proof.txt (summary PASS/FAIL)
+- phase_10_7_proof_console.txt (step-by-step log)
+- phase_10_7_negative_cases.json (captured responses: authz_fail, traversal_fail, not_found)
+- phase_10_7_export_hashes.txt (hashes of created exports for determinism)
+- phase_10_7_db_excerpt.sql.txt (export rows showing pointers)
+- phase_10_7_openapi_after.json + phase_10_7_openapi_after_excerpt.txt (if changed)
+- phase_10_7_release_notes.md
+- phase_10_7_signoff_checklist.txt
+- phase_10_7_artifact_manifest.txt
+- phase_10_7_release_bundle.zip
+- git captures: phase_10_7_git_status_before_commit.txt, phase_10_7_git_diff_stat.txt, phase_10_7_git_log_before_commit.txt, phase_10_7_master_ahead_behind.txt, phase_10_7_commit.txt, phase_10_7_tag_check.txt, phase_10_7_git_after.txt
+
+Gates:
+- Auto-start API only if ALLOW_START_API=1 (respect KEEP_API_RUNNING).
+- If any assertion fails, stop and report; do not proceed to next phase.
