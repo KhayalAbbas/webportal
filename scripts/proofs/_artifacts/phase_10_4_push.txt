@@ -1,59 +1,17 @@
-git push origin master
-Everything up-to-date
+﻿git.exe : Everything up-to-date
+At line:1 char:115
++ ... "; $out1 = (& "C:/Program Files/Git/bin/git.exe" push origin master 2 ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Everything up-to-date:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
 
-git push origin phase_10_4_signed_off
-Enumerating objects: 1, done.
-Counting objects: 100% (1/1), done.
-Writing objects: 100% (1/1), 171 bytes | 57.00 KiB/s, done.
-Total 1 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
-To https://github.com/iuliantpg/ats.git
- * [new tag]         phase_10_4_signed_off -> phase_10_4_signed_off
+git.exe : To https://github.com/iuliantpg/ats.git
+At line:1 char:252
++ ... 8; $out2 = (& "C:/Program Files/Git/bin/git.exe" push origin phase_10 ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://github.com/iuliantpg/ats.git:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ + 05ddfc8...0d35835 phase_10_4_signed_off -> phase_10_4_signed_off (forced update)
 
-git push --force origin phase_10_4_signed_off
-Enumerating objects: 19, done.
-Counting objects: 100% (19/19), done.
-Delta compression using up to 16 threads
-Compressing objects: 100% (11/11), done.
-Writing objects: 100% (11/11), 100.21 KiB | 3.46 MiB/s, done.
-Total 11 (delta 5), reused 0 (delta 0), pack-reused 0 (from 0)
-remote: Resolving deltas: 100% (5/5), completed with 5 local objects.
-To https://github.com/iuliantpg/ats.git
- + 01c8e81...7266f1f phase_10_4_signed_off -> phase_10_4_signed_off (forced update)
-
-git push origin master (after git artifacts)
-Enumerating objects: 15, done.
-Counting objects: 100% (15/15), done.
-Delta compression using up to 16 threads
-Compressing objects: 100% (8/8), done.
-Writing objects: 100% (8/8), 72.22 KiB | 1.25 MiB/s, done.
-Total 8 (delta 6), reused 0 (delta 0), pack-reused 0 (from 0)
-remote: Resolving deltas: 100% (6/6), completed with 6 local objects.
-To https://github.com/iuliantpg/ats.git
-	cbe55b5..6912000  master -> master
-
-git push --force origin phase_10_4_signed_off (retag to final commit)
-Enumerating objects: 1, done.
-Counting objects: 100% (1/1), done.
-Writing objects: 100% (1/1), 170 bytes | 56.00 KiB/s, done.
-Total 1 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
-To https://github.com/iuliantpg/ats.git
- + 7266f1f...6f006e5 phase_10_4_signed_off -> phase_10_4_signed_off (forced update)
-
-git push origin master (final)
-Enumerating objects: 15, done.
-Counting objects: 100% (15/15), done.
-Delta compression using up to 16 threads
-Compressing objects: 100% (8/8), done.
-Writing objects: 100% (8/8), 201.70 KiB | 3.95 MiB/s, done.
-Total 8 (delta 6), reused 0 (delta 0), pack-reused 0 (from 0)
-remote: Resolving deltas: 100% (6/6), completed with 6 local objects.
-To https://github.com/iuliantpg/ats.git
-	6912000..10a7cf3  master -> master
-
-git push --force origin phase_10_4_signed_off (final tag alignment)
-Enumerating objects: 1, done.
-Counting objects: 100% (1/1), done.
-Writing objects: 100% (1/1), 171 bytes | 42.00 KiB/s, done.
-Total 1 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
-To https://github.com/iuliantpg/ats.git
- + 6f006e5...1e68a5a phase_10_4_signed_off -> phase_10_4_signed_off (forced update)
