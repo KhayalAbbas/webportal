@@ -4442,6 +4442,20 @@ class CompanyResearchService:
         )
         enrichment = enrichment_query.scalar_one_or_none()
         if enrichment and existing_response_source:
+            # Ensure evidence pointer and hashes are populated on reused enrichments
+            updated = False
+            if not getattr(enrichment, "source_document_id", None):
+                enrichment.source_document_id = existing_response_source.id
+                updated = True
+            if not getattr(enrichment, "input_scope_hash", None):
+                enrichment.input_scope_hash = request_hash
+                updated = True
+            if not getattr(enrichment, "content_hash", None):
+                enrichment.content_hash = response_hash
+                updated = True
+            if updated:
+                await self.db.flush()
+
             ingest_meta = {
                 "executives_new": 0,
                 "executives_existing": 0,
