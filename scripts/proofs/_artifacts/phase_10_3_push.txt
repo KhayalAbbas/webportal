@@ -1,7 +1,9 @@
 $ push origin master
-Everything up-to-date
+To https://github.com/iuliantpg/ats.git
+   51deeda..e5809ff  master -> master
 exit_code=0
 
-$ push origin phase_10_3_signed_off
-Everything up-to-date
+$ push --force origin phase_10_3_signed_off
+To https://github.com/iuliantpg/ats.git
+ + 51deeda...e5809ff phase_10_3_signed_off -> phase_10_3_signed_off (forced update)
 exit_code=0
