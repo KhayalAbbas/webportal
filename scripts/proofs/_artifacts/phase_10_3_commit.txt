@@ -1,3 +1,13 @@
+commit a7e5a2ae06245fe523ca5b5c4e0460c2e82af200
+Author: ATS Local <local@ats>
+Date:   Thu Jan 8 13:47:38 2026 +0400
+
+    Phase 10.3: refresh commit/tag artifacts
+
+ scripts/proofs/_artifacts/phase_10_3_commit.txt | 68 +++++++++++++++++++++++++
+ scripts/proofs/_artifacts/phase_10_3_tag.txt    |  8 +--
+ 2 files changed, 70 insertions(+), 6 deletions(-)
+
 commit 3c223564f6a6a05e3ea44dc470f2c29b3045827d
 Author: ATS Local <local@ats>
 Date:   Thu Jan 8 13:47:08 2026 +0400
