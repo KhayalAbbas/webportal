@@ -2126,6 +2126,144 @@ class CompanyResearchService:
         data = storage_path.read_bytes()
         return record, data
 
+    def _zip_bytes_deterministic(self, file_map: Dict[str, bytes]) -> bytes:
+        """Build a zip archive with stable ordering and timestamps."""
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for name in sorted(file_map.keys()):
+                info = zipfile.ZipInfo(name)
+                info.date_time = (2020, 1, 1, 0, 0, 0)
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o644 << 16
+                zf.writestr(info, file_map[name])
+        return buffer.getvalue()
+
+    async def build_evidence_bundle(self, tenant_id: str, run_id: UUID) -> Tuple[bytes, dict, Dict[str, bytes]]:
+        """Create a deterministic evidence bundle zip for a research run."""
+
+        run = await self.get_research_run(tenant_id, run_id)
+        if not run:
+            raise ValueError("research_run_not_found")
+
+        def _iso(value):
+            return value.isoformat() if value else None
+
+        run_payload = {
+            "id": str(run.id),
+            "tenant_id": str(run.tenant_id),
+            "role_mandate_id": str(run.role_mandate_id) if getattr(run, "role_mandate_id", None) else None,
+            "name": run.name,
+            "description": getattr(run, "description", None),
+            "status": getattr(run, "status", None),
+            "sector": getattr(run, "sector", None),
+            "region_scope": getattr(run, "region_scope", None),
+            "config": getattr(run, "config", None),
+            "summary": getattr(run, "summary", None),
+            "error_message": getattr(run, "error_message", None),
+            "last_error": getattr(run, "last_error", None),
+            "created_by_user_id": str(run.created_by_user_id) if getattr(run, "created_by_user_id", None) else None,
+            "started_at": _iso(getattr(run, "started_at", None)),
+            "finished_at": _iso(getattr(run, "finished_at", None)),
+            "created_at": _iso(getattr(run, "created_at", None)),
+            "updated_at": _iso(getattr(run, "updated_at", None)),
+        }
+
+        export_records = await self.list_export_packs_for_run(tenant_id, run_id)
+        exports_payload = []
+        for rec in sorted(export_records, key=lambda r: (_iso(getattr(r, "created_at", None)) or "", str(r.id))):
+            exports_payload.append(
+                {
+                    "id": str(rec.id),
+                    "run_id": str(rec.run_id),
+                    "file_name": rec.file_name,
+                    "storage_pointer": rec.storage_pointer,
+                    "sha256": rec.sha256,
+                    "size_bytes": rec.size_bytes,
+                    "created_at": _iso(getattr(rec, "created_at", None)),
+                    "updated_at": _iso(getattr(rec, "updated_at", None)),
+                }
+            )
+
+        sources = await self.repo.list_source_documents_for_run(tenant_id, run_id)
+        sources_payload = []
+        for src in sorted(sources, key=lambda s: (_iso(getattr(s, "created_at", None)) or "", str(s.id))):
+            sources_payload.append(
+                {
+                    "id": str(src.id),
+                    "source_type": src.source_type,
+                    "title": getattr(src, "title", None),
+                    "url": getattr(src, "url", None),
+                    "original_url": getattr(src, "original_url", None),
+                    "content_hash": getattr(src, "content_hash", None),
+                    "http_status_code": getattr(src, "http_status_code", None),
+                    "status": getattr(src, "status", None),
+                    "created_at": _iso(getattr(src, "created_at", None)),
+                }
+            )
+
+        decisions = await self.repo.list_merge_decisions_for_run(tenant_id, run_id)
+        decisions_payload = []
+        for dec in sorted(decisions, key=lambda d: (_iso(getattr(d, "created_at", None)) or "", str(d.id))):
+            decisions_payload.append(
+                {
+                    "id": str(dec.id),
+                    "company_prospect_id": str(dec.company_prospect_id) if getattr(dec, "company_prospect_id", None) else None,
+                    "canonical_company_id": str(dec.canonical_company_id) if getattr(dec, "canonical_company_id", None) else None,
+                    "left_executive_id": str(dec.left_executive_id) if getattr(dec, "left_executive_id", None) else None,
+                    "right_executive_id": str(dec.right_executive_id) if getattr(dec, "right_executive_id", None) else None,
+                    "decision_type": dec.decision_type,
+                    "note": getattr(dec, "note", None),
+                    "evidence_source_document_ids": sorted(
+                        {str(eid) for eid in getattr(dec, "evidence_source_document_ids", []) if eid}
+                    ),
+                    "created_at": _iso(getattr(dec, "created_at", None)),
+                }
+            )
+
+        openapi_paths = sorted(
+            {
+                "/company-research/runs/{run_id}/evidence-bundle",
+                "/company-research/runs/{run_id}/export-pack.zip",
+                "/company-research/runs/{run_id}/export-packs",
+                "/company-research/export-packs/{export_id}",
+            }
+        )
+
+        file_map: Dict[str, bytes] = {
+            "run.json": json.dumps(run_payload, sort_keys=True, indent=2).encode("utf-8"),
+            "export_packs.json": json.dumps(exports_payload, sort_keys=True, indent=2).encode("utf-8"),
+            "sources.json": json.dumps(sources_payload, sort_keys=True, indent=2).encode("utf-8"),
+            "decisions.json": json.dumps(decisions_payload, sort_keys=True, indent=2).encode("utf-8"),
+            "openapi_paths.json": json.dumps(openapi_paths, sort_keys=True, indent=2).encode("utf-8"),
+        }
+
+        manifest_entries = []
+        for name in sorted(file_map.keys()):
+            content = file_map[name]
+            manifest_entries.append(
+                {
+                    "file_name": name,
+                    "size_bytes": len(content),
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                }
+            )
+
+        manifest = {
+            "run_id": str(run_id),
+            "tenant_id": str(tenant_id),
+            "generated_at": _iso(getattr(run, "updated_at", None)) or _iso(getattr(run, "created_at", None)),
+            "files": manifest_entries,
+        }
+
+        manifest_bytes = json.dumps(manifest, sort_keys=True, indent=2).encode("utf-8")
+        manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
+        file_map["MANIFEST.json"] = manifest_bytes
+        file_map["MANIFEST.sha256"] = f"SHA256(MANIFEST.json)={manifest_sha}\n".encode("utf-8")
+
+        bundle_bytes = self._zip_bytes_deterministic(file_map)
+        return bundle_bytes, manifest, file_map
+
     async def _company_evidence_map(self, tenant_id: str, prospect_ids: List[UUID]) -> Dict[UUID, List[UUID]]:
         if not prospect_ids:
             return {}

@@ -2349,6 +2349,30 @@ async def download_export_pack(
     return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
 
 
+@router.get("/runs/{run_id}/evidence-bundle", response_class=StreamingResponse)
+async def download_evidence_bundle(
+    run_id: UUID,
+    current_user: User = Depends(verify_user_tenant_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a deterministic evidence bundle for a research run."""
+
+    service = CompanyResearchService(db)
+    try:
+        bundle_bytes, _manifest, _files = await service.build_evidence_bundle(
+            tenant_id=current_user.tenant_id,
+            run_id=run_id,
+        )
+    except ValueError as exc:  # noqa: BLE001
+        if str(exc) == "research_run_not_found":
+            raise_app_error(404, "RUN_NOT_FOUND", "Research run not found", {"run_id": str(run_id)})
+        raise
+
+    filename = f"run_{run_id}_evidence_bundle.zip"
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
+    return StreamingResponse(io.BytesIO(bundle_bytes), media_type="application/zip", headers=headers)
+
+
 @router.patch("/runs/{run_id}", response_model=CompanyResearchRunRead)
 async def update_research_run(
     run_id: UUID,
