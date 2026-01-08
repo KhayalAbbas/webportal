@@ -2373,6 +2373,13 @@ async def download_evidence_bundle(
     except ValueError as exc:  # noqa: BLE001
         if str(exc) == "research_run_not_found":
             raise_app_error(404, "RUN_NOT_FOUND", "Research run not found", {"run_id": str(run_id)})
+        if str(exc) == "evidence_bundle_too_large":
+            raise_app_error(
+                413,
+                "EVIDENCE_BUNDLE_TOO_LARGE",
+                "evidence bundle exceeds maximum allowed size",
+                {"max_zip_bytes": CompanyResearchService.EVIDENCE_BUNDLE_MAX_ZIP_BYTES},
+            )
         raise
 
     filename = f"run_{run_id}_evidence_bundle.zip"

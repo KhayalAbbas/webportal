@@ -116,6 +116,7 @@ class CompanyResearchService:
     EXPORT_MAX_COMPANIES = settings.EXPORT_PACK_MAX_COMPANIES
     EXPORT_MAX_EXECUTIVES = settings.EXPORT_PACK_MAX_EXECUTIVES
     EXPORT_STORAGE_ROOT = settings.EXPORT_PACK_STORAGE_ROOT
+    EVIDENCE_BUNDLE_MAX_ZIP_BYTES = settings.EVIDENCE_BUNDLE_MAX_ZIP_BYTES
     
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -2264,6 +2265,9 @@ class CompanyResearchService:
         file_map["MANIFEST.sha256"] = f"SHA256(MANIFEST.json)={manifest_sha}\n".encode("utf-8")
 
         bundle_bytes = self._zip_bytes_deterministic(file_map)
+        if len(bundle_bytes) > self.EVIDENCE_BUNDLE_MAX_ZIP_BYTES:
+            raise ValueError("evidence_bundle_too_large")
+
         return bundle_bytes, manifest, file_map
 
     async def _company_evidence_map(self, tenant_id: str, prospect_ids: List[UUID]) -> Dict[UUID, List[UUID]]:
