@@ -1,4 +1,3 @@
-To https://github.com/iuliantpg/ats.git
-   7eee63e..c28ef2c  master -> master
-To https://github.com/iuliantpg/ats.git
- + 7eee63e...c28ef2c phase_11_2_signed_off -> phase_11_2_signed_off (forced update)
+git push origin master
+git push origin phase_11_2_signed_off --force
+Everything up-to-date
