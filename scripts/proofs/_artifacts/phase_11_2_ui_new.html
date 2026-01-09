@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Research</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.4;
+            color: #1a1a1a;
+            background: #f5f5f5;
+        }
+        
+        /* Header */
+        .header {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #34495e;
+        }
+        
+        .header-left h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 12px;
+        }
+        
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        
+        .tenant-id {
+            color: #95a5a6;
+            font-size: 10px;
+        }
+        
+        .logout-link {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 4px 12px;
+            border: 1px solid #7f8c8d;
+            border-radius: 3px;
+        }
+        
+        .logout-link:hover {
+            background: #34495e;
+        }
+        
+        /* Layout container */
+        .container {
+            display: flex;
+            height: calc(100vh - 45px);
+        }
+        
+        /* Sidebar navigation */
+        .sidebar {
+            width: 200px;
+            background: #34495e;
+            color: #ecf0f1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+        
+        .nav-item {
+            display: block;
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-left: 3px solid transparent;
+        }
+        
+        .nav-item:hover {
+            background: #2c3e50;
+            border-left-color: #3498db;
+        }
+        
+        .nav-item.active {
+            background: #2c3e50;
+            border-left-color: #3498db;
+            font-weight: 600;
+        }
+        
+        .nav-separator {
+            height: 1px;
+            background: #2c3e50;
+            margin: 10px 0;
+        }
+        
+        /* Main content */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fff;
+        }
+        
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: #fff;
+            font-size: 12px;
+        }
+        
+        th {
+            background: #ecf0f1;
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #bdc3c7;
+            color: #2c3e50;
+        }
+        
+        td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 3px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        button,
+        .btn {
+            padding: 8px 16px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        button:hover,
+        .btn:hover {
+            background: #2980b9;
+            text-decoration: none;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        /* Filters section */
+        .filters {
+            background: #ecf0f1;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+        
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        /* Pagination */
+        .pagination {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 20px;
+        }
+        
+        /* Section headings */
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 30px 0 15px 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+        }
+        
+        /* Detail sections */
+        .detail-section {
+            margin-bottom: 30px;
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 10px 20px;
+            font-size: 13px;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .detail-value {
+            color: #2c3e50;
+        }
+        
+        /* Error/success messages */
+        .alert {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+        
+        .alert-error {
+            background: #e74c3c;
+            color: #fff;
+        }
+        
+        .alert-success {
+            background: #2ecc71;
+            color: #fff;
+        }
+        
+        /* Login page specific */
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .login-title {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+            color: #2c3e50;
+        }
+        
+        /* Dashboard cards */
+        .dashboard-section {
+            margin-bottom: 40px;
+        }
+        
+        .section-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        /* Utility classes */
+        .text-muted {
+            color: #95a5a6;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .mt-20 {
+            margin-top: 20px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: #2ecc71;
+            color: #fff;
+        }
+        
+        .badge-warning {
+            background: #f39c12;
+            color: #fff;
+        }
+        
+        .badge-danger {
+            background: #e74c3c;
+            color: #fff;
+        }
+        
+        .badge-info {
+            background: #3498db;
+            color: #fff;
+        }
+        
+        .text-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 3px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <h1>Silver Arrow ATS</h1>
+        </div>
+        <div class="header-right">
+            
+            <div class="user-info">
+                <span>phase11@example.com</span>
+                <span class="tenant-id">Tenant: 11111111-2222-3333-4444-555555555555</span>
+            </div>
+            <a href="/logout" class="logout-link">Logout</a>
+            
+        </div>
+    </div>
+    
+    <!-- Main container -->
+    <div class="container">
+        
+        <!-- Sidebar navigation -->
+        <nav class="sidebar">
+            <a href="/dashboard" class="nav-item ">Dashboard</a>
+            <a href="/ui/roles" class="nav-item ">Roles</a>
+            <a href="/ui/candidates" class="nav-item ">Candidates</a>
+            <a href="/ui/companies" class="nav-item ">Companies</a>
+            <a href="/ui/bd-opportunities" class="nav-item ">BD Opportunities</a>
+            <a href="/ui/tasks" class="nav-item ">Tasks</a>
+            <a href="/ui/lists" class="nav-item ">Lists</a>
+            <a href="/ui/research" class="nav-item active">Research</a>
+            <a href="/ui/research/upload" class="nav-item ">Research Upload</a>
+            <a href="/ui/company-research" class="nav-item ">Company Research</a>
+            <div class="nav-separator"></div>
+            <a href="/ui/system-check" class="nav-item " style="font-size: 12px; color: #95a5a6;">🔧 System Check</a>
+            <div class="nav-separator"></div>
+            
+            <a href="/ui/settings" class="nav-item ">Settings</a>
+            
+        </nav>
+        
+        
+        <!-- Main content -->
+        <main class="main-content">
+            
+<h1 class="page-title">New Research</h1>
+<div class="card" style="padding:20px;">
+    
+    <div class="alert alert-error">External discovery not configured. Set ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY in scripts/runbook/LOCAL_COMMANDS.ps1 (local) or deployment env vars (prod).</div>
+    
+    
+    <p class="text-muted">Using role Phase 11 Role @ Phase 11 Research Co.</p>
+    <form method="post" action="/ui/research/new">
+        <div class="form-group">
+            <label for="industry">Industry *</label>
+            <input type="text" id="industry" name="industry" required placeholder="e.g., Fintech" />
+        </div>
+        <div class="form-group">
+            <label for="country_region">Country/Region *</label>
+            <input type="text" id="country_region" name="country_region" required placeholder="e.g., US or US,CA" />
+        </div>
+        <div class="form-group">
+            <label for="position">Position *</label>
+            <input type="text" id="position" name="position" required placeholder="e.g., VP Sales" />
+        </div>
+        <div class="form-group">
+            <label for="keywords">Keywords (optional)</label>
+            <textarea id="keywords" name="keywords" rows="2" placeholder="growth, enterprise, payments"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="exclusions">Exclusions (optional)</label>
+            <textarea id="exclusions" name="exclusions" rows="2" placeholder="exclude agencies, exclude stealth"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="discovery_mode">Discovery mode</label>
+            <select id="discovery_mode" name="discovery_mode">
+                <option value="internal" selected>Internal only (default)</option>
+                <option value="external">External (xAI Grok)</option>
+                <option value="both">Both</option>
+            </select>
+            <small class="text-muted">
+                Internal: works without keys. External/Both: requires ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY (set in scripts/runbook/LOCAL_COMMANDS.ps1 for local or deployment env vars in prod).
+            </small>
+        </div>
+        <div class="form-group">
+            <label for="search_provider">Search provider</label>
+            <select id="search_provider" name="search_provider">
+                <option value="none" selected>None</option>
+                <option value="enabled">Google CSE (if configured)</option>
+            </select>
+        </div>
+        <details class="card" style="padding:10px;margin-bottom:12px;">
+            <summary style="cursor:pointer;">Configuration (detected)</summary>
+            <ul style="margin-top:8px;">
+                <li>ATS_EXTERNAL_DISCOVERY_ENABLED: <strong>Yes</strong></li>
+                <li>XAI_API_KEY: <strong>No</strong></li>
+                <li>ATS_MOCK_EXTERNAL_PROVIDERS: <strong>No</strong></li>
+                <li>GOOGLE_CSE_API_KEY: <strong>No</strong></li>
+                <li>GOOGLE_CSE_CX: <strong>No</strong></li>
+            </ul>
+            <small class="text-muted">Values are not shown; only presence is indicated.</small>
+        </details>
+        <button type="submit" class="btn">Create &amp; Start</button>
+    </form>
+    
+</div>
+
+        </main>
+    </div>
+    
+</body>
+</html>

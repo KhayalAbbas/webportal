@@ -38,7 +38,9 @@
                 <option value="external">External (xAI Grok)</option>
                 <option value="both">Both</option>
             </select>
-            <small class="text-muted">External requires env: ATS_EXTERNAL_DISCOVERY_ENABLED=1 and keys; mocks use fixtures.</small>
+            <small class="text-muted">
+                Internal: works without keys. External/Both: requires ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY (set in scripts/runbook/LOCAL_COMMANDS.ps1 for local or deployment env vars in prod).
+            </small>
         </div>
         <div class="form-group">
             <label for="search_provider">Search provider</label>
@@ -47,6 +49,17 @@
                 <option value="enabled">Google CSE (if configured)</option>
             </select>
         </div>
+        <details class="card" style="padding:10px;margin-bottom:12px;">
+            <summary style="cursor:pointer;">Configuration (detected)</summary>
+            <ul style="margin-top:8px;">
+                <li>ATS_EXTERNAL_DISCOVERY_ENABLED: <strong>{{ 'Yes' if config_status.external_enabled else 'No' }}</strong></li>
+                <li>XAI_API_KEY: <strong>{{ 'Yes' if config_status.xai_api_key else 'No' }}</strong></li>
+                <li>ATS_MOCK_EXTERNAL_PROVIDERS: <strong>{{ 'Yes' if config_status.mock_mode else 'No' }}</strong></li>
+                <li>GOOGLE_CSE_API_KEY: <strong>{{ 'Yes' if config_status.google_api_key else 'No' }}</strong></li>
+                <li>GOOGLE_CSE_CX: <strong>{{ 'Yes' if config_status.google_cx else 'No' }}</strong></li>
+            </ul>
+            <small class="text-muted">Values are not shown; only presence is indicated.</small>
+        </details>
         <button type="submit" class="btn">Create &amp; Start</button>
     </form>
     {% endif %}

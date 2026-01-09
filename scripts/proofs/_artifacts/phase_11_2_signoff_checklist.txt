@@ -1,0 +1,4 @@
+Phase 11.2 sign-off checklist
+
+[x] External/Both gated when keys missing
+[x] Mock happy path end-to-end

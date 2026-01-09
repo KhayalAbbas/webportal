@@ -1,0 +1,12 @@
+﻿phase_11_2 preflight
+git_status=## master...origin/master
+git_log_start
+commit 42a364486b32f3375f874eef94ea4fd6bb9a9e1d (HEAD -> master, tag: phase_11_1_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Fri Jan 9 14:54:09 2026 +0400
+
+    Phase 11.1: external discovery wiring (Grok + search) + secrets + mocks + proof
+git_log_end
+alembic_current=b6f20f1d5a7c (head)
+port_check host=127.0.0.1 port=8000 ok=True
+openapi_status=200

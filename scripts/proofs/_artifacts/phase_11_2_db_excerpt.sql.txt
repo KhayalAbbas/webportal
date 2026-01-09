@@ -1,0 +1,12 @@
+-- Run
+run_id=178e2551-d820-48b9-aeed-663a52f51599 status=queued sector=fintech region=['US']
+-- Prospects
+prospect id=03632047-dffe-4fcc-bf21-3290fc8528d5 name=alpha payments review=accepted exec_enabled=True priority=None
+prospect id=1a2d1b21-4c85-46ed-9023-ae5f024f4449 name=beta capital review=accepted exec_enabled=True priority=None
+-- Executives
+exec id=5aa06a47-5774-492a-badd-c52fc9434af9 name=alpha payments ceo linkedin=https://www.linkedin.com/in/alpha-payments-ceo stage_pref_cookie=?
+exec id=d62ccfbf-3802-4e51-a513-b8c4823e6ef6 name=alpha payments cfo linkedin=https://www.linkedin.com/in/alpha-payments-cfo stage_pref_cookie=?
+exec id=b9464f4a-9bc0-43d9-b652-96f798600e5c name=beta capital ceo linkedin=https://www.linkedin.com/in/beta-capital-ceo stage_pref_cookie=?
+exec id=5fcf5246-87ac-4d05-ab9d-c509e0cbe1c0 name=beta capital cfo linkedin=https://www.linkedin.com/in/beta-capital-cfo stage_pref_cookie=?
+exec id=fb4a4b19-bf0d-48d6-9397-48902984f368 name=jane linked linkedin=https://linkedin.com/in/janelinked stage_pref_cookie=?
+exec id=62b9173f-a6b9-4c8e-8817-b53696ac825b name=jo source linkedin=None stage_pref_cookie=?

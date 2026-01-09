@@ -1,7 +1,8 @@
+import os
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
@@ -19,6 +20,22 @@ from app.schemas.company_research import CompanyResearchRunCreate, CompanyProspe
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/ui/templates")
+
+
+def _discovery_config_status() -> dict:
+    """Return read-only flags indicating whether required env vars are set."""
+
+    def _flag(env_key: str, default: Optional[str] = None) -> bool:
+        val = os.getenv(env_key, default)
+        return bool(val and str(val).strip())
+
+    return {
+        "external_enabled": _flag("ATS_EXTERNAL_DISCOVERY_ENABLED"),
+        "mock_mode": str(os.getenv("ATS_MOCK_EXTERNAL_PROVIDERS", "0")) in {"1", "true", "True"},
+        "xai_api_key": _flag("XAI_API_KEY"),
+        "google_api_key": _flag("GOOGLE_CSE_API_KEY"),
+        "google_cx": _flag("GOOGLE_CSE_CX"),
+    }
 
 
 async def _get_default_role(session: AsyncSession, tenant_id: UUID) -> Optional[dict]:
@@ -131,6 +148,7 @@ async def research_new_form(
             "active_page": "research",
             "default_role": default_role,
             "error_message": error_message,
+            "config_status": _discovery_config_status(),
         },
     )
 
@@ -153,6 +171,8 @@ async def research_new_submit(
             url="/ui/research/new?error_message=Create a role first via Roles page.",
             status_code=303,
         )
+
+    config_status = _discovery_config_status()
 
     region_list: List[str] = [r.strip().upper() for r in country_region.split(",") if r.strip()]
     config = {
@@ -181,6 +201,42 @@ async def research_new_submit(
 
     needs_external = discovery_mode in {"external", "both"}
     needs_search = search_provider == "enabled"
+
+    if needs_external and not (config_status["external_enabled"] and config_status["xai_api_key"]):
+        error_message = (
+            "External discovery not configured. Set ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY "
+            "in scripts/runbook/LOCAL_COMMANDS.ps1 (local) or deployment env vars (prod)."
+        )
+        return templates.TemplateResponse(
+            "research_new.html",
+            {
+                "request": request,
+                "current_user": current_user,
+                "active_page": "research",
+                "default_role": default_role,
+                "error_message": error_message,
+                "config_status": config_status,
+            },
+            status_code=400,
+        )
+
+    if needs_search and not (config_status["google_api_key"] and config_status["google_cx"]):
+        error_message = (
+            "Search provider not configured. Set GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX in scripts/runbook/LOCAL_COMMANDS.ps1 "
+            "(local) or deployment env vars (prod)."
+        )
+        return templates.TemplateResponse(
+            "research_new.html",
+            {
+                "request": request,
+                "current_user": current_user,
+                "active_page": "research",
+                "default_role": default_role,
+                "error_message": error_message,
+                "config_status": config_status,
+            },
+            status_code=400,
+        )
 
     try:
         if needs_external:
@@ -248,16 +304,36 @@ async def research_new_submit(
         await session.commit()
     except ExternalProviderConfigError as exc:
         await session.rollback()
-        return RedirectResponse(
-            url=f"/ui/research/new?error_message=External discovery not configured: {str(exc)}",
-            status_code=303,
+        error_message = (
+            "External discovery not configured. Set ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY "
+            "in scripts/runbook/LOCAL_COMMANDS.ps1 (local) or deployment env vars (prod)."
+        )
+        return templates.TemplateResponse(
+            "research_new.html",
+            {
+                "request": request,
+                "current_user": current_user,
+                "active_page": "research",
+                "default_role": default_role,
+                "error_message": error_message,
+                "config_status": config_status,
+            },
+            status_code=400,
         )
     except Exception as exc:  # noqa: BLE001
         await session.rollback()
         msg = str(exc)
-        return RedirectResponse(
-            url=f"/ui/research/new?error_message={msg}",
-            status_code=303,
+        return templates.TemplateResponse(
+            "research_new.html",
+            {
+                "request": request,
+                "current_user": current_user,
+                "active_page": "research",
+                "default_role": default_role,
+                "error_message": msg,
+                "config_status": config_status,
+            },
+            status_code=400,
         )
 
     return RedirectResponse(url=f"/ui/research/runs/{run.id}", status_code=303)
@@ -271,15 +347,24 @@ async def research_workspace(
     session: AsyncSession = Depends(get_db),
     success_message: Optional[str] = None,
     error_message: Optional[str] = None,
+    review_filter: str = Query("all"),
+    stage_pref: Optional[str] = Query(None),
 ):
     service = CompanyResearchService(session)
     run = await service.get_research_run(current_user.tenant_id, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Research run not found")
 
+    review_filter_normalized = (review_filter or "all").lower()
+    review_status_filter = review_filter_normalized if review_filter_normalized in {"accepted", "hold", "rejected"} else None
+
+    review_counts = await _count_review_states(session, current_user.tenant_id, run_id)
+
     prospects = await service.list_prospects_for_run_with_evidence(
         tenant_id=current_user.tenant_id,
         run_id=run_id,
+        status=None,
+        review_status=review_status_filter,
         order_by="manual",
         limit=300,
     )
@@ -307,8 +392,31 @@ async def research_workspace(
                 "exec_search_enabled": prospect.exec_search_enabled,
                 "manual_priority": prospect.manual_priority,
                 "primary_evidence_url": primary_evidence_url,
+                "evidence_count": len(evidence),
             }
         )
+
+    if review_filter_normalized == "unreviewed":
+        filtered = []
+        for p in prospect_rows:
+            if p["review_status"] not in {"accepted", "hold", "rejected"}:
+                filtered.append(p)
+        prospect_rows = filtered
+
+    review_filter_options = [
+        {"key": "all", "label": "All", "count": review_counts.get("total", 0)},
+        {
+            "key": "unreviewed",
+            "label": "Unreviewed",
+            "count": review_counts.get("total", 0)
+            - review_counts.get("accepted", 0)
+            - review_counts.get("hold", 0)
+            - review_counts.get("rejected", 0),
+        },
+        {"key": "accepted", "label": "Accepted", "count": review_counts.get("accepted", 0)},
+        {"key": "hold", "label": "Hold", "count": review_counts.get("hold", 0)},
+        {"key": "rejected", "label": "Rejected", "count": review_counts.get("rejected", 0)},
+    ]
 
     exec_rows = await service.list_executive_prospects_with_evidence(
         tenant_id=current_user.tenant_id,
@@ -327,6 +435,8 @@ async def research_workspace(
             if not evidence_url and doc:
                 evidence_url = doc.get("url")
 
+        label = "LinkedIn" if evidence_url and "linkedin.com" in evidence_url.lower() else "Source"
+
         executive_rows.append(
             {
                 "id": str(exec_row.get("id")),
@@ -335,13 +445,75 @@ async def research_workspace(
                 "title": exec_row.get("title"),
                 "evidence_url": evidence_url,
                 "review_status": exec_row.get("review_status"),
+                "link_label": label,
             }
         )
+
+    executive_rows = sorted(
+        executive_rows,
+        key=lambda row: ((row.get("company") or "").lower(), (row.get("name") or "").lower()),
+    )
 
     eligible_companies = await service.list_executive_eligible_companies(
         tenant_id=current_user.tenant_id,
         run_id=run_id,
     )
+
+    accepted_count = review_counts.get("accepted", 0)
+    has_execs = len(executive_rows) > 0
+    run_started = run.status not in {"planned", "new"}
+    is_running = run.status in {"queued", "running"}
+
+    primary_cta = {
+        "label": "Run research",
+        "action": f"/ui/research/runs/{run.id}/start",
+        "method": "post",
+        "disabled": False,
+        "reason": None,
+        "requires_exec_selection": False,
+        "select_label": None,
+    }
+
+    if is_running:
+        primary_cta.update({"label": "Running…", "disabled": True})
+    elif not run_started:
+        primary_cta["label"] = "Run research"
+    elif accepted_count == 0:
+        primary_cta.update({
+            "label": "Accept at least 1 company to find executives",
+            "disabled": True,
+            "reason": "Enable exec search by accepting a company",
+            "action": None,
+            "method": "get",
+        })
+    elif not has_execs:
+        primary_cta.update({
+            "label": "Find executives",
+            "action": f"/ui/research/runs/{run.id}/executive-discovery",
+            "method": "post",
+            "disabled": False,
+        })
+    else:
+        primary_cta.update({
+            "label": "Select executives to add to search",
+            "action": "/ui/research/executives/pipeline",
+            "method": "post",
+            "disabled": True,
+            "requires_exec_selection": True,
+            "select_label": "Select executives to add to search",
+        })
+
+    current_step = 1
+    if run_started:
+        current_step = 2
+        if accepted_count > 0:
+            current_step = 3
+            if has_execs:
+                current_step = 4
+    if success_message and "Added" in success_message:
+        current_step = 5
+
+    stage_pref_value = stage_pref or request.cookies.get("research_stage_pref")
 
     pipeline_stage_rows: list[dict] = []
     stage_query = (
@@ -353,7 +525,16 @@ async def research_workspace(
     for stage in stage_result.scalars().all():
         pipeline_stage_rows.append({"id": str(stage.id), "name": stage.name, "code": stage.code})
 
-    return templates.TemplateResponse(
+    cta_action = primary_cta.get("action") or ""
+    cta_form_id = "run-start-form"
+    if cta_action.endswith("/start"):
+        cta_form_id = "run-start-form"
+    elif cta_action.endswith("/executive-discovery"):
+        cta_form_id = "exec-discovery-form"
+    elif cta_action.endswith("/pipeline"):
+        cta_form_id = "exec-pipeline-form"
+
+    response = templates.TemplateResponse(
         "research_workspace.html",
         {
             "request": request,
@@ -367,16 +548,46 @@ async def research_workspace(
                 "region_scope": run.region_scope,
                 "config": run.config or {},
                 "description": run.description,
+                "role_id": str(run.role_mandate_id) if getattr(run, "role_mandate_id", None) else None,
             },
             "prospects": prospect_rows,
             "executives": executive_rows,
-            "has_execs": len(executive_rows) > 0,
+            "has_execs": has_execs,
             "eligible_exec_companies": len(eligible_companies),
             "pipeline_stages": pipeline_stage_rows,
             "success_message": success_message,
             "error_message": error_message,
+            "review_filter": review_filter_normalized,
+            "review_filter_options": review_filter_options,
+            "review_counts": review_counts,
+            "current_step": current_step,
+            "primary_cta": primary_cta,
+            "primary_cta_form": cta_form_id,
+            "stage_pref": stage_pref_value,
+            "accepted_count": accepted_count,
         },
     )
+
+    if stage_pref_value:
+        response.set_cookie("research_stage_pref", stage_pref_value)
+
+    return response
+
+
+@router.post("/ui/research/runs/{run_id}/start")
+async def research_run_start(
+    run_id: UUID,
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    session: AsyncSession = Depends(get_db),
+):
+    service = CompanyResearchService(session)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
+    await service.start_run(current_user.tenant_id, run_id)
+    await session.commit()
+    return RedirectResponse(url=f"/ui/research/runs/{run_id}?success_message=Run research started", status_code=303)
 
 
 @router.post("/ui/research/prospects/{prospect_id}/review")
@@ -403,6 +614,50 @@ async def research_prospect_review(
         raise HTTPException(status_code=400, detail="Invalid review status")
 
     return RedirectResponse(url=f"/ui/research/runs/{run_id}?success_message=Updated", status_code=303)
+
+
+@router.post("/ui/research/prospects/bulk-review")
+async def research_prospect_bulk_review(
+    run_id: UUID = Form(...),
+    review_status: str = Form(...),
+    prospect_ids: List[str] = Form([]),
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    session: AsyncSession = Depends(get_db),
+):
+    review_status = (review_status or "").lower()
+    if review_status not in {"accepted", "hold", "rejected"}:
+        raise HTTPException(status_code=400, detail="Invalid review status")
+
+    if not prospect_ids:
+        return RedirectResponse(
+            url=f"/ui/research/runs/{run_id}?error_message=Select at least one company",
+            status_code=303,
+        )
+
+    service = CompanyResearchService(session)
+    updated = 0
+    for pid in prospect_ids:
+        try:
+            await service.update_prospect_review_status(
+                tenant_id=current_user.tenant_id,
+                prospect_id=UUID(pid),
+                review_status=review_status,
+                exec_search_enabled=True if review_status == "accepted" else None,
+                actor=current_user.email or current_user.username or "system",
+            )
+            updated += 1
+        except Exception:  # noqa: BLE001
+            await session.rollback()
+            return RedirectResponse(
+                url=f"/ui/research/runs/{run_id}?error_message=Failed to update selections",
+                status_code=303,
+            )
+
+    await session.commit()
+    return RedirectResponse(
+        url=f"/ui/research/runs/{run_id}?success_message=Updated {updated} companies",
+        status_code=303,
+    )
 
 
 @router.post("/ui/research/prospects/{prospect_id}/rank")
@@ -466,6 +721,10 @@ async def research_exec_pipeline(
     session: AsyncSession = Depends(get_db),
 ):
     service = CompanyResearchService(session)
+    run = await service.get_research_run(current_user.tenant_id, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Research run not found")
+
     if not executive_ids:
         return RedirectResponse(
             url=f"/ui/research/runs/{run_id}?error_message=Select at least one executive",
@@ -481,7 +740,7 @@ async def research_exec_pipeline(
                 executive_id=UUID(exec_id),
                 assignment_status=assignment_status,
                 current_stage_id=UUID(stage_id) if stage_id else None,
-                role_id=None,
+                role_id=run.role_mandate_id if getattr(run, "role_mandate_id", None) else None,
                 notes=None,
                 actor=current_user.email or current_user.username or "system",
             )
@@ -496,8 +755,15 @@ async def research_exec_pipeline(
             )
 
     await session.commit()
-    msg = f"Promoted {promoted} (reused {reused})"
-    return RedirectResponse(url=f"/ui/research/runs/{run_id}?success_message={msg}", status_code=303)
+    added_total = promoted + reused
+    target_role_id = getattr(run, "role_mandate_id", None)
+    msg = f"Added {added_total} candidates to Search"
+
+    redirect_url = f"/ui/roles/{target_role_id}?success_message={msg}" if target_role_id else f"/ui/research/runs/{run_id}?success_message={msg}"
+    response = RedirectResponse(url=redirect_url, status_code=303)
+    if stage_id:
+        response.set_cookie("research_stage_pref", stage_id)
+    return response
 
 
 @router.get("/ui/research/runs/{run_id}/steps")

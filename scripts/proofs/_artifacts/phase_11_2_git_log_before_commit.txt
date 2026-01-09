@@ -1,0 +1,5 @@
+42a3644 Phase 11.1: external discovery wiring (Grok + search) + secrets + mocks + proof
+0db179d Hotfix: VERIFY_RUNBOOK separate stdout/stderr redirection
+b8526c5 Phase 11.0: Research tab + single workspace UX + proof
+39cbf16 Phase 10.12: golden run proof + final Phase 10 sign-off
+0a97e2f Phase 10.12: golden run proof + final Phase 10 sign-off

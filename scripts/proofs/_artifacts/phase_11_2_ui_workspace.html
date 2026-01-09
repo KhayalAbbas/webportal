@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Workspace</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.4;
+            color: #1a1a1a;
+            background: #f5f5f5;
+        }
+        
+        /* Header */
+        .header {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #34495e;
+        }
+        
+        .header-left h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 12px;
+        }
+        
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        
+        .tenant-id {
+            color: #95a5a6;
+            font-size: 10px;
+        }
+        
+        .logout-link {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 4px 12px;
+            border: 1px solid #7f8c8d;
+            border-radius: 3px;
+        }
+        
+        .logout-link:hover {
+            background: #34495e;
+        }
+        
+        /* Layout container */
+        .container {
+            display: flex;
+            height: calc(100vh - 45px);
+        }
+        
+        /* Sidebar navigation */
+        .sidebar {
+            width: 200px;
+            background: #34495e;
+            color: #ecf0f1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+        
+        .nav-item {
+            display: block;
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-left: 3px solid transparent;
+        }
+        
+        .nav-item:hover {
+            background: #2c3e50;
+            border-left-color: #3498db;
+        }
+        
+        .nav-item.active {
+            background: #2c3e50;
+            border-left-color: #3498db;
+            font-weight: 600;
+        }
+        
+        .nav-separator {
+            height: 1px;
+            background: #2c3e50;
+            margin: 10px 0;
+        }
+        
+        /* Main content */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fff;
+        }
+        
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background: #fff;
+            font-size: 12px;
+        }
+        
+        th {
+            background: #ecf0f1;
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #bdc3c7;
+            color: #2c3e50;
+        }
+        
+        td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 3px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        button,
+        .btn {
+            padding: 8px 16px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        button:hover,
+        .btn:hover {
+            background: #2980b9;
+            text-decoration: none;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        /* Filters section */
+        .filters {
+            background: #ecf0f1;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+        
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        /* Pagination */
+        .pagination {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 20px;
+        }
+        
+        /* Section headings */
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 30px 0 15px 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+        }
+        
+        /* Detail sections */
+        .detail-section {
+            margin-bottom: 30px;
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 10px 20px;
+            font-size: 13px;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .detail-value {
+            color: #2c3e50;
+        }
+        
+        /* Error/success messages */
+        .alert {
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+        
+        .alert-error {
+            background: #e74c3c;
+            color: #fff;
+        }
+        
+        .alert-success {
+            background: #2ecc71;
+            color: #fff;
+        }
+        
+        /* Login page specific */
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .login-title {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 24px;
+            color: #2c3e50;
+        }
+        
+        /* Dashboard cards */
+        .dashboard-section {
+            margin-bottom: 40px;
+        }
+        
+        .section-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        /* Utility classes */
+        .text-muted {
+            color: #95a5a6;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .mt-20 {
+            margin-top: 20px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background: #2ecc71;
+            color: #fff;
+        }
+        
+        .badge-warning {
+            background: #f39c12;
+            color: #fff;
+        }
+        
+        .badge-danger {
+            background: #e74c3c;
+            color: #fff;
+        }
+        
+        .badge-info {
+            background: #3498db;
+            color: #fff;
+        }
+        
+        .text-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 3px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <h1>Silver Arrow ATS</h1>
+        </div>
+        <div class="header-right">
+            
+            <div class="user-info">
+                <span>phase11@example.com</span>
+                <span class="tenant-id">Tenant: 11111111-2222-3333-4444-555555555555</span>
+            </div>
+            <a href="/logout" class="logout-link">Logout</a>
+            
+        </div>
+    </div>
+    
+    <!-- Main container -->
+    <div class="container">
+        
+        <!-- Sidebar navigation -->
+        <nav class="sidebar">
+            <a href="/dashboard" class="nav-item ">Dashboard</a>
+            <a href="/ui/roles" class="nav-item ">Roles</a>
+            <a href="/ui/candidates" class="nav-item ">Candidates</a>
+            <a href="/ui/companies" class="nav-item ">Companies</a>
+            <a href="/ui/bd-opportunities" class="nav-item ">BD Opportunities</a>
+            <a href="/ui/tasks" class="nav-item ">Tasks</a>
+            <a href="/ui/lists" class="nav-item ">Lists</a>
+            <a href="/ui/research" class="nav-item active">Research</a>
+            <a href="/ui/research/upload" class="nav-item ">Research Upload</a>
+            <a href="/ui/company-research" class="nav-item ">Company Research</a>
+            <div class="nav-separator"></div>
+            <a href="/ui/system-check" class="nav-item " style="font-size: 12px; color: #95a5a6;">🔧 System Check</a>
+            <div class="nav-separator"></div>
+            
+            <a href="/ui/settings" class="nav-item ">Settings</a>
+            
+        </nav>
+        
+        
+        <!-- Main content -->
+        <main class="main-content">
+            
+<h1 class="page-title">Research Workspace</h1>
+
+
+
+<div class="card" style="padding:15px;margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;">
+        <div style="flex:1;">
+            <div class="section-title" style="margin-top:0;">VP Sales / fintech</div>
+            <div class="text-muted">Industry: fintech | Region: US</div>
+            <div class="text-muted">keywords: enterprise, payments; exclude: agencies</div>
+            <div style="margin-top:10px;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                
+                
+                    <span class="badge badge-success " style="padding:6px 10px;">Run</span>
+                    <span class="text-muted" style="font-size:11px;">-></span>
+                
+                    <span class="badge badge-success badge-info" style="padding:6px 10px;">Review companies</span>
+                    <span class="text-muted" style="font-size:11px;">-></span>
+                
+                    <span class="badge badge-secondary " style="padding:6px 10px;">Find executives</span>
+                    <span class="text-muted" style="font-size:11px;">-></span>
+                
+                    <span class="badge badge-secondary " style="padding:6px 10px;">Review executives</span>
+                    <span class="text-muted" style="font-size:11px;">-></span>
+                
+                    <span class="badge badge-secondary " style="padding:6px 10px;">Add to search</span>
+                    
+                
+            </div>
+        </div>
+        <div style="text-align:right;min-width:220px;">
+            <span class="badge badge-info">queued</span>
+            <div style="margin-top:10px;">
+                <form id="run-start-form" method="post" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599/start"></form>
+                <form id="exec-discovery-form" method="post" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599/executive-discovery"></form>
+                <button id="primary-cta" class="btn" form="run-start-form" type="submit" disabled
+                    data-requires-selection="false"
+                    data-select-label=""
+                    data-add-label="Add selected to search">
+                    Running…
+                </button>
+                
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Companies
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        
+            <a class="btn btn-secondary active" href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=all">All (2)</a>
+        
+            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=unreviewed">Unreviewed (2)</a>
+        
+            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=accepted">Accepted (0)</a>
+        
+            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=hold">Hold (0)</a>
+        
+            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=rejected">Rejected (0)</a>
+        
+    </div>
+</div>
+<form id="prospect-bulk-form" method="post" action="/ui/research/prospects/bulk-review">
+    <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
+    <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="text-muted">Bulk:</span>
+        <button type="submit" name="review_status" value="accepted" class="btn btn-secondary">Accept selected</button>
+        <button type="submit" name="review_status" value="hold" class="btn btn-secondary">Hold selected</button>
+        <button type="submit" name="review_status" value="rejected" class="btn btn-secondary">Reject selected</button>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:32px;"><input type="checkbox" id="select-all-companies" /></th>
+                <th>Name</th>
+                <th>Location</th>
+                <th>Sector</th>
+                <th>Score</th>
+                <th>Review</th>
+                <th>Evidence</th>
+                <th>Rank</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+                
+                <tr>
+                    <td><input type="checkbox" name="prospect_ids" value="03632047-dffe-4fcc-bf21-3290fc8528d5" class="company-checkbox" /></td>
+                    <td>alpha payments</td>
+                    <td>New York, US</td>
+                    <td>fintech</td>
+                    <td>0.87</td>
+                    <td>
+                        <span class="badge badge-info">new</span>
+                    </td>
+                    <td>
+                        
+                            <a href="https://alpha.example.com/about" target="_blank">Evidence (1)</a>
+                        
+                    </td>
+                    <td>
+                        
+                        <span class="text-muted">-</span>
+                        
+                    </td>
+                    <td>
+                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
+                            <input type="hidden" name="review_status" value="accepted" />
+                            <input type="hidden" name="enable_exec_search" value="true" />
+                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
+                        </form>
+                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
+                            <input type="hidden" name="review_status" value="hold" />
+                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
+                        </form>
+                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
+                            <input type="hidden" name="review_status" value="rejected" />
+                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td><input type="checkbox" name="prospect_ids" value="1a2d1b21-4c85-46ed-9023-ae5f024f4449" class="company-checkbox" /></td>
+                    <td>beta capital</td>
+                    <td>Austin, US</td>
+                    <td>fintech</td>
+                    <td>0.76</td>
+                    <td>
+                        <span class="badge badge-info">new</span>
+                    </td>
+                    <td>
+                        
+                            <a href="https://beta.example.com/profile" target="_blank">Evidence (1)</a>
+                        
+                    </td>
+                    <td>
+                        
+                        <span class="text-muted">-</span>
+                        
+                    </td>
+                    <td>
+                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
+                            <input type="hidden" name="review_status" value="accepted" />
+                            <input type="hidden" name="enable_exec_search" value="true" />
+                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
+                        </form>
+                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
+                            <input type="hidden" name="review_status" value="hold" />
+                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
+                        </form>
+                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
+                            <input type="hidden" name="review_status" value="rejected" />
+                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                
+            
+        </tbody>
+    </table>
+</form>
+
+<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Executives
+    <form method="get" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599" style="display:flex;gap:8px;align-items:center;">
+        <label for="stage_pref" class="text-muted" style="font-size:12px;">Preferred stage</label>
+        <select id="stage_pref" name="stage_pref" style="width:160px;">
+            <option value="">Default</option>
+            
+        </select>
+        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Save</button>
+    </form>
+</div>
+
+<div class="text-muted">Run executive discovery to see results.</div>
+
+
+<script>
+    (function() {
+        const selectAllCompanies = document.getElementById('select-all-companies');
+        if (selectAllCompanies) {
+            selectAllCompanies.addEventListener('change', function() {
+                document.querySelectorAll('.company-checkbox').forEach(function(cb) {
+                    cb.checked = selectAllCompanies.checked;
+                });
+            });
+        }
+
+        const selectAllExecs = document.getElementById('select-all-execs');
+        if (selectAllExecs) {
+            selectAllExecs.addEventListener('change', function() {
+                document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
+                    cb.checked = selectAllExecs.checked;
+                });
+                updatePrimaryCta();
+            });
+        }
+
+        document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
+            cb.addEventListener('change', updatePrimaryCta);
+        });
+
+        function updatePrimaryCta() {
+            const cta = document.getElementById('primary-cta');
+            if (!cta) return;
+            if (cta.dataset.requiresSelection !== 'true') return;
+            const hasSelection = Array.from(document.querySelectorAll('.exec-checkbox')).some(function(cb) { return cb.checked; });
+            cta.disabled = !hasSelection;
+            if (hasSelection) {
+                cta.textContent = cta.dataset.addLabel || 'Add selected to search';
+            } else {
+                cta.textContent = cta.dataset.selectLabel || 'Select executives to add to search';
+            }
+        }
+
+        updatePrimaryCta();
+    })();
+</script>
+
+        </main>
+    </div>
+    
+</body>
+</html>

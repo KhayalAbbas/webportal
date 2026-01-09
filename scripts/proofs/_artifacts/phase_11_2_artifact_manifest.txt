@@ -1,0 +1,15 @@
+phase_11_2 artifact manifest
+phase_11_2_ui_new.html
+phase_11_2_ui_workspace.html
+phase_11_2_ui_workspace_after_accept.html
+phase_11_2_ui_workspace_execs.html
+phase_11_2_proof.txt
+phase_11_2_proof_console.txt
+phase_11_2_db_excerpt.sql.txt
+phase_11_2_release_notes.md
+phase_11_2_signoff_checklist.txt
+phase_11_2_preflight.txt
+phase_11_2_git_status_before_commit.txt
+phase_11_2_git_diff_stat.txt
+phase_11_2_git_log_before_commit.txt
+phase_11_2_release_bundle.zip

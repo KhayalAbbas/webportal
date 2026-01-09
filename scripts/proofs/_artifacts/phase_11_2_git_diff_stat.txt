@@ -1,0 +1,4 @@
+ app/ui/routes/research.py                | 290 +++++++++++++++++++++++++++++--
+ app/ui/templates/research_new.html       |  15 +-
+ app/ui/templates/research_workspace.html | 258 ++++++++++++++++++---------
+ 3 files changed, 467 insertions(+), 96 deletions(-)

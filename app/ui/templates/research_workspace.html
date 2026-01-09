@@ -8,127 +8,178 @@
 {% if error_message %}
 <div class="alert alert-error">{{ error_message }}</div>
 {% endif %}
+
 <div class="card" style="padding:15px;margin-bottom:20px;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;">
-        <div>
+        <div style="flex:1;">
             <div class="section-title" style="margin-top:0;">{{ run.name }}</div>
             <div class="text-muted">Industry: {{ run.sector or '-' }} | Region: {% if run.region_scope %}{{ ', '.join(run.region_scope) }}{% else %}-{% endif %}</div>
             {% if run.description %}<div class="text-muted">{{ run.description }}</div>{% endif %}
+            <div style="margin-top:10px;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                {% set steps = [
+                    {'idx':1,'label':'Run'},
+                    {'idx':2,'label':'Review companies'},
+                    {'idx':3,'label':'Find executives'},
+                    {'idx':4,'label':'Review executives'},
+                    {'idx':5,'label':'Add to search'},
+                ] %}
+                {% for s in steps %}
+                    <span class="badge {% if current_step >= s.idx %}badge-success{% else %}badge-secondary{% endif %} {% if current_step == s.idx %}badge-info{% endif %}" style="padding:6px 10px;">{{ s.label }}</span>
+                    {% if not loop.last %}<span class="text-muted" style="font-size:11px;">-></span>{% endif %}
+                {% endfor %}
+            </div>
         </div>
-        <div style="text-align:right;">
+        <div style="text-align:right;min-width:220px;">
             <span class="badge {% if run.status in ['queued','running','active'] %}badge-info{% elif run.status in ['completed','succeeded'] %}badge-success{% elif run.status in ['failed','cancelled'] %}badge-danger{% else %}badge-warning{% endif %}">{{ run.status }}</span>
-            <div style="margin-top:8px;">
-                <form method="post" action="/ui/research/runs/{{ run.id }}/executive-discovery">
-                    <button type="submit" class="btn" {% if eligible_exec_companies == 0 %}disabled{% endif %}>Find executives</button>
-                </form>
-                {% if eligible_exec_companies == 0 %}
-                <div class="text-muted" style="font-size:11px;">Enable exec search by accepting a company.</div>
-                {% endif %}
+            <div style="margin-top:10px;">
+                <form id="run-start-form" method="post" action="/ui/research/runs/{{ run.id }}/start"></form>
+                <form id="exec-discovery-form" method="post" action="/ui/research/runs/{{ run.id }}/executive-discovery"></form>
+                <button id="primary-cta" class="btn" form="{{ primary_cta_form }}" type="submit" {% if primary_cta.disabled %}disabled{% endif %}
+                    data-requires-selection="{{ 'true' if primary_cta.requires_exec_selection else 'false' }}"
+                    data-select-label="{{ primary_cta.select_label or '' }}"
+                    data-add-label="Add selected to search">
+                    {{ primary_cta.label }}
+                </button>
+                {% if primary_cta.reason %}<div class="text-muted" style="font-size:11px;margin-top:6px;">{{ primary_cta.reason }}</div>{% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<div class="section-title">Companies</div>
-<table>
-    <thead>
-        <tr>
-            <th>Name</th>
-            <th>Location</th>
-            <th>Sector</th>
-            <th>Score</th>
-            <th>Review</th>
-            <th>Evidence</th>
-            <th>Rank</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% if prospects %}
-            {% for p in prospects %}
+<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Companies
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        {% for opt in review_filter_options %}
+            <a class="btn btn-secondary {% if review_filter == opt.key %}active{% endif %}" href="/ui/research/runs/{{ run.id }}?review_filter={{ opt.key }}">{{ opt.label }} ({{ opt.count }})</a>
+        {% endfor %}
+    </div>
+</div>
+<form id="prospect-bulk-form" method="post" action="/ui/research/prospects/bulk-review">
+    <input type="hidden" name="run_id" value="{{ run.id }}" />
+    <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="text-muted">Bulk:</span>
+        <button type="submit" name="review_status" value="accepted" class="btn btn-secondary">Accept selected</button>
+        <button type="submit" name="review_status" value="hold" class="btn btn-secondary">Hold selected</button>
+        <button type="submit" name="review_status" value="rejected" class="btn btn-secondary">Reject selected</button>
+    </div>
+    <table>
+        <thead>
             <tr>
-                <td>{{ p.name }}</td>
-                <td>{{ p.hq_city or '-' }}, {{ p.hq_country or '-' }}</td>
-                <td>{{ p.sector or '-' }}</td>
-                <td>{{ '%.2f'|format(p.relevance_score or 0) }}</td>
-                <td>
-                    <span class="badge {% if p.review_status == 'accepted' %}badge-success{% elif p.review_status == 'hold' %}badge-warning{% elif p.review_status == 'rejected' %}badge-danger{% else %}badge-info{% endif %}">{{ p.review_status }}</span>
-                </td>
-                <td>
-                    {% if p.primary_evidence_url %}
-                        <a href="{{ p.primary_evidence_url }}" target="_blank">source</a>
-                    {% else %}-{% endif %}
-                </td>
-                <td>
-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/rank" style="display:inline-block;">
-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
-                        <input type="hidden" name="direction" value="up" />
-                        <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">↑</button>
-                    </form>
-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/rank" style="display:inline-block;">
-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
-                        <input type="hidden" name="direction" value="down" />
-                        <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">↓</button>
-                    </form>
-                </td>
-                <td>
-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
-                        <input type="hidden" name="review_status" value="accepted" />
-                        <input type="hidden" name="enable_exec_search" value="true" />
-                        <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
-                    </form>
-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
-                        <input type="hidden" name="review_status" value="hold" />
-                        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
-                    </form>
-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
-                        <input type="hidden" name="review_status" value="rejected" />
-                        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
-                    </form>
-                </td>
+                <th style="width:32px;"><input type="checkbox" id="select-all-companies" /></th>
+                <th>Name</th>
+                <th>Location</th>
+                <th>Sector</th>
+                <th>Score</th>
+                <th>Review</th>
+                <th>Evidence</th>
+                <th>Rank</th>
+                <th>Actions</th>
             </tr>
-            {% endfor %}
-        {% else %}
-            <tr><td colspan="8" class="text-center text-muted">No prospects yet.</td></tr>
-        {% endif %}
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+            {% if prospects %}
+                {% for p in prospects %}
+                <tr>
+                    <td><input type="checkbox" name="prospect_ids" value="{{ p.id }}" class="company-checkbox" /></td>
+                    <td>{{ p.name }}</td>
+                    <td>{{ p.hq_city or '-' }}, {{ p.hq_country or '-' }}</td>
+                    <td>{{ p.sector or '-' }}</td>
+                    <td>{{ '%.2f'|format(p.relevance_score or 0) }}</td>
+                    <td>
+                        <span class="badge {% if p.review_status == 'accepted' %}badge-success{% elif p.review_status == 'hold' %}badge-warning{% elif p.review_status == 'rejected' %}badge-danger{% else %}badge-info{% endif %}">{{ p.review_status }}</span>
+                    </td>
+                    <td>
+                        {% if p.primary_evidence_url %}
+                            <a href="{{ p.primary_evidence_url }}" target="_blank">Evidence ({{ p.evidence_count }})</a>
+                        {% else %}
+                            <span class="text-muted">Evidence ({{ p.evidence_count }})</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if review_filter == 'accepted' %}
+                        <form method="post" action="/ui/research/prospects/{{ p.id }}/rank" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="{{ run.id }}" />
+                            <input type="hidden" name="direction" value="up" />
+                            <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">↑</button>
+                        </form>
+                        <form method="post" action="/ui/research/prospects/{{ p.id }}/rank" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="{{ run.id }}" />
+                            <input type="hidden" name="direction" value="down" />
+                            <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">↓</button>
+                        </form>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="{{ run.id }}" />
+                            <input type="hidden" name="review_status" value="accepted" />
+                            <input type="hidden" name="enable_exec_search" value="true" />
+                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
+                        </form>
+                        <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="{{ run.id }}" />
+                            <input type="hidden" name="review_status" value="hold" />
+                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
+                        </form>
+                        <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
+                            <input type="hidden" name="run_id" value="{{ run.id }}" />
+                            <input type="hidden" name="review_status" value="rejected" />
+                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr><td colspan="9" class="text-center text-muted">No prospects yet.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</form>
 
-<div class="section-title">Executives</div>
+<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Executives
+    <form method="get" action="/ui/research/runs/{{ run.id }}" style="display:flex;gap:8px;align-items:center;">
+        <label for="stage_pref" class="text-muted" style="font-size:12px;">Preferred stage</label>
+        <select id="stage_pref" name="stage_pref" style="width:160px;">
+            <option value="">Default</option>
+            {% for stage in pipeline_stages %}
+            <option value="{{ stage.id }}" {% if stage_pref and stage_pref == stage.id %}selected{% endif %}>{{ stage.name }} ({{ stage.code }})</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Save</button>
+    </form>
+</div>
 {% if has_execs %}
-<form method="post" action="/ui/research/executives/pipeline">
+<form id="exec-pipeline-form" method="post" action="/ui/research/executives/pipeline">
     <input type="hidden" name="run_id" value="{{ run.id }}" />
     <table>
         <thead>
             <tr>
-                <th>Select</th>
+                <th style="width:32px;"><input type="checkbox" id="select-all-execs" /></th>
                 <th>Name</th>
                 <th>Title</th>
                 <th>Company</th>
-                <th>Evidence</th>
+                <th>Link</th>
             </tr>
         </thead>
         <tbody>
             {% for exec in executives %}
             <tr>
-                <td><input type="checkbox" name="executive_ids" value="{{ exec.id }}" /></td>
+                <td><input type="checkbox" name="executive_ids" value="{{ exec.id }}" class="exec-checkbox" /></td>
                 <td>{{ exec.name or '-' }}</td>
                 <td>{{ exec.title or '-' }}</td>
                 <td>{{ exec.company or '-' }}</td>
-                <td>{% if exec.evidence_url %}<a href="{{ exec.evidence_url }}" target="_blank">link</a>{% else %}-{% endif %}</td>
+                <td>{% if exec.evidence_url %}<a href="{{ exec.evidence_url }}" target="_blank">{{ exec.link_label }}</a>{% else %}-{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
         <label for="stage_id">Stage</label>
         <select id="stage_id" name="stage_id" style="width:200px;">
             <option value="">Default</option>
             {% for stage in pipeline_stages %}
-            <option value="{{ stage.id }}">{{ stage.name }} ({{ stage.code }})</option>
+            <option value="{{ stage.id }}" {% if stage_pref and stage_pref == stage.id %}selected{% endif %}>{{ stage.name }} ({{ stage.code }})</option>
             {% endfor %}
         </select>
         <label for="assignment_status">Status</label>
@@ -138,10 +189,51 @@
             <option value="prospect">Prospect</option>
             <option value="submitted">Submitted</option>
         </select>
-        <button type="submit" class="btn">Add selected to Search</button>
     </div>
 </form>
 {% else %}
 <div class="text-muted">Run executive discovery to see results.</div>
 {% endif %}
+
+<script>
+    (function() {
+        const selectAllCompanies = document.getElementById('select-all-companies');
+        if (selectAllCompanies) {
+            selectAllCompanies.addEventListener('change', function() {
+                document.querySelectorAll('.company-checkbox').forEach(function(cb) {
+                    cb.checked = selectAllCompanies.checked;
+                });
+            });
+        }
+
+        const selectAllExecs = document.getElementById('select-all-execs');
+        if (selectAllExecs) {
+            selectAllExecs.addEventListener('change', function() {
+                document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
+                    cb.checked = selectAllExecs.checked;
+                });
+                updatePrimaryCta();
+            });
+        }
+
+        document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
+            cb.addEventListener('change', updatePrimaryCta);
+        });
+
+        function updatePrimaryCta() {
+            const cta = document.getElementById('primary-cta');
+            if (!cta) return;
+            if (cta.dataset.requiresSelection !== 'true') return;
+            const hasSelection = Array.from(document.querySelectorAll('.exec-checkbox')).some(function(cb) { return cb.checked; });
+            cta.disabled = !hasSelection;
+            if (hasSelection) {
+                cta.textContent = cta.dataset.addLabel || 'Add selected to search';
+            } else {
+                cta.textContent = cta.dataset.selectLabel || 'Select executives to add to search';
+            }
+        }
+
+        updatePrimaryCta();
+    })();
+</script>
 {% endblock %}
