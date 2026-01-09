@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     GOOGLE_CSE_CX: Optional[str] = None
     ATS_SECRETS_MASTER_KEY: Optional[str] = None
     ATS_SECRETS_KEY_VERSION: int = 1
+    ATS_SEARCH_CACHE_TTL_SECONDS: int = 7 * 24 * 60 * 60
+    ATS_SECRETS_MASTER_KEY: Optional[str] = None
+    ATS_SECRETS_KEY_VERSION: int = 1
     
     class Config:
         # Load variables from .env file if it exists

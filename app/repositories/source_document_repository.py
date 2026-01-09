@@ -82,6 +82,7 @@ class SourceDocumentRepository:
             storage_path=data.storage_path,
             text_content=data.text_content,
             doc_metadata=data.doc_metadata,
+            content_hash=data.content_hash,
         )
         self.db.add(document)
         await self.db.flush()

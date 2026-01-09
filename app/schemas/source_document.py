@@ -20,6 +20,7 @@ class SourceDocumentCreate(TenantScopedBase):
     storage_path: Optional[str] = None
     text_content: Optional[str] = None
     doc_metadata: Optional[dict] = None
+    content_hash: Optional[str] = None
 
 
 class SourceDocumentUpdate(BaseModel):
@@ -31,6 +32,7 @@ class SourceDocumentUpdate(BaseModel):
     storage_path: Optional[str] = None
     text_content: Optional[str] = None
     doc_metadata: Optional[dict] = None
+    content_hash: Optional[str] = None
 
 
 class SourceDocumentRead(TenantScopedRead):
@@ -43,3 +45,4 @@ class SourceDocumentRead(TenantScopedRead):
     storage_path: Optional[str] = None
     text_content: Optional[str] = None
     doc_metadata: Optional[dict] = None
+    content_hash: Optional[str] = None

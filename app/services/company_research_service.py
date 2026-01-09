@@ -57,8 +57,9 @@ from app.services.company_source_extraction_service import CompanySourceExtracti
 from app.services.entity_resolution_service import EntityResolutionService
 from app.services.canonical_people_service import CanonicalPeopleService
 from app.services.canonical_company_service import CanonicalCompanyService
-from app.services.discovery_provider import ExternalProviderConfigError, get_discovery_provider
+from app.services.discovery_provider import ExternalProviderConfigError, get_discovery_provider, DiscoveryProviderResult
 from app.services.integration_settings_service import IntegrationSettingsService
+from app.services.search_cache_service import SearchCacheService
 from app.schemas.ai_proposal import AIProposal
 from app.schemas.ai_enrichment import AIEnrichmentCreate
 from app.schemas.llm_discovery import LlmDiscoveryPayload, LlmCompany, LlmEvidence, LlmRunContext
@@ -110,6 +111,15 @@ class CompanyResearchService:
         "internal": 1,
         "both": 2,
     }
+
+    GCC_COUNTRY_ORDER: list[tuple[str, str]] = [
+        ("UAE", "AE"),
+        ("KSA", "SA"),
+        ("QAT", "QA"),
+        ("KUW", "KW"),
+        ("OMA", "OM"),
+        ("BAH", "BH"),
+    ]
 
     EXPORT_MAX_ZIP_BYTES = settings.EXPORT_PACK_MAX_ZIP_BYTES
     EXPORT_DEFAULT_MAX_COMPANIES = settings.EXPORT_PACK_DEFAULT_MAX_COMPANIES
@@ -3644,6 +3654,7 @@ class CompanyResearchService:
         await self.ensure_sources_unlocked(tenant_id, run_id)
 
         integration_service = IntegrationSettingsService(self.db)
+        cache_service = SearchCacheService(self.db)
         tenant_uuid = UUID(str(tenant_id))
         runtime_config = await integration_service.resolve_runtime_config(tenant_uuid, provider_key, require_secret=False)
 
@@ -3651,16 +3662,44 @@ class CompanyResearchService:
         if hasattr(provider_request, "model_dump"):
             provider_request = provider_request.model_dump(exclude_none=True)
 
-        try:
-            provider_result = provider.run(
-                tenant_id=tenant_id,
-                run_id=run_id,
-                request=provider_request,
-                runtime_config=runtime_config,
+        cache_status = "miss"
+        cache_context: Optional[tuple[dict[str, Any], str, str]] = None
+        cache_hit: Optional[dict[str, Any]] = None
+        if provider_key in {"google_cse", "google_search"}:
+            try:
+                cache_context = provider.build_cache_context(provider_request)
+                _, cache_key, _ = cache_context
+                cache_hit = await cache_service.get_cache_hit(
+                    tenant_id=tenant_uuid,
+                    provider=provider_key,
+                    cache_key=cache_key,
+                )
+            except Exception:
+                cache_hit = None
+
+        if cache_hit:
+            cache_status = "hit"
+            provider_result = DiscoveryProviderResult(
+                payload=cache_hit["payload"],
+                provider=provider_key,
+                model="google_cse_v1",
+                version=getattr(provider, "version", "1"),
+                source_type="provider_json",
+                envelope=cache_hit.get("envelope"),
+                raw_input_meta=cache_hit.get("raw_input_meta"),
+                error=None,
             )
-        except ExternalProviderConfigError:
-            # Bubble up for API/UI layers to render a structured app error
-            raise
+        else:
+            try:
+                provider_result = provider.run(
+                    tenant_id=tenant_id,
+                    run_id=run_id,
+                    request=provider_request,
+                    runtime_config=runtime_config,
+                )
+            except ExternalProviderConfigError:
+                # Bubble up for API/UI layers to render a structured app error
+                raise
 
         envelope_source = None
         envelope_source_id = None
@@ -3699,6 +3738,7 @@ class CompanyResearchService:
                 "error": provider_result.error,
                 "provider_version": provider_result.version,
                 "envelope_source_id": envelope_source_id,
+                "cache_status": cache_status,
             }
 
         if not provider_result.payload:
@@ -3706,6 +3746,7 @@ class CompanyResearchService:
                 "error": {"code": "provider_payload_missing", "message": "Provider returned no payload"},
                 "provider_version": provider_result.version,
                 "envelope_source_id": envelope_source_id,
+                "cache_status": cache_status,
             }
 
         raw_source = None
@@ -3746,6 +3787,24 @@ class CompanyResearchService:
         canonical_json = self._canonical_json(parsed.canonical_dict())
         content_hash = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
+        if provider_key in {"google_cse", "google_search"} and cache_status == "miss":
+            try:
+                canonical_params, cache_key, request_hash = cache_context or provider.build_cache_context(provider_request)
+                await cache_service.store_cache_entry(
+                    tenant_id=tenant_uuid,
+                    provider=provider_key,
+                    cache_key=cache_key,
+                    request_hash=request_hash,
+                    canonical_params=canonical_params,
+                    payload=parsed,
+                    envelope=provider_result.envelope,
+                    raw_input_meta=getattr(provider_result, "raw_input_meta", None),
+                    ttl_seconds=SearchCacheService.default_ttl_seconds(),
+                )
+            except Exception:
+                # Cache failures are non-fatal
+                pass
+
         existing_source = await self.repo.find_source_by_hash(tenant_id, run_id, content_hash)
         if existing_source:
             enrichment_query = await self.db.execute(
@@ -3769,6 +3828,7 @@ class CompanyResearchService:
                 "content_hash": content_hash,
                 "raw_source_id": raw_source_id,
                 "envelope_source_id": envelope_source_id or (existing_source.meta or {}).get("envelope_source_id"),
+                "cache_status": cache_status,
             }
 
         source_meta = {
@@ -3806,7 +3866,71 @@ class CompanyResearchService:
             purpose=purpose,
         )
 
-        return {**summary, "provider_version": provider_result.version, "raw_source_id": raw_source_id, "envelope_source_id": envelope_source_id, "content_hash": content_hash}
+        return {**summary, "provider_version": provider_result.version, "raw_source_id": raw_source_id, "envelope_source_id": envelope_source_id, "content_hash": content_hash, "cache_status": cache_status}
+
+    def _expand_region_countries(self, region: str) -> list[dict[str, str]]:
+        if not region:
+            return []
+        if region.upper() == "GCC":
+            return [{"label": label, "country": code} for label, code in self.GCC_COUNTRY_ORDER]
+        return []
+
+    async def run_google_cse_region_bundle(
+        self,
+        tenant_id: str,
+        run_id: UUID,
+        *,
+        query: str,
+        region: str = "GCC",
+        num_results: int = 3,
+        site_filter: Optional[str] = None,
+        language: Optional[str] = None,
+    ) -> dict:
+        countries = self._expand_region_countries(region)
+        if not countries:
+            raise ValueError("unsupported_region")
+
+        results: list[dict[str, object]] = []
+        for entry in countries:
+            payload: dict[str, object] = {
+                "query": query,
+                "num_results": num_results,
+                "country": entry["country"],
+            }
+            if site_filter:
+                payload["site_filter"] = site_filter
+            if language:
+                payload["language"] = language
+
+            outcome = await self.run_discovery_provider(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                provider_key="google_cse",
+                request_payload=payload,
+            )
+
+            results.append(
+                {
+                    "label": entry["label"],
+                    "country": entry["country"],
+                    "cache_status": outcome.get("cache_status"),
+                    "source_id": outcome.get("source_id"),
+                    "enrichment_id": outcome.get("enrichment_record_id"),
+                    "content_hash": outcome.get("content_hash"),
+                    "error": outcome.get("error"),
+                    "skipped": outcome.get("skipped"),
+                    "reason": outcome.get("reason"),
+                }
+            )
+
+        return {
+            "region": region,
+            "query": query,
+            "num_results": num_results,
+            "site_filter": site_filter,
+            "language": language,
+            "results": results,
+        }
 
     async def run_market_test(
         self,

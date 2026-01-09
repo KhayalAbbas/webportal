@@ -34,6 +34,7 @@ from app.models.company_research import (
     EntityMergeLink,
 )
 from app.models.tenant_integration import TenantIntegrationSecret, TenantIntegrationConfig
+from app.models.tenant_search_cache import TenantSearchCache
 
 # Export all models
 __all__ = [
@@ -67,4 +68,5 @@ __all__ = [
         "EntityMergeLink",
     "TenantIntegrationSecret",
     "TenantIntegrationConfig",
+        "TenantSearchCache",
 ]

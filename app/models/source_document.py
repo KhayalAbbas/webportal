@@ -7,7 +7,7 @@ Stores documents collected during research (PDFs, web pages, etc.).
 import uuid
 from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import String, Text, ForeignKey
+from sqlalchemy import String, Text, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -71,9 +71,19 @@ class SourceDocument(TenantScopedModel):
         JSONB,
         nullable=True,
     )
+
+    # Optional content hash for deduplication/search caching
+    content_hash: Mapped[Optional[str]] = mapped_column(
+        String(128),
+        nullable=True,
+    )
     
     # Relationship to research event
     research_event: Mapped["ResearchEvent"] = relationship(
         "ResearchEvent",
         back_populates="source_documents",
+    )
+
+    __table_args__ = (
+        Index("ix_source_document_tenant_content_hash", "tenant_id", "content_hash"),
     )

@@ -8,6 +8,7 @@ import csv
 import json
 import os
 import time
+import hashlib
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
@@ -361,6 +362,15 @@ class GoogleSearchProvider(DiscoveryProvider):
             params["site_filter"] = request_obj.site_filter
         return params
 
+    def build_cache_context(self, request: GoogleSearchProviderRequest | dict[str, Any] | None) -> tuple[dict[str, Any], str, str]:
+        """Return canonical_params, cache_key, request_hash for caching."""
+        request_obj = self._normalize_params(request)
+        canonical_params = self._canonical_params(request_obj)
+        canonical_json = json.dumps(canonical_params, sort_keys=True, separators=(",", ":"))
+        request_hash = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
+        cache_key = f"{self.key}:{request_hash}"
+        return canonical_params, cache_key, request_hash
+
     def _build_query_params(self, canonical_params: dict[str, Any], api_key: str, cx: str) -> dict[str, Any]:
         params = {
             "q": canonical_params["query"],
@@ -495,7 +505,7 @@ class GoogleSearchProvider(DiscoveryProvider):
         runtime_config: Optional[dict[str, Any]] = None,
     ) -> DiscoveryProviderResult:
         try:
-            request_obj = self._normalize_params(request)
+            canonical_params, cache_key, request_hash = self.build_cache_context(request)
         except Exception as exc:  # noqa: BLE001
             return DiscoveryProviderResult(
                 payload=None,
@@ -504,8 +514,6 @@ class GoogleSearchProvider(DiscoveryProvider):
                 version=self.version,
                 error={"code": "invalid_request", "message": str(exc)},
             )
-
-        canonical_params = self._canonical_params(request_obj)
 
         fixture_payload, fixture_path = self._load_fixture()
         use_mock = bool(settings.ATS_MOCK_EXTERNAL_PROVIDERS)
@@ -562,7 +570,7 @@ class GoogleSearchProvider(DiscoveryProvider):
                 source_type="provider_json",
                 envelope=envelope,
                 error={"code": "upstream_error", "message": message, "status_code": status_code},
-                raw_input_meta={"normalized_params": canonical_params, "fixture_path": fixture_path},
+                raw_input_meta={"normalized_params": canonical_params, "fixture_path": fixture_path, "request_hash": request_hash},
             )
 
         companies = self._build_companies(response_payload, canonical_params)
@@ -597,7 +605,7 @@ class GoogleSearchProvider(DiscoveryProvider):
             version=self.version,
             source_type="provider_json",
             envelope=envelope,
-            raw_input_meta={"normalized_params": canonical_params, "fixture_path": fixture_path},
+            raw_input_meta={"normalized_params": canonical_params, "fixture_path": fixture_path, "request_hash": request_hash},
         )
 
 
