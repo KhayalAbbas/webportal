@@ -57,7 +57,7 @@ from app.services.company_source_extraction_service import CompanySourceExtracti
 from app.services.entity_resolution_service import EntityResolutionService
 from app.services.canonical_people_service import CanonicalPeopleService
 from app.services.canonical_company_service import CanonicalCompanyService
-from app.services.discovery_provider import get_discovery_provider
+from app.services.discovery_provider import ExternalProviderConfigError, get_discovery_provider
 from app.schemas.ai_proposal import AIProposal
 from app.schemas.ai_enrichment import AIEnrichmentCreate
 from app.schemas.llm_discovery import LlmDiscoveryPayload, LlmCompany, LlmEvidence, LlmRunContext
@@ -3646,11 +3646,15 @@ class CompanyResearchService:
         if hasattr(provider_request, "model_dump"):
             provider_request = provider_request.model_dump(exclude_none=True)
 
-        provider_result = provider.run(
-            tenant_id=tenant_id,
-            run_id=run_id,
-            request=provider_request,
-        )
+        try:
+            provider_result = provider.run(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                request=provider_request,
+            )
+        except ExternalProviderConfigError:
+            # Bubble up for API/UI layers to render a structured app error
+            raise
 
         envelope_source = None
         envelope_source_id = None
@@ -3700,6 +3704,7 @@ class CompanyResearchService:
 
         raw_source = None
         raw_hash = None
+        doc_source_type = provider_result.source_type or "discovery_provider"
         if provider_result.raw_input_text:
             normalized_raw = self._normalize_seed_raw_text(provider_result.raw_input_text)
             raw_hash = hashlib.sha256(normalized_raw.encode("utf-8")).hexdigest()
@@ -3711,13 +3716,13 @@ class CompanyResearchService:
                     tenant_id,
                     SourceDocumentCreate(
                         company_research_run_id=run_id,
-                        source_type="seed_input",
-                        title=f"Seed input ({provider_result.provider})",
-                        mime_type="text/plain",
+                        source_type=doc_source_type,
+                        title=f"Provider request ({provider_result.provider})",
+                        mime_type="application/json" if doc_source_type != "seed_input" else "text/plain",
                         content_text=normalized_raw,
                         content_hash=raw_hash,
                         meta={
-                            "kind": "seed_input",
+                            "kind": f"{doc_source_type}_request",
                             "provider": provider_result.provider,
                             "version": provider_result.version,
                             **(provider_result.raw_input_meta or {}),
@@ -3761,7 +3766,7 @@ class CompanyResearchService:
             }
 
         source_meta = {
-            "kind": "discovery_provider",
+            "kind": doc_source_type,
             "provider": provider_result.provider,
             "version": provider_result.version,
             "model": provider_result.model,
@@ -3775,7 +3780,7 @@ class CompanyResearchService:
             tenant_id,
             SourceDocumentCreate(
                 company_research_run_id=run_id,
-                source_type="discovery_provider",
+                source_type=doc_source_type,
                 title=f"Discovery provider: {provider_key}",
                 mime_type="application/json",
                 content_text=canonical_json,
@@ -4624,6 +4629,12 @@ class CompanyResearchService:
                     existing_exec_map[prospect.id][exec_norm] = target_exec
                     stats["executives_new"] += 1
                     company_entry["executives_new"] += 1
+
+                linkedin_norm = self._normalize_url_value(exec_entry.linkedin_url)
+                if linkedin_norm:
+                    target_exec.linkedin_url = target_exec.linkedin_url or linkedin_norm
+                    if not target_exec.profile_url or "linkedin.com" in linkedin_norm:
+                        target_exec.profile_url = linkedin_norm
 
                 for ev in exec_entry.evidence or []:
                     dedupe_key = (

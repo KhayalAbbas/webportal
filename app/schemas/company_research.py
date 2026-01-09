@@ -316,12 +316,25 @@ class GoogleSearchProviderRequest(BaseModel):
     site_filter: Optional[str] = Field(default=None, max_length=255)
 
 
+class XaiGrokProviderRequest(BaseModel):
+    """Request envelope for xAI Grok discovery provider."""
+
+    model_config = ConfigDict(extra="allow")
+
+    query: str = Field(..., min_length=1, max_length=500)
+    industry: Optional[str] = Field(default=None, max_length=100)
+    region: Optional[str] = Field(default=None, max_length=50)
+    max_companies: Optional[int] = Field(default=8, ge=1, le=25)
+    request_id: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class DiscoveryProviderRunPayload(BaseModel):
     """Request payload for running a discovery provider."""
 
     model_config = ConfigDict(extra="allow")
 
-    request: Optional[SeedListProviderRequest | GoogleSearchProviderRequest | Dict[str, Any]] = None
+    request: Optional[SeedListProviderRequest | GoogleSearchProviderRequest | XaiGrokProviderRequest | Dict[str, Any]] = None
 
 
 class DiscoveryProviderRunResponse(BaseModel):

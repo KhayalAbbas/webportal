@@ -42,7 +42,11 @@ class Settings(BaseSettings):
     EVIDENCE_BUNDLE_MAX_ZIP_BYTES: int = 25 * 1024 * 1024
     BULK_ENRICH_MAX_EXECUTIVES: int = 20
 
-    # External search providers (Phase 9.3)
+    # External discovery/search providers
+    ATS_EXTERNAL_DISCOVERY_ENABLED: bool = False
+    ATS_MOCK_EXTERNAL_PROVIDERS: bool = False
+    XAI_API_KEY: Optional[str] = None
+    XAI_MODEL: str = "grok-2"
     GOOGLE_CSE_API_KEY: Optional[str] = None
     GOOGLE_CSE_CX: Optional[str] = None
     

@@ -1,0 +1,58 @@
+{
+  "provider": "xai_grok",
+  "model": "grok-2",
+  "run_context": {
+    "query": "phase_11_1_mock",
+    "notes": "fixture"
+  },
+  "companies": [
+    {
+      "name": "Fixture Atlas Materials",
+      "website_url": "https://atlas-materials.example.com",
+      "hq_country": "US",
+      "hq_city": "Austin",
+      "sector": "Industrial",
+      "subsector": "Advanced Materials",
+      "description": "Lightweight composites for EV and aerospace tiers.",
+      "confidence": 0.91,
+      "evidence": [
+        {
+          "url": "https://atlas-materials.example.com/about",
+          "label": "About",
+          "kind": "homepage",
+          "snippet": "Atlas Materials builds carbon composites for EV platforms."
+        },
+        {
+          "url": "https://news.example.com/atlas-materials-seriesb",
+          "label": "Series B",
+          "kind": "press_release",
+          "snippet": "Raised $45M to scale production lines."
+        }
+      ]
+    },
+    {
+      "name": "Fixture Beacon Analytics",
+      "website_url": "https://beacon-analytics.example.com",
+      "hq_country": "SE",
+      "hq_city": "Stockholm",
+      "sector": "Software",
+      "subsector": "Energy Analytics",
+      "description": "Grid forecasting and renewables optimization for utilities.",
+      "confidence": 0.88,
+      "evidence": [
+        {
+          "url": "https://beacon-analytics.example.com/case-studies/ev-grid",
+          "label": "Case Study",
+          "kind": "homepage",
+          "snippet": "Improved EV charging predictions by 22%."
+        },
+        {
+          "url": "https://blog.example.com/beacon-award",
+          "label": "Industry award",
+          "kind": "press_release",
+          "snippet": "Recognized as top smart grid vendor."
+        }
+      ]
+    }
+  ]
+}

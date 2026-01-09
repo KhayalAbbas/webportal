@@ -24,6 +24,7 @@ from app.core.dependencies import get_db, verify_user_tenant_access
 from app.errors import raise_app_error
 from app.models.user import User
 from app.services.company_research_service import CompanyResearchService
+from app.services.discovery_provider import ExternalProviderConfigError
 from app.services.contact_enrichment_service import ContactEnrichmentService
 from app.schemas.company_research import (
     CompanyResearchRunCreate,
@@ -841,6 +842,8 @@ async def run_discovery_provider(
             provider_key=provider_key,
             request_payload=(payload or DiscoveryProviderRunPayload()).request,
         )
+    except ExternalProviderConfigError as exc:
+        raise_app_error(400, "EXTERNAL_PROVIDER_NOT_CONFIGURED", str(exc), exc.details)
     except ValueError as exc:  # noqa: BLE001
         message = str(exc)
         if message == "invalid_purpose":
@@ -1105,6 +1108,8 @@ async def run_market_test(
             request=payload,
             actor=actor,
         )
+    except ExternalProviderConfigError as exc:
+        raise_app_error(400, "EXTERNAL_PROVIDER_NOT_CONFIGURED", str(exc), exc.details)
     except ValueError as exc:  # noqa: BLE001
         msg = str(exc)
         if msg == "run_not_found":

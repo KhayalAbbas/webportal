@@ -22,6 +22,7 @@ from app.schemas.company_research import (
     SeedListProviderRequest,
     SeedListItem,
     SeedListEvidence,
+    XaiGrokProviderRequest,
 )
 from app.schemas.llm_discovery import LlmDiscoveryPayload, LlmCompany, LlmEvidence, LlmRunContext
 from app.utils.url_canonicalizer import canonicalize_url
@@ -35,10 +36,46 @@ class DiscoveryProviderResult:
     provider: str
     model: Optional[str] = None
     version: str = "1"
+    source_type: Optional[str] = None
     raw_input_text: Optional[str] = None
     raw_input_meta: Optional[dict[str, Any]] = None
     envelope: Optional[dict[str, Any]] = None
     error: Optional[dict[str, Any]] = None
+
+
+class ExternalProviderConfigError(Exception):
+    """Raised when an external provider cannot run due to missing config/gates."""
+
+    def __init__(self, provider: str, message: str, details: Optional[dict[str, Any]] = None):
+        super().__init__(message)
+        self.provider = provider
+        self.details = details or {}
+
+
+def _ensure_real_mode(provider_key: str, required_env: list[tuple[str, Optional[str]]]) -> None:
+    """Fail fast if real-mode calls are not allowed or missing env vars."""
+
+    if settings.ATS_MOCK_EXTERNAL_PROVIDERS:
+        return
+
+    if not settings.ATS_EXTERNAL_DISCOVERY_ENABLED:
+        raise ExternalProviderConfigError(
+            provider_key,
+            "External discovery disabled",
+            {"missing": ["ATS_EXTERNAL_DISCOVERY_ENABLED"]},
+        )
+
+    missing: list[str] = []
+    for env_key, env_val in required_env:
+        if not env_val:
+            missing.append(env_key)
+
+    if missing:
+        raise ExternalProviderConfigError(
+            provider_key,
+            "Missing required environment variables",
+            {"missing": sorted(missing)},
+        )
 
 
 class DiscoveryProvider:
@@ -279,7 +316,8 @@ class SeedListProvider(DiscoveryProvider):
 class GoogleSearchProvider(DiscoveryProvider):
     """Google Custom Search JSON API backed discovery provider."""
 
-    key = "google_search"
+    key = "google_cse"
+    alias_keys = ("google_search",)
     version = "1"
     endpoint = "https://www.googleapis.com/customsearch/v1"
 
@@ -317,12 +355,33 @@ class GoogleSearchProvider(DiscoveryProvider):
             params["siteSearch"] = canonical_params["site_filter"]
         return params
 
-    def _load_fixture(self) -> Optional[dict]:
+    def _load_fixture(self) -> tuple[Optional[dict], Optional[str]]:
         fixture_path = os.getenv("GOOGLE_CSE_FIXTURE_PATH")
-        if fixture_path and Path(fixture_path).exists():
-            with open(fixture_path, "r", encoding="utf-8") as handle:
-                return json.load(handle)
-        return None
+        default_path = Path("scripts/fixtures/external/google_cse/default.json")
+        selected = None
+
+        if fixture_path:
+            selected = Path(fixture_path)
+        elif default_path.exists():
+            selected = default_path
+
+        if selected and selected.exists():
+            with open(selected, "r", encoding="utf-8") as handle:
+                return json.load(handle), str(selected)
+        return None, None
+
+    def validate_config(self, allow_mock: bool = True) -> None:
+        if settings.ATS_MOCK_EXTERNAL_PROVIDERS and allow_mock:
+            return
+
+        _ensure_real_mode(
+            self.key,
+            [
+                ("ATS_EXTERNAL_DISCOVERY_ENABLED", "1" if settings.ATS_EXTERNAL_DISCOVERY_ENABLED else None),
+                ("GOOGLE_CSE_API_KEY", settings.GOOGLE_CSE_API_KEY),
+                ("GOOGLE_CSE_CX", settings.GOOGLE_CSE_CX),
+            ],
+        )
 
     def _http_fetch(self, url: str, params: dict[str, Any]) -> tuple[int, dict, dict[str, str]]:
         resp = httpx.get(url, params=params, timeout=15.0)
@@ -417,38 +476,30 @@ class GoogleSearchProvider(DiscoveryProvider):
 
         canonical_params = self._canonical_params(request_obj)
 
+        fixture_payload, fixture_path = self._load_fixture()
+        use_mock = bool(settings.ATS_MOCK_EXTERNAL_PROVIDERS)
+
+        if use_mock and not fixture_payload:
+            raise ExternalProviderConfigError(
+                self.key,
+                "Mock mode enabled but fixture missing",
+                {"fixture_path": fixture_path or "scripts/fixtures/external/google_cse/default.json"},
+            )
+
         api_key = settings.GOOGLE_CSE_API_KEY
         cx = settings.GOOGLE_CSE_CX
-        if not api_key or not cx:
-            envelope = self._build_envelope(
-                canonical_params=canonical_params,
-                request_params=canonical_params,
-                response_payload={"error": "missing_config"},
-                status_code=400,
-                headers={},
-                source="config_missing",
-            )
-            return DiscoveryProviderResult(
-                payload=None,
-                provider=self.key,
-                model="google_cse_v1",
-                version=self.version,
-                envelope=envelope,
-                error={"code": "missing_config", "message": "GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX are required"},
-                raw_input_meta={"normalized_params": canonical_params},
-            )
 
-        fixture_payload = self._load_fixture()
-        source_kind = "fixture" if fixture_payload is not None else "api"
-
-        if fixture_payload is not None:
+        if use_mock:
             status_code = 200
-            response_payload = fixture_payload
-            headers: dict[str, str] = {}
-            request_params = self._build_query_params(canonical_params, api_key, cx)
+            response_payload = fixture_payload or {}
+            headers = {}
+            request_params = self._build_query_params(canonical_params, api_key or "mock_api_key", cx or "mock_cx")
+            source_kind = "fixture"
         else:
+            self.validate_config(allow_mock=False)
             request_params = self._build_query_params(canonical_params, api_key, cx)
             status_code, response_payload, headers = self._fetch_with_retry(request_params)
+            source_kind = "api"
 
         if status_code != 200:
             envelope = self._build_envelope(
@@ -470,9 +521,10 @@ class GoogleSearchProvider(DiscoveryProvider):
                 provider=self.key,
                 model="google_cse_v1",
                 version=self.version,
+                source_type="provider_json",
                 envelope=envelope,
                 error={"code": "upstream_error", "message": message, "status_code": status_code},
-                raw_input_meta={"normalized_params": canonical_params},
+                raw_input_meta={"normalized_params": canonical_params, "fixture_path": fixture_path},
             )
 
         companies = self._build_companies(response_payload, canonical_params)
@@ -505,8 +557,254 @@ class GoogleSearchProvider(DiscoveryProvider):
             provider=self.key,
             model="google_cse_v1",
             version=self.version,
+            source_type="provider_json",
             envelope=envelope,
-            raw_input_meta={"normalized_params": canonical_params},
+            raw_input_meta={"normalized_params": canonical_params, "fixture_path": fixture_path},
+        )
+
+
+class XaiGrokProvider(DiscoveryProvider):
+    """xAI Grok external LLM discovery provider with mock-first fixtures."""
+
+    key = "xai_grok"
+    version = "1"
+    endpoint = "https://api.x.ai/v1/chat/completions"
+
+    def __init__(self, *, fetcher: Optional[Callable[[str, dict[str, Any], dict[str, str]], tuple[int, dict, dict]]] = None, sleeper: Optional[Callable[[float], None]] = None):
+        self.fetcher = fetcher or self._http_post
+        self.sleeper = sleeper or time.sleep
+
+    def validate_config(self, allow_mock: bool = True) -> None:
+        if settings.ATS_MOCK_EXTERNAL_PROVIDERS and allow_mock:
+            return
+
+        _ensure_real_mode(
+            self.key,
+            [
+                ("ATS_EXTERNAL_DISCOVERY_ENABLED", "1" if settings.ATS_EXTERNAL_DISCOVERY_ENABLED else None),
+                ("XAI_API_KEY", settings.XAI_API_KEY),
+            ],
+        )
+
+    def _normalize_params(self, request: XaiGrokProviderRequest | dict[str, Any] | None) -> XaiGrokProviderRequest:
+        return XaiGrokProviderRequest.model_validate(request or {})
+
+    def _canonical_params(self, request_obj: XaiGrokProviderRequest) -> dict[str, Any]:
+        max_companies = request_obj.max_companies or 8
+        max_companies = max(1, min(max_companies, 25))
+        return {
+            "query": request_obj.query,
+            "industry": request_obj.industry,
+            "region": request_obj.region,
+            "max_companies": max_companies,
+            "request_id": request_obj.request_id,
+            "notes": request_obj.notes,
+        }
+
+    def _build_prompt(self, canonical_params: dict[str, Any]) -> str:
+        query = canonical_params.get("query") or ""
+        industry = canonical_params.get("industry")
+        region = canonical_params.get("region")
+        scope = []
+        if industry:
+            scope.append(f"industry={industry}")
+        if region:
+            scope.append(f"region={region}")
+        scope_text = ", ".join(scope)
+        return (
+            "Return a JSON object with keys provider, model, run_context, companies. "
+            "companies is an array of objects: name, website_url, hq_country, hq_city, sector, subsector, description, confidence, evidence[]. "
+            "Each evidence entry should have url, label, kind (homepage|press_release|other), snippet. "
+            f"Query: {query}. {scope_text}".strip()
+        )
+
+    def _build_request_body(self, canonical_params: dict[str, Any], model_name: str) -> dict[str, Any]:
+        return {
+            "model": model_name,
+            "temperature": 0,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a deterministic research assistant. Return ONLY JSON with provider, model, run_context, companies.",
+                },
+                {
+                    "role": "user",
+                    "content": self._build_prompt(canonical_params),
+                },
+            ],
+            "response_format": {"type": "json_object"},
+        }
+
+    def _http_post(self, url: str, json_body: dict[str, Any], headers: dict[str, str]) -> tuple[int, dict, dict[str, str]]:
+        resp = httpx.post(url, json=json_body, headers=headers, timeout=30.0)
+        try:
+            payload = resp.json()
+        except Exception:  # noqa: BLE001
+            payload = {"text": resp.text}
+        return resp.status_code, payload, dict(resp.headers)
+
+    def _load_fixture(self) -> tuple[Optional[dict], Optional[str]]:
+        fixture_path = os.getenv("XAI_GROK_FIXTURE_PATH")
+        default_path = Path("scripts/fixtures/external/xai_grok/default.json")
+        selected = None
+
+        if fixture_path:
+            selected = Path(fixture_path)
+        elif default_path.exists():
+            selected = default_path
+
+        if selected and selected.exists():
+            with open(selected, "r", encoding="utf-8") as handle:
+                return json.load(handle), str(selected)
+        return None, None
+
+    def _parse_response_payload(self, payload: dict) -> dict:
+        if payload is None:
+            return {}
+        if isinstance(payload, dict) and "choices" in payload:
+            choices = payload.get("choices") or []
+            if choices:
+                content = choices[0].get("message", {}).get("content")
+                if isinstance(content, str):
+                    try:
+                        return json.loads(content)
+                    except Exception:  # noqa: BLE001
+                        return {"content": content}
+        return payload
+
+    def _build_companies(self, parsed_payload: dict) -> list[LlmCompany]:
+        companies_raw = parsed_payload.get("companies") or []
+        companies: list[LlmCompany] = []
+        for entry in companies_raw:
+            name = (entry.get("name") or "").strip()
+            if not name:
+                continue
+            evidence_entries: list[LlmEvidence] = []
+            for ev in entry.get("evidence") or []:
+                url = ev.get("url")
+                if not url:
+                    continue
+                evidence_entries.append(
+                    LlmEvidence(
+                        url=url,
+                        label=ev.get("label") or ev.get("kind") or "evidence",
+                        kind=ev.get("kind") or "homepage",
+                        snippet=ev.get("snippet"),
+                    )
+                )
+
+            companies.append(
+                LlmCompany(
+                    name=name,
+                    website_url=entry.get("website_url") or entry.get("url"),
+                    hq_country=entry.get("hq_country") or entry.get("country"),
+                    hq_city=entry.get("hq_city"),
+                    sector=entry.get("sector"),
+                    subsector=entry.get("subsector"),
+                    description=entry.get("description"),
+                    confidence=entry.get("confidence"),
+                    evidence=evidence_entries or None,
+                )
+            )
+
+        return sorted(companies, key=lambda c: c.name.lower())
+
+    def run(self, *, tenant_id: str, run_id: UUID, request: Optional[dict] = None) -> DiscoveryProviderResult:
+        try:
+            request_obj = self._normalize_params(request)
+        except Exception as exc:  # noqa: BLE001
+            return DiscoveryProviderResult(
+                payload=None,
+                provider=self.key,
+                model=settings.XAI_MODEL or "grok-2",
+                version=self.version,
+                source_type="llm_json",
+                error={"code": "invalid_request", "message": str(exc)},
+            )
+
+        canonical_params = self._canonical_params(request_obj)
+        fixture_payload, fixture_path = self._load_fixture()
+        use_mock = bool(settings.ATS_MOCK_EXTERNAL_PROVIDERS)
+
+        if use_mock and not fixture_payload:
+            raise ExternalProviderConfigError(
+                self.key,
+                "Mock mode enabled but fixture missing",
+                {"fixture_path": fixture_path or "scripts/fixtures/external/xai_grok/default.json"},
+            )
+
+        model_name = settings.XAI_MODEL or "grok-2"
+        request_body = self._build_request_body(canonical_params, model_name)
+
+        if use_mock:
+            status_code = 200
+            response_payload = fixture_payload or {}
+            headers: dict[str, str] = {}
+            source_kind = "fixture"
+        else:
+            self.validate_config(allow_mock=False)
+            headers_in = {"Authorization": f"Bearer {settings.XAI_API_KEY}"}
+            status_code, response_payload, headers = self.fetcher(self.endpoint, request_body, headers_in)
+            source_kind = "api"
+
+        parsed_response = self._parse_response_payload(response_payload)
+
+        if status_code != 200:
+            envelope = {
+                "provider_key": self.key,
+                "normalized_params": canonical_params,
+                "request": {"endpoint": self.endpoint, "body": request_body},
+                "response": response_payload,
+                "response_status": status_code,
+                "response_headers": headers,
+                "source": source_kind,
+            }
+            return DiscoveryProviderResult(
+                payload=None,
+                provider=self.key,
+                model=model_name,
+                version=self.version,
+                source_type="llm_json",
+                envelope=envelope,
+                error={"code": "upstream_error", "message": "xAI Grok returned non-200", "status_code": status_code},
+                raw_input_text=json.dumps(request_body, sort_keys=True),
+                raw_input_meta={"normalized_params": canonical_params, "fixture_path": fixture_path},
+            )
+
+        companies = self._build_companies(parsed_response)
+        run_context = LlmRunContext(
+            query=canonical_params.get("query"),
+            geo=[canonical_params["region"]] if canonical_params.get("region") else None,
+            industry=[canonical_params["industry"]] if canonical_params.get("industry") else None,
+            notes=f"tenant:{tenant_id}|run:{run_id}",
+        )
+
+        payload = LlmDiscoveryPayload(
+            provider=self.key,
+            model=model_name,
+            run_context=run_context,
+            companies=companies,
+        )
+
+        envelope = {
+            "provider_key": self.key,
+            "normalized_params": canonical_params,
+            "request": {"endpoint": self.endpoint, "body": request_body},
+            "response": response_payload,
+            "response_status": status_code,
+            "response_headers": {k: headers.get(k) for k in (headers or {})},
+            "source": source_kind,
+        }
+
+        return DiscoveryProviderResult(
+            payload=payload,
+            provider=self.key,
+            model=model_name,
+            version=self.version,
+            source_type="llm_json",
+            envelope=envelope,
+            raw_input_text=json.dumps(request_body, sort_keys=True),
+            raw_input_meta={"normalized_params": canonical_params, "fixture_path": fixture_path},
         )
 
 
@@ -520,8 +818,13 @@ def list_discovery_providers() -> Dict[str, str]:
     return {key: provider.version for key, provider in _PROVIDER_REGISTRY.items()}
 
 
+_google_provider = GoogleSearchProvider()
+_xai_provider = XaiGrokProvider()
+
 _PROVIDER_REGISTRY: Dict[str, DiscoveryProvider] = {
     DeterministicDiscoveryProvider.key: DeterministicDiscoveryProvider(),
     SeedListProvider.key: SeedListProvider(),
-    GoogleSearchProvider.key: GoogleSearchProvider(),
+    GoogleSearchProvider.key: _google_provider,
+    "google_search": _google_provider,
+    XaiGrokProvider.key: _xai_provider,
 }

@@ -31,6 +31,22 @@
             <label for="exclusions">Exclusions (optional)</label>
             <textarea id="exclusions" name="exclusions" rows="2" placeholder="exclude agencies, exclude stealth"></textarea>
         </div>
+        <div class="form-group">
+            <label for="discovery_mode">Discovery mode</label>
+            <select id="discovery_mode" name="discovery_mode">
+                <option value="internal" selected>Internal only (default)</option>
+                <option value="external">External (xAI Grok)</option>
+                <option value="both">Both</option>
+            </select>
+            <small class="text-muted">External requires env: ATS_EXTERNAL_DISCOVERY_ENABLED=1 and keys; mocks use fixtures.</small>
+        </div>
+        <div class="form-group">
+            <label for="search_provider">Search provider</label>
+            <select id="search_provider" name="search_provider">
+                <option value="none" selected>None</option>
+                <option value="enabled">Google CSE (if configured)</option>
+            </select>
+        </div>
         <button type="submit" class="btn">Create &amp; Start</button>
     </form>
     {% endif %}

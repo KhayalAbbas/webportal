@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "title": "Atlas Materials | Home",
+      "link": "https://atlas-materials.example.com",
+      "snippet": "Atlas Materials provides composite materials for EV and aerospace applications."
+    },
+    {
+      "title": "Beacon Analytics grid forecasting",
+      "link": "https://beacon-analytics.example.com",
+      "snippet": "Beacon Analytics delivers grid forecasting for Nordic utilities."
+    },
+    {
+      "title": "Northwind Analytics smart grid platform",
+      "link": "https://northwind-analytics.example.com",
+      "snippet": "Smart grid optimization platform supporting renewable integration."
+    }
+  ]
+}

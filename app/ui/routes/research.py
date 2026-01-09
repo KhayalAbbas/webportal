@@ -13,6 +13,7 @@ from app.models.company_research import CompanyProspect, ExecutiveProspect
 from app.models.pipeline_stage import PipelineStage
 from app.models.role import Role
 from app.services.company_research_service import CompanyResearchService
+from app.services.discovery_provider import ExternalProviderConfigError, get_discovery_provider
 from app.ui.dependencies import get_current_ui_user_and_tenant, UIUser
 from app.schemas.company_research import CompanyResearchRunCreate, CompanyProspectUpdateManual
 
@@ -133,7 +134,6 @@ async def research_new_form(
         },
     )
 
-
 @router.post("/ui/research/new")
 async def research_new_submit(
     request: Request,
@@ -142,6 +142,8 @@ async def research_new_submit(
     position: str = Form(""),
     keywords: str = Form(""),
     exclusions: str = Form(""),
+    discovery_mode: str = Form("internal"),
+    search_provider: str = Form("none"),
     current_user: UIUser = Depends(get_current_ui_user_and_tenant),
     session: AsyncSession = Depends(get_db),
 ):
@@ -160,8 +162,12 @@ async def research_new_submit(
             "position": position,
             "keywords": keywords,
             "exclusions": exclusions,
-            "ui_version": "phase_11_0",
-        }
+            "ui_version": "phase_11_1",
+        },
+        "discovery": {
+            "mode": discovery_mode,
+            "search_provider": search_provider,
+        },
     }
 
     name_parts = [part for part in [position, industry] if part]
@@ -172,6 +178,24 @@ async def research_new_submit(
     if exclusions:
         description_parts.append(f"exclude: {exclusions}")
     description = "; ".join(description_parts) if description_parts else None
+
+    needs_external = discovery_mode in {"external", "both"}
+    needs_search = search_provider == "enabled"
+
+    try:
+        if needs_external:
+            provider = get_discovery_provider("xai_grok")
+            if provider and hasattr(provider, "validate_config"):
+                provider.validate_config()
+        if needs_search:
+            provider = get_discovery_provider("google_cse")
+            if provider and hasattr(provider, "validate_config"):
+                provider.validate_config()
+    except ExternalProviderConfigError as exc:
+        return RedirectResponse(
+            url=f"/ui/research/new?error_message=External discovery not configured: {str(exc)}",
+            status_code=303,
+        )
 
     service = CompanyResearchService(session)
     try:
@@ -189,8 +213,45 @@ async def research_new_submit(
             created_by_user_id=current_user.user_id,
         )
         await session.flush()
+
+        discovery_request = {
+            "query": " ".join(part for part in [position, industry] if part).strip() or industry or "company discovery",
+            "industry": industry or None,
+            "region": region_list[0] if region_list else None,
+            "notes": "; ".join(part for part in [keywords, exclusions] if part) or None,
+            "max_companies": 8,
+        }
+
+        search_request = {
+            "query": discovery_request["query"],
+            "country": region_list[0] if region_list else None,
+            "num_results": 5,
+        }
+
+        if needs_external:
+            await service.run_discovery_provider(
+                tenant_id=current_user.tenant_id,
+                run_id=run.id,
+                provider_key="xai_grok",
+                request_payload=discovery_request,
+            )
+
+        if needs_search:
+            await service.run_discovery_provider(
+                tenant_id=current_user.tenant_id,
+                run_id=run.id,
+                provider_key="google_cse",
+                request_payload=search_request,
+            )
+
         await service.start_run(current_user.tenant_id, run.id)
         await session.commit()
+    except ExternalProviderConfigError as exc:
+        await session.rollback()
+        return RedirectResponse(
+            url=f"/ui/research/new?error_message=External discovery not configured: {str(exc)}",
+            status_code=303,
+        )
     except Exception as exc:  # noqa: BLE001
         await session.rollback()
         msg = str(exc)
