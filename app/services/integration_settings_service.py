@@ -7,11 +7,12 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
+import httpx
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.errors import raise_app_error
+from app.errors import AppError, raise_app_error
 from app.models.activity_log import ActivityLog
 from app.models.ai_enrichment_record import AIEnrichmentRecord
 from app.models.research_event import ResearchEvent
@@ -21,6 +22,37 @@ from app.services.discovery_provider import ExternalProviderConfigError, get_dis
 from app.services.secrets_service import SecretsService, require_master_key
 
 ProviderConfig = dict[str, Any]
+DEFAULT_XAI_MODELS = [
+    # Grok 4.1 fast
+    "grok-4-1-fast-reasoning",
+    "grok-4-1-fast-non-reasoning",
+    # Grok code
+    "grok-code-fast-1",
+    # Grok 4 fast
+    "grok-4-fast-reasoning",
+    "grok-4-fast-non-reasoning",
+    "grok-4-0709",
+    # Grok 3
+    "grok-3-mini",
+    "grok-3",
+    # Grok 2 families
+    "grok-2-vision-1212",
+    "grok-2-image-1212",
+    "grok-2",
+    "grok-2-latest",
+    "grok-2-mini",
+    "grok-2-mini-latest",
+    "grok-2-1212",
+    "grok-2-mini-1212",
+    # Backward-compatible
+    "grok-1.5",
+    "grok-1",
+    "grok-beta",
+    "grok-2-vision",
+    "grok-2-vision-latest",
+    "grok-2-mini-vision",
+    "grok-vision-beta",
+]
 
 
 class IntegrationSettingsService:
@@ -112,6 +144,40 @@ class IntegrationSettingsService:
             return {"api_key": api_key, "cx": cx}
 
         return {}
+
+    async def list_xai_models(self, tenant_id: UUID) -> list[str]:
+        """Fetch available xAI models with safe fallbacks.
+
+        - If mock providers are enabled, return a deterministic list.
+        - If no API key is available, return a deterministic list.
+        - On HTTP errors/timeouts, fall back to the deterministic list.
+        """
+
+        if settings.ATS_MOCK_EXTERNAL_PROVIDERS:
+            return DEFAULT_XAI_MODELS
+
+        try:
+            runtime_config = await self.resolve_runtime_config(tenant_id, "xai_grok", require_secret=False)
+        except AppError:
+            runtime_config = {}
+
+        api_key = (runtime_config or {}).get("api_key") or settings.XAI_API_KEY
+        if not api_key:
+            return DEFAULT_XAI_MODELS
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    "https://api.x.ai/v1/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+            if resp.status_code != 200:
+                return DEFAULT_XAI_MODELS
+            payload = resp.json()
+            models = [item.get("id") for item in payload.get("data", []) if item.get("id")]
+            return models or DEFAULT_XAI_MODELS
+        except Exception:
+            return DEFAULT_XAI_MODELS
 
     # ------------------------------------------------------------------
     # Activity / evidence helpers

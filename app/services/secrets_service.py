@@ -12,6 +12,17 @@ from app.core.config import settings
 from app.errors import raise_app_error
 
 
+# In-memory runtime master key set via UI (not persisted across restarts).
+_runtime_master_key: Optional[str] = None
+
+
+def _is_relaxed_mode() -> bool:
+    flag = os.getenv("ATS_RELAX_MASTER_KEY")
+    if flag is None:
+        return bool(settings.DEBUG)
+    return flag.strip().lower() in {"1", "true", "yes", "on"}
+
+
 MISSING_MASTER_KEY_MSG = (
     "ATS_SECRETS_MASTER_KEY is required to manage integration secrets. Set it in your environment "
     "(e.g., LOCAL_COMMANDS.ps1 for local) before saving or viewing integrations."
@@ -23,7 +34,16 @@ def _derive_key(master_key: str) -> bytes:
     return base64.urlsafe_b64encode(digest)
 
 
+def set_runtime_master_key(value: Optional[str]) -> None:
+    """Allow setting the master key at runtime (in-memory only)."""
+    global _runtime_master_key
+    _runtime_master_key = value or None
+
+
 def get_master_key_value() -> str:
+    # Runtime key (if set) takes precedence and lives only for this process lifetime.
+    if _runtime_master_key:
+        return _runtime_master_key
     return os.getenv("ATS_SECRETS_MASTER_KEY") or (settings.ATS_SECRETS_MASTER_KEY or "")
 
 
@@ -37,9 +57,16 @@ def get_key_version() -> int:
 
 def require_master_key() -> str:
     master_key = get_master_key_value()
-    if not master_key:
-        raise_app_error(status.HTTP_400_BAD_REQUEST, "SECRETS_MASTER_KEY_MISSING", MISSING_MASTER_KEY_MSG)
-    return master_key
+    if master_key:
+        return master_key
+
+    if _is_relaxed_mode():
+        # Dev/testing fallback to keep UI usable without env configuration.
+        fallback = "dev-insecure-master-key"
+        set_runtime_master_key(fallback)
+        return fallback
+
+    raise_app_error(status.HTTP_400_BAD_REQUEST, "SECRETS_MASTER_KEY_MISSING", MISSING_MASTER_KEY_MSG)
 
 
 class SecretsService:

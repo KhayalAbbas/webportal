@@ -54,6 +54,25 @@
         flex-shrink: 0;
         position: static;
     }
+
+    .settings-model-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 8px;
+        flex-wrap: wrap;
+    }
+
+    .settings-model-row select {
+        min-width: 200px;
+        flex: 1;
+    }
+
+    .settings-inline-note {
+        font-size: 12px;
+        color: #5f6b7a;
+        margin-top: 6px;
+    }
 </style>
 
 <div class="settings-tabs">
@@ -63,8 +82,8 @@
 
 {% if master_key_missing %}
 <div class="alert alert-warning" style="margin-bottom: 16px;">
-    <strong>Master key required.</strong>
-    {{ master_key_error or 'Set ATS_SECRETS_MASTER_KEY before managing integrations.' }}
+    <strong>Master key missing.</strong>
+    {{ master_key_error or 'Running in relaxed mode will auto-use a dev key; set ATS_SECRETS_MASTER_KEY for real encryption.' }}
 </div>
 {% endif %}
 
@@ -90,7 +109,15 @@
                 <label for="xai_api_key">API Key</label>
                 <input id="xai_api_key" name="api_key" type="password" placeholder="Enter new key" {% if master_key_missing %}disabled{% endif %} />
                 <label for="xai_model" style="margin-top: 8px;">Model</label>
-                <input id="xai_model" name="model" type="text" value="{{ state.xai_grok.config.model or '' }}" placeholder="e.g., grok-2" {% if master_key_missing %}disabled{% endif %} />
+                <div class="settings-model-row">
+                    <select id="xai_model" name="model" {% if master_key_missing %}disabled{% endif %}>
+                        {% for model in xai_models %}
+                        <option value="{{ model }}" {% if state.xai_grok.config.model == model %}selected{% endif %}>{{ model }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-secondary" id="refresh-xai-models" {% if master_key_missing %}disabled{% endif %}>Refresh models</button>
+                </div>
+                <div id="xai_model_status" class="settings-inline-note">Models sourced from xAI; refresh to update.</div>
                 <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
                     <button class="btn" type="submit" {% if master_key_missing %}disabled{% endif %}>Save</button>
                 </div>
@@ -160,5 +187,50 @@
         <li>Tests run in mock mode when ATS_MOCK_EXTERNAL_PROVIDERS=1 to avoid external calls.</li>
     </ul>
 </div>
+
+<script>
+(function() {
+    const refreshBtn = document.getElementById("refresh-xai-models");
+    const select = document.getElementById("xai_model");
+    const statusEl = document.getElementById("xai_model_status");
+    if (!refreshBtn || !select || !statusEl) { return; }
+
+    refreshBtn.addEventListener("click", async () => {
+        const previousLabel = refreshBtn.textContent;
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = "Refreshing...";
+        statusEl.textContent = "Refreshing from xAI...";
+        try {
+            const resp = await fetch("/ui/settings/integrations/xai/models");
+            if (!resp.ok) {
+                throw new Error("refresh failed");
+            }
+            const data = await resp.json();
+            const models = (data.models || []).filter(Boolean);
+            if (models.length === 0) {
+                statusEl.textContent = "No models returned; keeping current list.";
+            } else {
+                const current = select.value;
+                select.innerHTML = "";
+                for (const m of models) {
+                    const opt = document.createElement("option");
+                    opt.value = m;
+                    opt.textContent = m;
+                    if (m === current) {
+                        opt.selected = true;
+                    }
+                    select.appendChild(opt);
+                }
+                statusEl.textContent = "Models refreshed from xAI.";
+            }
+        } catch (err) {
+            statusEl.textContent = "Refresh failed; using existing list.";
+        } finally {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = previousLabel;
+        }
+    });
+})();
+</script>
 
 {% endblock %}

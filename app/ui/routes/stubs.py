@@ -4,14 +4,14 @@ from urllib.parse import quote
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db
 from app.errors import AppError
 from app.services.integration_settings_service import IntegrationSettingsService
-from app.services.secrets_service import require_master_key
+from app.services.secrets_service import require_master_key, set_runtime_master_key
 from app.ui.dependencies import UIUser, get_current_ui_user_and_tenant
 
 
@@ -47,6 +47,7 @@ async def settings_integrations(
 ):
     _ensure_admin(current_user)
     service = IntegrationSettingsService(session)
+    xai_models = await service.list_xai_models(current_user.tenant_id)
 
     master_key_missing = False
     master_key_error = None
@@ -58,8 +59,6 @@ async def settings_integrations(
 
     state = await service.get_public_state(current_user.tenant_id)
 
-    status_code = 400 if master_key_missing else 200
-
     return templates.TemplateResponse(
         "settings_integrations.html",
         {
@@ -68,12 +67,13 @@ async def settings_integrations(
             "active_page": "settings",
             "active_settings_tab": "integrations",
             "state": state,
+            "xai_models": xai_models,
             "master_key_missing": master_key_missing,
             "master_key_error": master_key_error,
             "success_message": success_message,
             "error_message": error_message,
         },
-        status_code=status_code,
+        status_code=200,
     )
 
 
@@ -93,6 +93,37 @@ async def settings_general(
         },
         status_code=200,
     )
+
+
+@router.post("/ui/settings/master-key")
+async def set_master_key(
+    request: Request,
+    master_key: str = Form(""),
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+):
+    _ensure_admin(current_user)
+    key_clean = master_key.strip()
+    try:
+        if not key_clean:
+            raise ValueError("Master key cannot be empty")
+        set_runtime_master_key(key_clean)
+        msg = quote("Master key set for this process")
+        return RedirectResponse(url=f"/ui/settings/integrations?success_message={msg}", status_code=303)
+    except Exception as exc:  # noqa: BLE001
+        msg = quote(_error_message(exc))
+        return RedirectResponse(url=f"/ui/settings/integrations?error_message={msg}", status_code=303)
+
+
+@router.get("/ui/settings/integrations/xai/models", response_class=JSONResponse)
+async def settings_xai_models(
+    request: Request,
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+    session: AsyncSession = Depends(get_db),
+):
+    _ensure_admin(current_user)
+    service = IntegrationSettingsService(session)
+    models = await service.list_xai_models(current_user.tenant_id)
+    return JSONResponse({"models": models})
 
 
 @router.post("/ui/settings/integrations/xai")

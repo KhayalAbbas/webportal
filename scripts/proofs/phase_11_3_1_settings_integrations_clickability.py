@@ -65,15 +65,22 @@ async def main() -> None:
 
         soup = BeautifulSoup(html, "html.parser")
 
-        def assert_editable(input_id: str) -> None:
+        def assert_input_editable(input_id: str) -> None:
             node = soup.find("input", id=input_id)
             assert node is not None, f"missing input {input_id}"
             assert not node.has_attr("disabled"), f"{input_id} should be editable (disabled found)"
             assert not node.has_attr("readonly"), f"{input_id} should be editable (readonly found)"
             checks.append(f"{input_id} editable")
 
-        for field_id in ["xai_api_key", "xai_model", "google_api_key", "google_cx"]:
-            assert_editable(field_id)
+        for field_id in ["xai_api_key", "google_api_key", "google_cx"]:
+            assert_input_editable(field_id)
+
+        model_select = soup.find("select", id="xai_model")
+        assert model_select is not None, "missing xai_model select"
+        assert not model_select.has_attr("disabled"), "xai_model should be editable (disabled found)"
+        options = [opt.get("value") for opt in model_select.find_all("option") if opt.get("value")]
+        assert options, "xai_model options missing"
+        checks.append("xai_model select editable with options")
 
         tabs = soup.select("a.settings-tab")
         assert tabs, "settings subtabs missing"
@@ -83,6 +90,13 @@ async def main() -> None:
         assert general_tab is not None, "general tab missing"
         assert "active" in (integrations_tab.get("class") or []), "integrations tab not marked active"
         checks.append("settings tabs present and Integrations active")
+
+        resp_models = await client.get("/ui/settings/integrations/xai/models")
+        assert resp_models.status_code == 200, f"models endpoint {resp_models.status_code}"
+        model_payload = resp_models.json()
+        model_list = (model_payload.get("models") or []) if isinstance(model_payload, dict) else []
+        assert model_list, "models endpoint returned empty list"
+        checks.append("models endpoint returns list")
 
     for c in checks:
         log(f"PASS: {c}")

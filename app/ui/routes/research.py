@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.dependencies import get_db
 from app.models.company import Company
 from app.models.company_research import CompanyProspect, ExecutiveProspect
@@ -23,23 +24,54 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/ui/templates")
 
 
-async def _discovery_config_status(session: AsyncSession, tenant_id: UUID) -> dict:
-    """Return read-only flags indicating whether required config exists (DB or env)."""
+async def _discovery_config_status(session: AsyncSession, tenant_id: UUID) -> tuple[dict, dict]:
+    """Return flags indicating whether required config exists (tenant or env)."""
 
     def _flag(env_key: str, default: Optional[str] = None) -> bool:
         val = os.getenv(env_key, default)
         return bool(val and str(val).strip())
 
-    integration_state = await IntegrationSettingsService(session).get_public_state(tenant_id)
-    google_config = integration_state.get("google_cse", {}).get("config", {}) or {}
+    integration_service = IntegrationSettingsService(session)
+    integration_state = await integration_service.get_public_state(tenant_id)
 
-    return {
-        "external_enabled": _flag("ATS_EXTERNAL_DISCOVERY_ENABLED"),
-        "mock_mode": str(os.getenv("ATS_MOCK_EXTERNAL_PROVIDERS", "0")) in {"1", "true", "True"},
-        "xai_api_key": bool(integration_state.get("xai_grok", {}).get("configured")),
-        "google_api_key": bool(integration_state.get("google_cse", {}).get("configured")),
-        "google_cx": bool(google_config.get("cx") or os.getenv("GOOGLE_CSE_CX")),
+    try:
+        runtime_xai = await integration_service.resolve_runtime_config(tenant_id, "xai_grok", require_secret=False)
+    except Exception:  # noqa: BLE001
+        runtime_xai = {}
+
+    try:
+        runtime_google = await integration_service.resolve_runtime_config(tenant_id, "google_cse", require_secret=False)
+    except Exception:  # noqa: BLE001
+        runtime_google = {}
+
+    external_enabled = _flag("ATS_EXTERNAL_DISCOVERY_ENABLED", "1" if settings.ATS_EXTERNAL_DISCOVERY_ENABLED else None)
+    mock_mode = str(os.getenv("ATS_MOCK_EXTERNAL_PROVIDERS", "0")).lower() in {"1", "true", "yes"}
+
+    xai_api_key = bool(runtime_xai.get("api_key") or settings.XAI_API_KEY)
+    xai_model = bool(runtime_xai.get("model") or settings.XAI_MODEL)
+    xai_ready = xai_api_key and xai_model
+
+    google_api_key = bool(runtime_google.get("api_key") or settings.GOOGLE_CSE_API_KEY)
+    google_cx = bool(runtime_google.get("cx") or settings.GOOGLE_CSE_CX)
+    google_ready = google_api_key and google_cx
+
+    status = {
+        "external_enabled": external_enabled,
+        "mock_mode": mock_mode,
+        "xai_api_key": xai_api_key,
+        "xai_model": xai_model,
+        "xai_ready": xai_ready,
+        "google_api_key": google_api_key,
+        "google_cx": google_cx,
+        "google_ready": google_ready,
     }
+
+    runtime_configs = {
+        "xai_grok": runtime_xai,
+        "google_cse": runtime_google,
+    }
+
+    return status, runtime_configs
 
 
 async def _get_default_role(session: AsyncSession, tenant_id: UUID) -> Optional[dict]:
@@ -144,7 +176,7 @@ async def research_new_form(
     error_message: Optional[str] = None,
 ):
     default_role = await _get_default_role(session, current_user.tenant_id)
-    config_status = await _discovery_config_status(session, current_user.tenant_id)
+    config_status, _ = await _discovery_config_status(session, current_user.tenant_id)
     return templates.TemplateResponse(
         "research_new.html",
         {
@@ -177,7 +209,7 @@ async def research_new_submit(
             status_code=303,
         )
 
-    config_status = await _discovery_config_status(session, current_user.tenant_id)
+    config_status, runtime_configs = await _discovery_config_status(session, current_user.tenant_id)
 
     region_list: List[str] = [r.strip().upper() for r in country_region.split(",") if r.strip()]
     config = {
@@ -207,10 +239,10 @@ async def research_new_submit(
     needs_external = discovery_mode in {"external", "both"}
     needs_search = search_provider == "enabled"
 
-    if needs_external and not (config_status["external_enabled"] and config_status["xai_api_key"]):
+    if needs_external and not (config_status["external_enabled"] and config_status["xai_ready"]):
         error_message = (
-            "External discovery not configured. Set ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY "
-            "in scripts/runbook/LOCAL_COMMANDS.ps1 (local) or deployment env vars (prod)."
+            "External discovery not configured for this tenant. Enable ATS_EXTERNAL_DISCOVERY_ENABLED and set xAI in Settings → Integrations "
+            "(or env vars for local dev)."
         )
         return templates.TemplateResponse(
             "research_new.html",
@@ -225,10 +257,9 @@ async def research_new_submit(
             status_code=400,
         )
 
-    if needs_search and not (config_status["google_api_key"] and config_status["google_cx"]):
+    if needs_search and not config_status["google_ready"]:
         error_message = (
-            "Search provider not configured. Set GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX in scripts/runbook/LOCAL_COMMANDS.ps1 "
-            "(local) or deployment env vars (prod)."
+            "Google CSE not configured for this tenant. Set it in Settings → Integrations (or env vars for local dev)."
         )
         return templates.TemplateResponse(
             "research_new.html",
@@ -247,11 +278,11 @@ async def research_new_submit(
         if needs_external:
             provider = get_discovery_provider("xai_grok")
             if provider and hasattr(provider, "validate_config"):
-                provider.validate_config()
+                provider.validate_config(runtime_config=runtime_configs.get("xai_grok") or {})
         if needs_search:
             provider = get_discovery_provider("google_cse")
             if provider and hasattr(provider, "validate_config"):
-                provider.validate_config()
+                provider.validate_config(runtime_config=runtime_configs.get("google_cse") or {})
     except ExternalProviderConfigError as exc:
         return RedirectResponse(
             url=f"/ui/research/new?error_message=External discovery not configured: {str(exc)}",
@@ -310,8 +341,7 @@ async def research_new_submit(
     except ExternalProviderConfigError as exc:
         await session.rollback()
         error_message = (
-            "External discovery not configured. Set ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY "
-            "in scripts/runbook/LOCAL_COMMANDS.ps1 (local) or deployment env vars (prod)."
+            "External discovery not configured for this tenant. Configure providers in Settings → Integrations or via env vars for local dev."
         )
         return templates.TemplateResponse(
             "research_new.html",
