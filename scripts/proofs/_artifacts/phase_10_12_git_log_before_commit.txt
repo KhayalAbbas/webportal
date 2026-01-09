@@ -1,0 +1,5 @@
+﻿commit 0f3047880d66dee8977a0067a307897423714ace (HEAD -> master, tag: phase_10_11_signed_off, origin/master, origin/HEAD)
+Author: ATS Local <local@ats>
+Date:   Fri Jan 9 01:09:48 2026 +0400
+
+    Phase 10.11: performance and reliability sanity + index verification + proof

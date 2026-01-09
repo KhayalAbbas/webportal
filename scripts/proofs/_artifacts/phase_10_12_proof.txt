@@ -1,0 +1,7 @@
+PASS: preflight (port, health, openapi, alembic, git)
+PASS: discovery + acquire/extract produced prospects
+PASS: review gate enforced (accepted + hold)
+PASS: exec discovery gated for unaccepted and succeeded for accepted
+PASS: export pack deterministic hash
+PASS: evidence bundle deterministic hash and manifest captured
+PASS: pipeline snapshot + DB excerpt captured

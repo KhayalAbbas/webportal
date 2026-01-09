@@ -1,0 +1,32 @@
+{
+  "files": [
+    {
+      "file_name": "decisions.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "size_bytes": 2
+    },
+    {
+      "file_name": "export_packs.json",
+      "sha256": "bd640112bb3b79d144fb3c862f64f4e8c2dba78701654b2a0327a41f494c2a98",
+      "size_bytes": 1134
+    },
+    {
+      "file_name": "openapi_paths.json",
+      "sha256": "c5a886554d3e0045ff68271503946ccd0ce9dfa1ad625c0c4ea9786305857076",
+      "size_bytes": 206
+    },
+    {
+      "file_name": "run.json",
+      "sha256": "038000c0090fc3e15e0ae6b1e49573b04c7f4bd9529d5e66fbadc5c75954a282",
+      "size_bytes": 596
+    },
+    {
+      "file_name": "sources.json",
+      "sha256": "efac701fb64c618332a1d8138742868a822e14e2e7c6bdfdebea2de7d39d8f1d",
+      "size_bytes": 2577
+    }
+  ],
+  "generated_at": "2026-01-09T06:00:00.514637+00:00",
+  "run_id": "8039c823-f280-4125-8ccc-688063dd890c",
+  "tenant_id": "5f5b7b6b-2058-49a2-8550-82b5573c191a"
+}

@@ -1,0 +1,197 @@
+{
+  "ai_enrichment_record": [
+    {
+      "company_research_run_id": "8039c823-f280-4125-8ccc-688063dd890c",
+      "content_hash": "4c76b631ba75accd5a3aaa06b874b42bb337d48af798b061fa4bc1b62ba394bf",
+      "created_at": "2026-01-09 06:00:00.627886+00:00",
+      "enrichment_type": "COMPANY_DISCOVERY_JSON",
+      "id": "e88ce2a4-0b7c-4f82-8330-80adc75153ea",
+      "provider": "proof_fixture",
+      "purpose": "company_discovery",
+      "source_document_id": "fc93ca19-a185-4ce3-9a80-be279663956a",
+      "target_id": "8039c823-f280-4125-8ccc-688063dd890c",
+      "target_type": "COMPANY_RESEARCH_RUN"
+    },
+    {
+      "company_research_run_id": "8039c823-f280-4125-8ccc-688063dd890c",
+      "content_hash": "fe7768ec31e714535a7ec74079a06bb0430e29789bb5874f388221c5d1d23121",
+      "created_at": "2026-01-09 06:00:00.804671+00:00",
+      "enrichment_type": "EXECUTIVE_DISCOVERY_JSON",
+      "id": "b3bc1f07-9cd5-4a26-b6cd-143d9851910a",
+      "provider": "internal_stub",
+      "purpose": "executive_discovery",
+      "source_document_id": "8a89eb75-2af4-4430-8055-ad8930194ed3",
+      "target_id": "8039c823-f280-4125-8ccc-688063dd890c",
+      "target_type": "COMPANY_RESEARCH_RUN"
+    },
+    {
+      "company_research_run_id": "8039c823-f280-4125-8ccc-688063dd890c",
+      "content_hash": "b3553553b0c2e70e7ce5e58cac16d75b9c84de0feae7360f2ec2556b5b1d7e4d",
+      "created_at": "2026-01-09 06:00:00.804671+00:00",
+      "enrichment_type": "EXECUTIVE_DISCOVERY_JSON",
+      "id": "34598c47-a0ae-4c0c-85e9-73853003bc1c",
+      "provider": "external_fixture",
+      "purpose": "executive_discovery",
+      "source_document_id": "f1de874d-0093-4eeb-b9d8-d8f30a776283",
+      "target_id": "8039c823-f280-4125-8ccc-688063dd890c",
+      "target_type": "COMPANY_RESEARCH_RUN"
+    }
+  ],
+  "company_prospect_evidence": [
+    {
+      "company_prospect_id": "4b823e10-492a-4562-abf4-00c8b794b1ff",
+      "raw_snippet": null,
+      "source_document_id": null,
+      "source_name": "golden-manual-list",
+      "source_type": "document",
+      "source_url": null
+    },
+    {
+      "company_prospect_id": "b75e0d8b-783b-4c27-954a-745db5842386",
+      "raw_snippet": null,
+      "source_document_id": null,
+      "source_name": "golden-manual-list",
+      "source_type": "document",
+      "source_url": null
+    }
+  ],
+  "company_prospects": [
+    {
+      "created_at": "2026-01-09 06:00:00.627886+00:00",
+      "discovered_by": "proof_fixture",
+      "exec_search_enabled": true,
+      "id": "dd6ec8a2-628e-42f6-a248-702fe6bfb406",
+      "name_normalized": "atlas proof",
+      "name_raw": "Atlas Proof Holdings",
+      "review_status": "accepted",
+      "verification_status": "unverified",
+      "website_url": "https://atlas-proof.example.com"
+    },
+    {
+      "created_at": "2026-01-09 06:00:00.627886+00:00",
+      "discovered_by": "proof_fixture",
+      "exec_search_enabled": false,
+      "id": "115f16ce-ac70-4a8d-a94f-3d06990e89e9",
+      "name_normalized": "beacon trial systems",
+      "name_raw": "Beacon Trial Systems",
+      "review_status": "hold",
+      "verification_status": "unverified",
+      "website_url": "https://beacon-trial.example.com"
+    },
+    {
+      "created_at": "2026-01-09 06:00:00.704909+00:00",
+      "discovered_by": "internal",
+      "exec_search_enabled": false,
+      "id": "b75e0d8b-783b-4c27-954a-745db5842386",
+      "name_normalized": "atlas proof holdings - automation signals",
+      "name_raw": "Atlas Proof Holdings - automation signals",
+      "review_status": "new",
+      "verification_status": "unverified",
+      "website_url": null
+    },
+    {
+      "created_at": "2026-01-09 06:00:00.704909+00:00",
+      "discovered_by": "internal",
+      "exec_search_enabled": false,
+      "id": "4b823e10-492a-4562-abf4-00c8b794b1ff",
+      "name_normalized": "beacon trial systems - data quality tooling",
+      "name_raw": "Beacon Trial Systems - data quality tooling",
+      "review_status": "new",
+      "verification_status": "unverified",
+      "website_url": null
+    }
+  ],
+  "company_research_export_packs": [
+    {
+      "created_at": "2026-01-09 06:00:00.903227+00:00",
+      "file_name": "run_8039c823-f280-4125-8ccc-688063dd890c_pack.zip",
+      "id": "1fc6228d-61fc-4e47-884e-e377136e3154",
+      "run_id": "8039c823-f280-4125-8ccc-688063dd890c",
+      "sha256": "41a340b4e3dfb75aa7cd3e2af2c8bc4f50f02d52da8fd14ddc95f68f7a54709b",
+      "size_bytes": 5209,
+      "storage_pointer": "company_research/5f5b7b6b-2058-49a2-8550-82b5573c191a/runs/8039c823-f280-4125-8ccc-688063dd890c/export_1fc6228d-61fc-4e47-884e-e377136e3154.zip"
+    },
+    {
+      "created_at": "2026-01-09 06:00:01.002839+00:00",
+      "file_name": "run_8039c823-f280-4125-8ccc-688063dd890c_pack.zip",
+      "id": "08696d5d-09ee-4ecf-bf2c-7b9ebc0af2dd",
+      "run_id": "8039c823-f280-4125-8ccc-688063dd890c",
+      "sha256": "41a340b4e3dfb75aa7cd3e2af2c8bc4f50f02d52da8fd14ddc95f68f7a54709b",
+      "size_bytes": 5209,
+      "storage_pointer": "company_research/5f5b7b6b-2058-49a2-8550-82b5573c191a/runs/8039c823-f280-4125-8ccc-688063dd890c/export_08696d5d-09ee-4ecf-bf2c-7b9ebc0af2dd.zip"
+    }
+  ],
+  "company_research_runs": [
+    {
+      "created_at": "2026-01-09 06:00:00.514637+00:00",
+      "id": "8039c823-f280-4125-8ccc-688063dd890c",
+      "name": "Phase 10.12 golden run",
+      "region_scope": [
+        "US"
+      ],
+      "role_mandate_id": "45a00716-0fec-4de7-9ccf-26f14eb5f5fb",
+      "sector": "software",
+      "status": "active",
+      "summary": null,
+      "tenant_id": "5f5b7b6b-2058-49a2-8550-82b5573c191a"
+    }
+  ],
+  "executive_prospect_evidence": [
+    {
+      "executive_prospect_id": "0811b84a-04e7-4ab3-a943-fee68e9e7fc7",
+      "raw_snippet": "Operations lead reference for atlas proof COO.",
+      "source_document_id": "f1de874d-0093-4eeb-b9d8-d8f30a776283",
+      "source_url": "https://atlas-proof.example.com/"
+    },
+    {
+      "executive_prospect_id": "8fe37a54-09ef-4ec1-bdfd-9cae13f8ffba",
+      "raw_snippet": "Finance lead reference for atlas proof CFO.",
+      "source_document_id": "8a89eb75-2af4-4430-8055-ad8930194ed3",
+      "source_url": "https://atlas-proof.example.com/"
+    },
+    {
+      "executive_prospect_id": "b7b128b0-deb2-4cca-a7f8-9cadf2968c2d",
+      "raw_snippet": "Leadership listing for atlas proof CEO.",
+      "source_document_id": "8a89eb75-2af4-4430-8055-ad8930194ed3",
+      "source_url": "https://atlas-proof.example.com/"
+    },
+    {
+      "executive_prospect_id": "b7b128b0-deb2-4cca-a7f8-9cadf2968c2d",
+      "raw_snippet": "Leadership listing for atlas proof CEO.",
+      "source_document_id": "f1de874d-0093-4eeb-b9d8-d8f30a776283",
+      "source_url": "https://atlas-proof.example.com/"
+    }
+  ],
+  "executive_prospects": [
+    {
+      "company_prospect_id": "dd6ec8a2-628e-42f6-a248-702fe6bfb406",
+      "created_at": "2026-01-09 06:00:00.804671+00:00",
+      "id": "b7b128b0-deb2-4cca-a7f8-9cadf2968c2d",
+      "name_normalized": "atlas proof ceo",
+      "review_status": "new",
+      "source_document_id": "8a89eb75-2af4-4430-8055-ad8930194ed3",
+      "title": "Chief Executive Officer",
+      "verification_status": "unverified"
+    },
+    {
+      "company_prospect_id": "dd6ec8a2-628e-42f6-a248-702fe6bfb406",
+      "created_at": "2026-01-09 06:00:00.804671+00:00",
+      "id": "8fe37a54-09ef-4ec1-bdfd-9cae13f8ffba",
+      "name_normalized": "atlas proof cfo",
+      "review_status": "new",
+      "source_document_id": "8a89eb75-2af4-4430-8055-ad8930194ed3",
+      "title": "Chief Financial Officer",
+      "verification_status": "unverified"
+    },
+    {
+      "company_prospect_id": "dd6ec8a2-628e-42f6-a248-702fe6bfb406",
+      "created_at": "2026-01-09 06:00:00.804671+00:00",
+      "id": "0811b84a-04e7-4ab3-a943-fee68e9e7fc7",
+      "name_normalized": "atlas proof coo",
+      "review_status": "new",
+      "source_document_id": "f1de874d-0093-4eeb-b9d8-d8f30a776283",
+      "title": "Chief Operating Officer",
+      "verification_status": "unverified"
+    }
+  ]
+}

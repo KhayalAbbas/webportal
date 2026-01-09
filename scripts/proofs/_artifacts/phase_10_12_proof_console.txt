@@ -1,0 +1,12 @@
+=== Phase 10.12 golden run ===
+Tenant: 5f5b7b6b-2058-49a2-8550-82b5573c191a
+Run created: 8039c823-f280-4125-8ccc-688063dd890c
+Manual list source attached: 559d411b-9c19-47b5-903f-e0fa4c042485
+LLM discovery payload ingested
+Acquire+Extract status=ok sources_touched=1
+Prospects ranked: accept=atlas proof (new, exec=False) hold=beacon trial systems (new, exec=False)
+Review gate applied (accepted + hold)
+Exec discovery gate correctly blocked unaccepted company
+Exec discovery added: internal=2 external=1
+Export pack stable sha=41a340b4e3dfb75aa7cd3e2af2c8bc4f50f02d52da8fd14ddc95f68f7a54709b size=5209
+Evidence bundle stable sha=bb3396b79c3790f9563ad6749d1c5d188003e76baae30a79ccfb1b958efe2cc3 size=2807
