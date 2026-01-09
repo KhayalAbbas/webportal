@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Research{% endblock %}
+{% block content %}
+<h1 class="page-title">Research Workspace</h1>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+    <div>
+        <p class="text-muted">Single hub for research runs. Server-rendered, no SPA.</p>
+    </div>
+    <div>
+        <a class="btn" href="/ui/research/new">New Research</a>
+    </div>
+</div>
+{% if success_message %}
+<div class="alert alert-success">{{ success_message }}</div>
+{% endif %}
+{% if error_message %}
+<div class="alert alert-error">{{ error_message }}</div>
+{% endif %}
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Industry</th>
+            <th>Region</th>
+            <th>Prospects</th>
+            <th>Execs</th>
+            <th>Created</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if runs %}
+            {% for run in runs %}
+            <tr>
+                <td>{{ run.name }}</td>
+                <td>
+                    <span class="badge {% if run.status in ['queued','running','active'] %}badge-info{% elif run.status in ['completed','succeeded'] %}badge-success{% elif run.status in ['failed','cancelled'] %}badge-danger{% else %}badge-warning{% endif %}">
+                        {{ run.status }}
+                    </span>
+                </td>
+                <td>{{ run.sector or '-' }}</td>
+                <td>
+                    {% if run.region_scope %}
+                        {{ ', '.join(run.region_scope) }}
+                    {% else %}-{% endif %}
+                </td>
+                <td>{{ run.prospects_accepted }}/{{ run.prospects_total }}</td>
+                <td>{{ run.exec_count }}</td>
+                <td>{{ run.created_at.strftime('%Y-%m-%d %H:%M') if run.created_at else '-' }}</td>
+                <td><a class="btn btn-secondary" href="/ui/research/runs/{{ run.id }}">Open</a></td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr><td colspan="8" class="text-center text-muted">No research runs yet.</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

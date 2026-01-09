@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}New Research{% endblock %}
+{% block content %}
+<h1 class="page-title">New Research</h1>
+<div class="card" style="padding:20px;">
+    {% if error_message %}
+    <div class="alert alert-error">{{ error_message }}</div>
+    {% endif %}
+    {% if not default_role %}
+    <p class="text-muted">No roles found for this tenant. Create one under Roles, then return.</p>
+    {% else %}
+    <p class="text-muted">Using role {{ default_role.title }} @ {{ default_role.company_name }}.</p>
+    <form method="post" action="/ui/research/new">
+        <div class="form-group">
+            <label for="industry">Industry *</label>
+            <input type="text" id="industry" name="industry" required placeholder="e.g., Fintech" />
+        </div>
+        <div class="form-group">
+            <label for="country_region">Country/Region *</label>
+            <input type="text" id="country_region" name="country_region" required placeholder="e.g., US or US,CA" />
+        </div>
+        <div class="form-group">
+            <label for="position">Position *</label>
+            <input type="text" id="position" name="position" required placeholder="e.g., VP Sales" />
+        </div>
+        <div class="form-group">
+            <label for="keywords">Keywords (optional)</label>
+            <textarea id="keywords" name="keywords" rows="2" placeholder="growth, enterprise, payments"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="exclusions">Exclusions (optional)</label>
+            <textarea id="exclusions" name="exclusions" rows="2" placeholder="exclude agencies, exclude stealth"></textarea>
+        </div>
+        <button type="submit" class="btn">Create &amp; Start</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}
