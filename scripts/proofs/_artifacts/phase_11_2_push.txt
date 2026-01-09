@@ -1,2 +1,4 @@
-Everything up-to-date
-Everything up-to-date
+To https://github.com/iuliantpg/ats.git
+   7eee63e..c28ef2c  master -> master
+To https://github.com/iuliantpg/ats.git
+ + 7eee63e...c28ef2c phase_11_2_signed_off -> phase_11_2_signed_off (forced update)
