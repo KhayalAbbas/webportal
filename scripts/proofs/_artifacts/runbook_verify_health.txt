@@ -1,1 +1,1 @@
-﻿{"api_ok":true,"db_ok":true,"alembic_head_ok":true,"alembic_current":"8c7b1a2d4f2a","alembic_head":"8c7b1a2d4f2a"}
+﻿{"api_ok":true,"db_ok":true,"alembic_head_ok":true,"alembic_current":"b6f20f1d5a7c","alembic_head":"b6f20f1d5a7c"}

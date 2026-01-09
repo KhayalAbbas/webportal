@@ -22,7 +22,8 @@ $logPath = Join-Path $ArtifactsDir 'runbook_verify_log.txt'
 $excerptPath = Join-Path $ArtifactsDir 'runbook_verify_runbook_excerpt.txt'
 $healthPath = Join-Path $ArtifactsDir 'runbook_verify_health.txt'
 $openapiPath = Join-Path $ArtifactsDir 'runbook_verify_openapi.json'
-$consolePath = Join-Path $ArtifactsDir 'runbook_verify_server_console.txt'
+$consoleStdoutPath = Join-Path $ArtifactsDir 'runbook_verify_server_stdout.txt'
+$consoleStderrPath = Join-Path $ArtifactsDir 'runbook_verify_server_stderr.txt'
 
 $proc = $null
 $started = $false
@@ -87,7 +88,8 @@ try {
 
     if (-not $listenerUp) {
         Write-Log "No listener detected; starting API via ATS_START_API_CMD"
-        $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $ATS_START_API_CMD -PassThru -RedirectStandardOutput $consolePath -RedirectStandardError $consolePath -WindowStyle Hidden
+        # Keep separate stdout/stderr files to avoid redirection conflicts on PowerShell 5.1
+        $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $ATS_START_API_CMD -PassThru -WindowStyle Hidden -RedirectStandardOutput $consoleStdoutPath -RedirectStandardError $consoleStderrPath
         $started = $true
     } else {
         Write-Log 'Listener already up; will not start a new server'
