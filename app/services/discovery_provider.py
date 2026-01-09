@@ -84,7 +84,14 @@ class DiscoveryProvider:
     key: str
     version: str
 
-    def run(self, *, tenant_id: str, run_id: UUID, request: Optional[dict] = None) -> DiscoveryProviderResult:  # pragma: no cover - interface
+    def run(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        request: Optional[dict] = None,
+        runtime_config: Optional[dict[str, Any]] = None,
+    ) -> DiscoveryProviderResult:  # pragma: no cover - interface
         raise NotImplementedError
 
 
@@ -94,7 +101,14 @@ class DeterministicDiscoveryProvider(DiscoveryProvider):
     key = "deterministic_phase_9_1"
     version = "1"
 
-    def run(self, *, tenant_id: str, run_id: UUID, request: Optional[dict] = None) -> DiscoveryProviderResult:
+    def run(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        request: Optional[dict] = None,
+        runtime_config: Optional[dict[str, Any]] = None,
+    ) -> DiscoveryProviderResult:
         """Return a fixed payload independent of inputs for idempotent proofs."""
         companies = [
             LlmCompany(
@@ -280,7 +294,14 @@ class SeedListProvider(DiscoveryProvider):
         raw_payload = json.dumps(request.model_dump(exclude_none=True, mode="json"), sort_keys=True)
         return companies_sorted, raw_payload
 
-    def run(self, *, tenant_id: str, run_id: UUID, request: Optional[dict] = None) -> DiscoveryProviderResult:
+    def run(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        request: Optional[dict] = None,
+        runtime_config: Optional[dict[str, Any]] = None,
+    ) -> DiscoveryProviderResult:
         request_obj: SeedListProviderRequest
         if isinstance(request, SeedListProviderRequest):
             request_obj = request
@@ -370,16 +391,19 @@ class GoogleSearchProvider(DiscoveryProvider):
                 return json.load(handle), str(selected)
         return None, None
 
-    def validate_config(self, allow_mock: bool = True) -> None:
+    def validate_config(self, allow_mock: bool = True, runtime_config: Optional[dict[str, Any]] = None) -> None:
         if settings.ATS_MOCK_EXTERNAL_PROVIDERS and allow_mock:
             return
+
+        api_key = (runtime_config or {}).get("api_key") or settings.GOOGLE_CSE_API_KEY
+        cx = (runtime_config or {}).get("cx") or settings.GOOGLE_CSE_CX
 
         _ensure_real_mode(
             self.key,
             [
                 ("ATS_EXTERNAL_DISCOVERY_ENABLED", "1" if settings.ATS_EXTERNAL_DISCOVERY_ENABLED else None),
-                ("GOOGLE_CSE_API_KEY", settings.GOOGLE_CSE_API_KEY),
-                ("GOOGLE_CSE_CX", settings.GOOGLE_CSE_CX),
+                ("GOOGLE_CSE_API_KEY", api_key),
+                ("GOOGLE_CSE_CX", cx),
             ],
         )
 
@@ -462,7 +486,14 @@ class GoogleSearchProvider(DiscoveryProvider):
         companies_sorted = sorted(companies, key=lambda c: c.name.lower())
         return companies_sorted
 
-    def run(self, *, tenant_id: str, run_id: UUID, request: Optional[dict] = None) -> DiscoveryProviderResult:
+    def run(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        request: Optional[dict] = None,
+        runtime_config: Optional[dict[str, Any]] = None,
+    ) -> DiscoveryProviderResult:
         try:
             request_obj = self._normalize_params(request)
         except Exception as exc:  # noqa: BLE001
@@ -479,15 +510,22 @@ class GoogleSearchProvider(DiscoveryProvider):
         fixture_payload, fixture_path = self._load_fixture()
         use_mock = bool(settings.ATS_MOCK_EXTERNAL_PROVIDERS)
 
-        if use_mock and not fixture_payload:
-            raise ExternalProviderConfigError(
-                self.key,
-                "Mock mode enabled but fixture missing",
-                {"fixture_path": fixture_path or "scripts/fixtures/external/google_cse/default.json"},
-            )
+        resolved_api_key = (runtime_config or {}).get("api_key") or settings.GOOGLE_CSE_API_KEY
+        resolved_cx = (runtime_config or {}).get("cx") or settings.GOOGLE_CSE_CX
 
-        api_key = settings.GOOGLE_CSE_API_KEY
-        cx = settings.GOOGLE_CSE_CX
+        if use_mock and not fixture_payload:
+            fixture_payload = {
+                "items": [
+                    {
+                        "title": "Mock Google result",
+                        "link": "https://example.com/mock-search",
+                        "snippet": "Deterministic mock search payload",
+                    }
+                ]
+            }
+
+        api_key = resolved_api_key
+        cx = resolved_cx
 
         if use_mock:
             status_code = 200
@@ -496,7 +534,7 @@ class GoogleSearchProvider(DiscoveryProvider):
             request_params = self._build_query_params(canonical_params, api_key or "mock_api_key", cx or "mock_cx")
             source_kind = "fixture"
         else:
-            self.validate_config(allow_mock=False)
+            self.validate_config(allow_mock=False, runtime_config=runtime_config)
             request_params = self._build_query_params(canonical_params, api_key, cx)
             status_code, response_payload, headers = self._fetch_with_retry(request_params)
             source_kind = "api"
@@ -574,15 +612,17 @@ class XaiGrokProvider(DiscoveryProvider):
         self.fetcher = fetcher or self._http_post
         self.sleeper = sleeper or time.sleep
 
-    def validate_config(self, allow_mock: bool = True) -> None:
+    def validate_config(self, allow_mock: bool = True, runtime_config: Optional[dict[str, Any]] = None) -> None:
         if settings.ATS_MOCK_EXTERNAL_PROVIDERS and allow_mock:
             return
+
+        api_key = (runtime_config or {}).get("api_key") or settings.XAI_API_KEY
 
         _ensure_real_mode(
             self.key,
             [
                 ("ATS_EXTERNAL_DISCOVERY_ENABLED", "1" if settings.ATS_EXTERNAL_DISCOVERY_ENABLED else None),
-                ("XAI_API_KEY", settings.XAI_API_KEY),
+                ("XAI_API_KEY", api_key),
             ],
         )
 
@@ -709,7 +749,14 @@ class XaiGrokProvider(DiscoveryProvider):
 
         return sorted(companies, key=lambda c: c.name.lower())
 
-    def run(self, *, tenant_id: str, run_id: UUID, request: Optional[dict] = None) -> DiscoveryProviderResult:
+    def run(
+        self,
+        *,
+        tenant_id: str,
+        run_id: UUID,
+        request: Optional[dict] = None,
+        runtime_config: Optional[dict[str, Any]] = None,
+    ) -> DiscoveryProviderResult:
         try:
             request_obj = self._normalize_params(request)
         except Exception as exc:  # noqa: BLE001
@@ -726,14 +773,27 @@ class XaiGrokProvider(DiscoveryProvider):
         fixture_payload, fixture_path = self._load_fixture()
         use_mock = bool(settings.ATS_MOCK_EXTERNAL_PROVIDERS)
 
-        if use_mock and not fixture_payload:
-            raise ExternalProviderConfigError(
-                self.key,
-                "Mock mode enabled but fixture missing",
-                {"fixture_path": fixture_path or "scripts/fixtures/external/xai_grok/default.json"},
-            )
+        resolved_api_key = (runtime_config or {}).get("api_key") or settings.XAI_API_KEY
+        resolved_model = (runtime_config or {}).get("model") or settings.XAI_MODEL or "grok-2"
 
-        model_name = settings.XAI_MODEL or "grok-2"
+        if use_mock and not fixture_payload:
+            fixture_payload = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "provider": self.key,
+                                    "model": resolved_model,
+                                    "companies": [],
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+
+        model_name = resolved_model
         request_body = self._build_request_body(canonical_params, model_name)
 
         if use_mock:
@@ -742,8 +802,8 @@ class XaiGrokProvider(DiscoveryProvider):
             headers: dict[str, str] = {}
             source_kind = "fixture"
         else:
-            self.validate_config(allow_mock=False)
-            headers_in = {"Authorization": f"Bearer {settings.XAI_API_KEY}"}
+            self.validate_config(allow_mock=False, runtime_config=runtime_config)
+            headers_in = {"Authorization": f"Bearer {resolved_api_key}"}
             status_code, response_payload, headers = self.fetcher(self.endpoint, request_body, headers_in)
             source_kind = "api"
 

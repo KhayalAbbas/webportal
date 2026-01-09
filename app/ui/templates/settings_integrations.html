@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Settings → Integrations{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Settings → Integrations</h1>
+
+{% if master_key_missing %}
+<div class="alert alert-warning" style="margin-bottom: 16px;">
+    <strong>Master key required.</strong>
+    {{ master_key_error or 'Set ATS_SECRETS_MASTER_KEY before managing integrations.' }}
+</div>
+{% endif %}
+
+{% if success_message %}
+<div class="alert alert-success" style="margin-bottom: 12px;">{{ success_message }}</div>
+{% endif %}
+{% if error_message %}
+<div class="alert alert-danger" style="margin-bottom: 12px;">{{ error_message }}</div>
+{% endif %}
+
+<p class="help-text" style="margin-bottom: 18px; font-size: 14px; color: #5f6b7a;">
+    Secrets are encrypted at rest using ATS_SECRETS_MASTER_KEY. Keys are never displayed. Only last 4 digits are shown for confirmation.
+</p>
+
+<div class="card" style="margin-bottom: 16px; padding: 16px;">
+    <h2 style="margin-top: 0;">xAI (Grok)</h2>
+    <p style="font-size: 13px; color: #5f6b7a; margin-bottom: 10px;">
+        Configure an API key and optional model (default falls back to env or grok-2). Keys are masked; env fallback is used if set.
+    </p>
+    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 260px;">
+            <form method="post" action="/ui/settings/integrations/xai">
+                <label for="xai_api_key">API Key</label>
+                <input id="xai_api_key" name="api_key" type="password" placeholder="Enter new key" {% if master_key_missing %}disabled{% endif %} />
+                <label for="xai_model" style="margin-top: 8px;">Model</label>
+                <input id="xai_model" name="model" type="text" value="{{ state.xai_grok.config.model or '' }}" placeholder="e.g., grok-2" {% if master_key_missing %}disabled{% endif %} />
+                <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
+                    <button class="btn" type="submit" {% if master_key_missing %}disabled{% endif %}>Save</button>
+                </div>
+            </form>
+            <form method="post" action="/ui/settings/integrations/xai/test" style="margin-top: 8px;">
+                <button class="btn btn-secondary" type="submit" {% if master_key_missing %}disabled{% endif %}>Test connection</button>
+            </form>
+        </div>
+        <div style="min-width: 220px; font-size: 14px;">
+            <p><strong>Configured:</strong> {{ 'Yes' if state.xai_grok.configured else 'No' }} {% if state.xai_grok.has_env_fallback and not state.xai_grok.last4 %}(env fallback){% endif %}</p>
+            <p><strong>Key:</strong>
+                {% if state.xai_grok.last4 %}
+                    ****{{ state.xai_grok.last4 }}
+                {% elif state.xai_grok.has_env_fallback %}
+                    Env fallback (hidden)
+                {% else %}
+                    Not set
+                {% endif %}
+            </p>
+            <p><strong>Last updated:</strong> {{ state.xai_grok.updated_at if state.xai_grok.updated_at else '—' }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 16px; padding: 16px;">
+    <h2 style="margin-top: 0;">Google Programmable Search (CSE)</h2>
+    <p style="font-size: 13px; color: #5f6b7a; margin-bottom: 10px;">
+        Configure API key and CX for tenant-scoped search. Env fallback is used if configured, but secrets stored here take precedence.
+    </p>
+    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 260px;">
+            <form method="post" action="/ui/settings/integrations/google">
+                <label for="google_api_key">API Key</label>
+                <input id="google_api_key" name="api_key" type="password" placeholder="Enter new key" {% if master_key_missing %}disabled{% endif %} />
+                <label for="google_cx" style="margin-top: 8px;">CX</label>
+                <input id="google_cx" name="cx" type="text" value="{{ state.google_cse.config.cx or '' }}" placeholder="Search engine CX" {% if master_key_missing %}disabled{% endif %} />
+                <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
+                    <button class="btn" type="submit" {% if master_key_missing %}disabled{% endif %}>Save</button>
+                </div>
+            </form>
+            <form method="post" action="/ui/settings/integrations/google/test" style="margin-top: 8px;">
+                <button class="btn btn-secondary" type="submit" {% if master_key_missing %}disabled{% endif %}>Test connection</button>
+            </form>
+        </div>
+        <div style="min-width: 220px; font-size: 14px;">
+            <p><strong>Configured:</strong> {{ 'Yes' if state.google_cse.configured else 'No' }} {% if state.google_cse.has_env_fallback and not state.google_cse.last4 %}(env fallback){% endif %}</p>
+            <p><strong>Key:</strong>
+                {% if state.google_cse.last4 %}
+                    ****{{ state.google_cse.last4 }}
+                {% elif state.google_cse.has_env_fallback %}
+                    Env fallback (hidden)
+                {% else %}
+                    Not set
+                {% endif %}
+            </p>
+            <p><strong>CX:</strong> {{ state.google_cse.config.cx if state.google_cse.config.cx else 'Not set' }}</p>
+            <p><strong>Last updated:</strong> {{ state.google_cse.updated_at if state.google_cse.updated_at else '—' }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="padding: 12px; font-size: 13px; color: #4a5563;">
+    <strong>Operational guidance:</strong>
+    <ul style="margin-top: 8px; padding-left: 18px;">
+        <li>Set ATS_SECRETS_MASTER_KEY (and optional ATS_SECRETS_KEY_VERSION) in scripts/runbook/LOCAL_COMMANDS.ps1 for local dev.</li>
+        <li>For production, set the same variables in deployment environment variables; never commit secrets to the repo.</li>
+        <li>Tests run in mock mode when ATS_MOCK_EXTERNAL_PROVIDERS=1 to avoid external calls.</li>
+    </ul>
+</div>
+
+{% endblock %}

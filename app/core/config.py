@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     XAI_MODEL: str = "grok-2"
     GOOGLE_CSE_API_KEY: Optional[str] = None
     GOOGLE_CSE_CX: Optional[str] = None
+    ATS_SECRETS_MASTER_KEY: Optional[str] = None
+    ATS_SECRETS_KEY_VERSION: int = 1
     
     class Config:
         # Load variables from .env file if it exists

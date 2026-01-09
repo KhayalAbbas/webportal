@@ -58,6 +58,7 @@ from app.services.entity_resolution_service import EntityResolutionService
 from app.services.canonical_people_service import CanonicalPeopleService
 from app.services.canonical_company_service import CanonicalCompanyService
 from app.services.discovery_provider import ExternalProviderConfigError, get_discovery_provider
+from app.services.integration_settings_service import IntegrationSettingsService
 from app.schemas.ai_proposal import AIProposal
 from app.schemas.ai_enrichment import AIEnrichmentCreate
 from app.schemas.llm_discovery import LlmDiscoveryPayload, LlmCompany, LlmEvidence, LlmRunContext
@@ -3642,6 +3643,10 @@ class CompanyResearchService:
         # Enforce run existence and mutability before generating provider output
         await self.ensure_sources_unlocked(tenant_id, run_id)
 
+        integration_service = IntegrationSettingsService(self.db)
+        tenant_uuid = UUID(str(tenant_id))
+        runtime_config = await integration_service.resolve_runtime_config(tenant_uuid, provider_key, require_secret=False)
+
         provider_request = request_payload or {}
         if hasattr(provider_request, "model_dump"):
             provider_request = provider_request.model_dump(exclude_none=True)
@@ -3651,6 +3656,7 @@ class CompanyResearchService:
                 tenant_id=tenant_id,
                 run_id=run_id,
                 request=provider_request,
+                runtime_config=runtime_config,
             )
         except ExternalProviderConfigError:
             # Bubble up for API/UI layers to render a structured app error

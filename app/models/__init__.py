@@ -33,6 +33,7 @@ from app.models.company_research import (
     ResolvedEntity,
     EntityMergeLink,
 )
+from app.models.tenant_integration import TenantIntegrationSecret, TenantIntegrationConfig
 
 # Export all models
 __all__ = [
@@ -64,4 +65,6 @@ __all__ = [
         "CompanyResearchRunStep",
         "ResolvedEntity",
         "EntityMergeLink",
+    "TenantIntegrationSecret",
+    "TenantIntegrationConfig",
 ]

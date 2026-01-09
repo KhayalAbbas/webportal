@@ -22,6 +22,9 @@ jinja2==3.1.3
 # Session management for UI
 itsdangerous==2.1.2
 
+# Encryption
+cryptography==42.0.5
+
 # Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1

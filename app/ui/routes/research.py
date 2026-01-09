@@ -14,6 +14,7 @@ from app.models.company_research import CompanyProspect, ExecutiveProspect
 from app.models.pipeline_stage import PipelineStage
 from app.models.role import Role
 from app.services.company_research_service import CompanyResearchService
+from app.services.integration_settings_service import IntegrationSettingsService
 from app.services.discovery_provider import ExternalProviderConfigError, get_discovery_provider
 from app.ui.dependencies import get_current_ui_user_and_tenant, UIUser
 from app.schemas.company_research import CompanyResearchRunCreate, CompanyProspectUpdateManual
@@ -22,19 +23,22 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/ui/templates")
 
 
-def _discovery_config_status() -> dict:
-    """Return read-only flags indicating whether required env vars are set."""
+async def _discovery_config_status(session: AsyncSession, tenant_id: UUID) -> dict:
+    """Return read-only flags indicating whether required config exists (DB or env)."""
 
     def _flag(env_key: str, default: Optional[str] = None) -> bool:
         val = os.getenv(env_key, default)
         return bool(val and str(val).strip())
 
+    integration_state = await IntegrationSettingsService(session).get_public_state(tenant_id)
+    google_config = integration_state.get("google_cse", {}).get("config", {}) or {}
+
     return {
         "external_enabled": _flag("ATS_EXTERNAL_DISCOVERY_ENABLED"),
         "mock_mode": str(os.getenv("ATS_MOCK_EXTERNAL_PROVIDERS", "0")) in {"1", "true", "True"},
-        "xai_api_key": _flag("XAI_API_KEY"),
-        "google_api_key": _flag("GOOGLE_CSE_API_KEY"),
-        "google_cx": _flag("GOOGLE_CSE_CX"),
+        "xai_api_key": bool(integration_state.get("xai_grok", {}).get("configured")),
+        "google_api_key": bool(integration_state.get("google_cse", {}).get("configured")),
+        "google_cx": bool(google_config.get("cx") or os.getenv("GOOGLE_CSE_CX")),
     }
 
 
@@ -140,6 +144,7 @@ async def research_new_form(
     error_message: Optional[str] = None,
 ):
     default_role = await _get_default_role(session, current_user.tenant_id)
+    config_status = await _discovery_config_status(session, current_user.tenant_id)
     return templates.TemplateResponse(
         "research_new.html",
         {
@@ -148,7 +153,7 @@ async def research_new_form(
             "active_page": "research",
             "default_role": default_role,
             "error_message": error_message,
-            "config_status": _discovery_config_status(),
+            "config_status": config_status,
         },
     )
 
@@ -172,7 +177,7 @@ async def research_new_submit(
             status_code=303,
         )
 
-    config_status = _discovery_config_status()
+    config_status = await _discovery_config_status(session, current_user.tenant_id)
 
     region_list: List[str] = [r.strip().upper() for r in country_region.split(",") if r.strip()]
     config = {
