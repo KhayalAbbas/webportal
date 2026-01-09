@@ -66,6 +66,7 @@ async def settings_integrations(
             "request": request,
             "current_user": current_user,
             "active_page": "settings",
+            "active_settings_tab": "integrations",
             "state": state,
             "master_key_missing": master_key_missing,
             "master_key_error": master_key_error,
@@ -73,6 +74,24 @@ async def settings_integrations(
             "error_message": error_message,
         },
         status_code=status_code,
+    )
+
+
+@router.get("/ui/settings/general", response_class=HTMLResponse)
+async def settings_general(
+    request: Request,
+    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
+):
+    _ensure_admin(current_user)
+    return templates.TemplateResponse(
+        "settings_general.html",
+        {
+            "request": request,
+            "current_user": current_user,
+            "active_page": "settings",
+            "active_settings_tab": "general",
+        },
+        status_code=200,
     )
 
 

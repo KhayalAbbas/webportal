@@ -5,6 +5,62 @@
 {% block content %}
 <h1 class="page-title">Settings → Integrations</h1>
 
+<style>
+    .settings-tabs {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 18px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .settings-tab {
+        padding: 6px 12px;
+        border-radius: 4px;
+        color: #2c3e50;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .settings-tab:hover {
+        background: #e5e7eb;
+        text-decoration: none;
+    }
+
+    .settings-tab.active {
+        background: #3498db;
+        color: #fff;
+        border-color: #2980b9;
+    }
+
+    .settings-card-grid {
+        display: flex;
+        gap: 24px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .settings-form-column {
+        flex: 1;
+        min-width: 320px;
+        max-width: 720px;
+    }
+
+    .settings-status-column {
+        width: 260px;
+        flex-shrink: 0;
+        position: static;
+    }
+</style>
+
+<div class="settings-tabs">
+    <a href="/ui/settings/integrations" class="settings-tab {% if active_settings_tab == 'integrations' %}active{% endif %}">Integrations</a>
+    <a href="/ui/settings/general" class="settings-tab {% if active_settings_tab == 'general' %}active{% endif %}">General</a>
+</div>
+
 {% if master_key_missing %}
 <div class="alert alert-warning" style="margin-bottom: 16px;">
     <strong>Master key required.</strong>
@@ -28,8 +84,8 @@
     <p style="font-size: 13px; color: #5f6b7a; margin-bottom: 10px;">
         Configure an API key and optional model (default falls back to env or grok-2). Keys are masked; env fallback is used if set.
     </p>
-    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
-        <div style="flex: 1; min-width: 260px;">
+    <div class="settings-card-grid">
+        <div class="settings-form-column">
             <form method="post" action="/ui/settings/integrations/xai">
                 <label for="xai_api_key">API Key</label>
                 <input id="xai_api_key" name="api_key" type="password" placeholder="Enter new key" {% if master_key_missing %}disabled{% endif %} />
@@ -43,7 +99,7 @@
                 <button class="btn btn-secondary" type="submit" {% if master_key_missing %}disabled{% endif %}>Test connection</button>
             </form>
         </div>
-        <div style="min-width: 220px; font-size: 14px;">
+        <div class="settings-status-column" style="font-size: 14px;">
             <p><strong>Configured:</strong> {{ 'Yes' if state.xai_grok.configured else 'No' }} {% if state.xai_grok.has_env_fallback and not state.xai_grok.last4 %}(env fallback){% endif %}</p>
             <p><strong>Key:</strong>
                 {% if state.xai_grok.last4 %}
@@ -64,8 +120,8 @@
     <p style="font-size: 13px; color: #5f6b7a; margin-bottom: 10px;">
         Configure API key and CX for tenant-scoped search. Env fallback is used if configured, but secrets stored here take precedence.
     </p>
-    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
-        <div style="flex: 1; min-width: 260px;">
+    <div class="settings-card-grid">
+        <div class="settings-form-column">
             <form method="post" action="/ui/settings/integrations/google">
                 <label for="google_api_key">API Key</label>
                 <input id="google_api_key" name="api_key" type="password" placeholder="Enter new key" {% if master_key_missing %}disabled{% endif %} />
@@ -79,7 +135,7 @@
                 <button class="btn btn-secondary" type="submit" {% if master_key_missing %}disabled{% endif %}>Test connection</button>
             </form>
         </div>
-        <div style="min-width: 220px; font-size: 14px;">
+        <div class="settings-status-column" style="font-size: 14px;">
             <p><strong>Configured:</strong> {{ 'Yes' if state.google_cse.configured else 'No' }} {% if state.google_cse.has_env_fallback and not state.google_cse.last4 %}(env fallback){% endif %}</p>
             <p><strong>Key:</strong>
                 {% if state.google_cse.last4 %}
