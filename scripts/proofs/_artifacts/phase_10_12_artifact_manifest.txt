@@ -1,0 +1,24 @@
+phase_10_12_artifact_manifest.txt - This file
+phase_10_12_preflight.txt - Preflight checks (port/health/openapi/alembic/git)
+phase_10_12_proof.txt - Proof summary
+phase_10_12_proof_console.txt - Proof console log
+phase_10_12_pipeline_snapshot.json - Pipeline snapshot after proof
+phase_10_12_db_excerpt.sql.txt - DB excerpt for proof run
+phase_10_12_export_hashes.txt - Export pack hash/metadata
+phase_10_12_export_file_list.txt - Export pack file listing
+phase_10_12_bundle_hashes.txt - Evidence bundle hash/metadata
+phase_10_12_bundle_file_list.txt - Evidence bundle file listing
+phase_10_12_manifest_excerpt.json - Manifest excerpt
+phase_10_12_openapi_after.json - OpenAPI snapshot after proof
+phase_10_12_openapi_after_excerpt.txt - OpenAPI excerpt for relevant endpoints
+phase_10_12_release_notes.md - Release notes
+phase_10_12_signoff_checklist.txt - Signoff checklist
+phase_10_12_commit.txt - Commit summary
+phase_10_12_git_status_before_commit.txt - Git status before commit
+phase_10_12_git_diff_stat.txt - Git diff stat before commit
+phase_10_12_git_log_before_commit.txt - Git log before commit
+phase_10_12_tag.txt - Tag creation output
+phase_10_12_push.txt - Push output (master and tags)
+phase_10_12_git_after.txt - Post-push git status snapshot
+phase_10_12_master_ahead_behind.txt - Ahead/behind counts for origin/master...master
+phase_10_12_release_bundle.zip - Aggregated release bundle for phase 10.12

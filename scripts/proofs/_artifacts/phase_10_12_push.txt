@@ -1,0 +1,28 @@
+﻿git.exe : To https://github.com/iuliantpg/ats.git
+At line:1 char:61
++ ... ; $log=@(); $log += (& $git push --dry-run origin master 2>&1); $log  
+...
++                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://github.com/iuliantpg 
+   /ats.git:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ ! [rejected]        master -> master (non-fast-forward)
+error: failed to push some refs to 'https://github.com/iuliantpg/ats.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+git.exe : To https://github.com/iuliantpg/ats.git
+At line:1 char:113
++ ... ster 2>&1); $log += (& $git push --dry-run origin --tags 2>&1); $log  
+...
++                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (To https://github.com/iuliantpg 
+   /ats.git:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+ ! [rejected]        phase_10_12_signed_off -> phase_10_12_signed_off 
+(already exists)
+error: failed to push some refs to 'https://github.com/iuliantpg/ats.git'
+hint: Updates were rejected because the tag already exists in the remote.
