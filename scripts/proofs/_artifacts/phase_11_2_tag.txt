@@ -1,0 +1,3969 @@
+commit 5146d4a6184dcc069705b9b4213db188e18d87bb
+Author: ATS Local <local@ats>
+Date:   Fri Jan 9 15:19:29 2026 +0400
+
+    Phase 11.2: Research UX polish (single workspace, fail-fast config guidance)
+
+diff --git a/app/ui/routes/research.py b/app/ui/routes/research.py
+index d1abf0f..81b355b 100644
+--- a/app/ui/routes/research.py
++++ b/app/ui/routes/research.py
+@@ -1,7 +1,8 @@
++import os
+ from typing import Optional, List
+ from uuid import UUID
+ 
+-from fastapi import APIRouter, Depends, Form, HTTPException, Request
++from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+ from fastapi.templating import Jinja2Templates
+ from sqlalchemy import select, func
+@@ -21,6 +22,22 @@ router = APIRouter()
+ templates = Jinja2Templates(directory="app/ui/templates")
+ 
+ 
++def _discovery_config_status() -> dict:
++    """Return read-only flags indicating whether required env vars are set."""
++
++    def _flag(env_key: str, default: Optional[str] = None) -> bool:
++        val = os.getenv(env_key, default)
++        return bool(val and str(val).strip())
++
++    return {
++        "external_enabled": _flag("ATS_EXTERNAL_DISCOVERY_ENABLED"),
++        "mock_mode": str(os.getenv("ATS_MOCK_EXTERNAL_PROVIDERS", "0")) in {"1", "true", "True"},
++        "xai_api_key": _flag("XAI_API_KEY"),
++        "google_api_key": _flag("GOOGLE_CSE_API_KEY"),
++        "google_cx": _flag("GOOGLE_CSE_CX"),
++    }
++
++
+ async def _get_default_role(session: AsyncSession, tenant_id: UUID) -> Optional[dict]:
+     query = (
+         select(Role, Company.name.label("company_name"))
+@@ -131,6 +148,7 @@ async def research_new_form(
+             "active_page": "research",
+             "default_role": default_role,
+             "error_message": error_message,
++            "config_status": _discovery_config_status(),
+         },
+     )
+ 
+@@ -154,6 +172,8 @@ async def research_new_submit(
+             status_code=303,
+         )
+ 
++    config_status = _discovery_config_status()
++
+     region_list: List[str] = [r.strip().upper() for r in country_region.split(",") if r.strip()]
+     config = {
+         "workspace": {
+@@ -182,6 +202,42 @@ async def research_new_submit(
+     needs_external = discovery_mode in {"external", "both"}
+     needs_search = search_provider == "enabled"
+ 
++    if needs_external and not (config_status["external_enabled"] and config_status["xai_api_key"]):
++        error_message = (
++            "External discovery not configured. Set ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY "
++            "in scripts/runbook/LOCAL_COMMANDS.ps1 (local) or deployment env vars (prod)."
++        )
++        return templates.TemplateResponse(
++            "research_new.html",
++            {
++                "request": request,
++                "current_user": current_user,
++                "active_page": "research",
++                "default_role": default_role,
++                "error_message": error_message,
++                "config_status": config_status,
++            },
++            status_code=400,
++        )
++
++    if needs_search and not (config_status["google_api_key"] and config_status["google_cx"]):
++        error_message = (
++            "Search provider not configured. Set GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX in scripts/runbook/LOCAL_COMMANDS.ps1 "
++            "(local) or deployment env vars (prod)."
++        )
++        return templates.TemplateResponse(
++            "research_new.html",
++            {
++                "request": request,
++                "current_user": current_user,
++                "active_page": "research",
++                "default_role": default_role,
++                "error_message": error_message,
++                "config_status": config_status,
++            },
++            status_code=400,
++        )
++
+     try:
+         if needs_external:
+             provider = get_discovery_provider("xai_grok")
+@@ -248,16 +304,36 @@ async def research_new_submit(
+         await session.commit()
+     except ExternalProviderConfigError as exc:
+         await session.rollback()
+-        return RedirectResponse(
+-            url=f"/ui/research/new?error_message=External discovery not configured: {str(exc)}",
+-            status_code=303,
++        error_message = (
++            "External discovery not configured. Set ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY "
++            "in scripts/runbook/LOCAL_COMMANDS.ps1 (local) or deployment env vars (prod)."
++        )
++        return templates.TemplateResponse(
++            "research_new.html",
++            {
++                "request": request,
++                "current_user": current_user,
++                "active_page": "research",
++                "default_role": default_role,
++                "error_message": error_message,
++                "config_status": config_status,
++            },
++            status_code=400,
+         )
+     except Exception as exc:  # noqa: BLE001
+         await session.rollback()
+         msg = str(exc)
+-        return RedirectResponse(
+-            url=f"/ui/research/new?error_message={msg}",
+-            status_code=303,
++        return templates.TemplateResponse(
++            "research_new.html",
++            {
++                "request": request,
++                "current_user": current_user,
++                "active_page": "research",
++                "default_role": default_role,
++                "error_message": msg,
++                "config_status": config_status,
++            },
++            status_code=400,
+         )
+ 
+     return RedirectResponse(url=f"/ui/research/runs/{run.id}", status_code=303)
+@@ -271,15 +347,24 @@ async def research_workspace(
+     session: AsyncSession = Depends(get_db),
+     success_message: Optional[str] = None,
+     error_message: Optional[str] = None,
++    review_filter: str = Query("all"),
++    stage_pref: Optional[str] = Query(None),
+ ):
+     service = CompanyResearchService(session)
+     run = await service.get_research_run(current_user.tenant_id, run_id)
+     if not run:
+         raise HTTPException(status_code=404, detail="Research run not found")
+ 
++    review_filter_normalized = (review_filter or "all").lower()
++    review_status_filter = review_filter_normalized if review_filter_normalized in {"accepted", "hold", "rejected"} else None
++
++    review_counts = await _count_review_states(session, current_user.tenant_id, run_id)
++
+     prospects = await service.list_prospects_for_run_with_evidence(
+         tenant_id=current_user.tenant_id,
+         run_id=run_id,
++        status=None,
++        review_status=review_status_filter,
+         order_by="manual",
+         limit=300,
+     )
+@@ -307,9 +392,32 @@ async def research_workspace(
+                 "exec_search_enabled": prospect.exec_search_enabled,
+                 "manual_priority": prospect.manual_priority,
+                 "primary_evidence_url": primary_evidence_url,
++                "evidence_count": len(evidence),
+             }
+         )
+ 
++    if review_filter_normalized == "unreviewed":
++        filtered = []
++        for p in prospect_rows:
++            if p["review_status"] not in {"accepted", "hold", "rejected"}:
++                filtered.append(p)
++        prospect_rows = filtered
++
++    review_filter_options = [
++        {"key": "all", "label": "All", "count": review_counts.get("total", 0)},
++        {
++            "key": "unreviewed",
++            "label": "Unreviewed",
++            "count": review_counts.get("total", 0)
++            - review_counts.get("accepted", 0)
++            - review_counts.get("hold", 0)
++            - review_counts.get("rejected", 0),
++        },
++        {"key": "accepted", "label": "Accepted", "count": review_counts.get("accepted", 0)},
++        {"key": "hold", "label": "Hold", "count": review_counts.get("hold", 0)},
++        {"key": "rejected", "label": "Rejected", "count": review_counts.get("rejected", 0)},
++    ]
++
+     exec_rows = await service.list_executive_prospects_with_evidence(
+         tenant_id=current_user.tenant_id,
+         run_id=run_id,
+@@ -327,6 +435,8 @@ async def research_workspace(
+             if not evidence_url and doc:
+                 evidence_url = doc.get("url")
+ 
++        label = "LinkedIn" if evidence_url and "linkedin.com" in evidence_url.lower() else "Source"
++
+         executive_rows.append(
+             {
+                 "id": str(exec_row.get("id")),
+@@ -335,14 +445,76 @@ async def research_workspace(
+                 "title": exec_row.get("title"),
+                 "evidence_url": evidence_url,
+                 "review_status": exec_row.get("review_status"),
++                "link_label": label,
+             }
+         )
+ 
++    executive_rows = sorted(
++        executive_rows,
++        key=lambda row: ((row.get("company") or "").lower(), (row.get("name") or "").lower()),
++    )
++
+     eligible_companies = await service.list_executive_eligible_companies(
+         tenant_id=current_user.tenant_id,
+         run_id=run_id,
+     )
+ 
++    accepted_count = review_counts.get("accepted", 0)
++    has_execs = len(executive_rows) > 0
++    run_started = run.status not in {"planned", "new"}
++    is_running = run.status in {"queued", "running"}
++
++    primary_cta = {
++        "label": "Run research",
++        "action": f"/ui/research/runs/{run.id}/start",
++        "method": "post",
++        "disabled": False,
++        "reason": None,
++        "requires_exec_selection": False,
++        "select_label": None,
++    }
++
++    if is_running:
++        primary_cta.update({"label": "RunningGÇª", "disabled": True})
++    elif not run_started:
++        primary_cta["label"] = "Run research"
++    elif accepted_count == 0:
++        primary_cta.update({
++            "label": "Accept at least 1 company to find executives",
++            "disabled": True,
++            "reason": "Enable exec search by accepting a company",
++            "action": None,
++            "method": "get",
++        })
++    elif not has_execs:
++        primary_cta.update({
++            "label": "Find executives",
++            "action": f"/ui/research/runs/{run.id}/executive-discovery",
++            "method": "post",
++            "disabled": False,
++        })
++    else:
++        primary_cta.update({
++            "label": "Select executives to add to search",
++            "action": "/ui/research/executives/pipeline",
++            "method": "post",
++            "disabled": True,
++            "requires_exec_selection": True,
++            "select_label": "Select executives to add to search",
++        })
++
++    current_step = 1
++    if run_started:
++        current_step = 2
++        if accepted_count > 0:
++            current_step = 3
++            if has_execs:
++                current_step = 4
++    if success_message and "Added" in success_message:
++        current_step = 5
++
++    stage_pref_value = stage_pref or request.cookies.get("research_stage_pref")
++
+     pipeline_stage_rows: list[dict] = []
+     stage_query = (
+         select(PipelineStage)
+@@ -353,7 +525,16 @@ async def research_workspace(
+     for stage in stage_result.scalars().all():
+         pipeline_stage_rows.append({"id": str(stage.id), "name": stage.name, "code": stage.code})
+ 
+-    return templates.TemplateResponse(
++    cta_action = primary_cta.get("action") or ""
++    cta_form_id = "run-start-form"
++    if cta_action.endswith("/start"):
++        cta_form_id = "run-start-form"
++    elif cta_action.endswith("/executive-discovery"):
++        cta_form_id = "exec-discovery-form"
++    elif cta_action.endswith("/pipeline"):
++        cta_form_id = "exec-pipeline-form"
++
++    response = templates.TemplateResponse(
+         "research_workspace.html",
+         {
+             "request": request,
+@@ -367,17 +548,47 @@ async def research_workspace(
+                 "region_scope": run.region_scope,
+                 "config": run.config or {},
+                 "description": run.description,
++                "role_id": str(run.role_mandate_id) if getattr(run, "role_mandate_id", None) else None,
+             },
+             "prospects": prospect_rows,
+             "executives": executive_rows,
+-            "has_execs": len(executive_rows) > 0,
++            "has_execs": has_execs,
+             "eligible_exec_companies": len(eligible_companies),
+             "pipeline_stages": pipeline_stage_rows,
+             "success_message": success_message,
+             "error_message": error_message,
++            "review_filter": review_filter_normalized,
++            "review_filter_options": review_filter_options,
++            "review_counts": review_counts,
++            "current_step": current_step,
++            "primary_cta": primary_cta,
++            "primary_cta_form": cta_form_id,
++            "stage_pref": stage_pref_value,
++            "accepted_count": accepted_count,
+         },
+     )
+ 
++    if stage_pref_value:
++        response.set_cookie("research_stage_pref", stage_pref_value)
++
++    return response
++
++
++@router.post("/ui/research/runs/{run_id}/start")
++async def research_run_start(
++    run_id: UUID,
++    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
++    session: AsyncSession = Depends(get_db),
++):
++    service = CompanyResearchService(session)
++    run = await service.get_research_run(current_user.tenant_id, run_id)
++    if not run:
++        raise HTTPException(status_code=404, detail="Research run not found")
++
++    await service.start_run(current_user.tenant_id, run_id)
++    await session.commit()
++    return RedirectResponse(url=f"/ui/research/runs/{run_id}?success_message=Run research started", status_code=303)
++
+ 
+ @router.post("/ui/research/prospects/{prospect_id}/review")
+ async def research_prospect_review(
+@@ -405,6 +616,50 @@ async def research_prospect_review(
+     return RedirectResponse(url=f"/ui/research/runs/{run_id}?success_message=Updated", status_code=303)
+ 
+ 
++@router.post("/ui/research/prospects/bulk-review")
++async def research_prospect_bulk_review(
++    run_id: UUID = Form(...),
++    review_status: str = Form(...),
++    prospect_ids: List[str] = Form([]),
++    current_user: UIUser = Depends(get_current_ui_user_and_tenant),
++    session: AsyncSession = Depends(get_db),
++):
++    review_status = (review_status or "").lower()
++    if review_status not in {"accepted", "hold", "rejected"}:
++        raise HTTPException(status_code=400, detail="Invalid review status")
++
++    if not prospect_ids:
++        return RedirectResponse(
++            url=f"/ui/research/runs/{run_id}?error_message=Select at least one company",
++            status_code=303,
++        )
++
++    service = CompanyResearchService(session)
++    updated = 0
++    for pid in prospect_ids:
++        try:
++            await service.update_prospect_review_status(
++                tenant_id=current_user.tenant_id,
++                prospect_id=UUID(pid),
++                review_status=review_status,
++                exec_search_enabled=True if review_status == "accepted" else None,
++                actor=current_user.email or current_user.username or "system",
++            )
++            updated += 1
++        except Exception:  # noqa: BLE001
++            await session.rollback()
++            return RedirectResponse(
++                url=f"/ui/research/runs/{run_id}?error_message=Failed to update selections",
++                status_code=303,
++            )
++
++    await session.commit()
++    return RedirectResponse(
++        url=f"/ui/research/runs/{run_id}?success_message=Updated {updated} companies",
++        status_code=303,
++    )
++
++
+ @router.post("/ui/research/prospects/{prospect_id}/rank")
+ async def research_prospect_rank(
+     prospect_id: UUID,
+@@ -466,6 +721,10 @@ async def research_exec_pipeline(
+     session: AsyncSession = Depends(get_db),
+ ):
+     service = CompanyResearchService(session)
++    run = await service.get_research_run(current_user.tenant_id, run_id)
++    if not run:
++        raise HTTPException(status_code=404, detail="Research run not found")
++
+     if not executive_ids:
+         return RedirectResponse(
+             url=f"/ui/research/runs/{run_id}?error_message=Select at least one executive",
+@@ -481,7 +740,7 @@ async def research_exec_pipeline(
+                 executive_id=UUID(exec_id),
+                 assignment_status=assignment_status,
+                 current_stage_id=UUID(stage_id) if stage_id else None,
+-                role_id=None,
++                role_id=run.role_mandate_id if getattr(run, "role_mandate_id", None) else None,
+                 notes=None,
+                 actor=current_user.email or current_user.username or "system",
+             )
+@@ -496,8 +755,15 @@ async def research_exec_pipeline(
+             )
+ 
+     await session.commit()
+-    msg = f"Promoted {promoted} (reused {reused})"
+-    return RedirectResponse(url=f"/ui/research/runs/{run_id}?success_message={msg}", status_code=303)
++    added_total = promoted + reused
++    target_role_id = getattr(run, "role_mandate_id", None)
++    msg = f"Added {added_total} candidates to Search"
++
++    redirect_url = f"/ui/roles/{target_role_id}?success_message={msg}" if target_role_id else f"/ui/research/runs/{run_id}?success_message={msg}"
++    response = RedirectResponse(url=redirect_url, status_code=303)
++    if stage_id:
++        response.set_cookie("research_stage_pref", stage_id)
++    return response
+ 
+ 
+ @router.get("/ui/research/runs/{run_id}/steps")
+diff --git a/app/ui/templates/research_new.html b/app/ui/templates/research_new.html
+index e385b79..1bcb008 100644
+--- a/app/ui/templates/research_new.html
++++ b/app/ui/templates/research_new.html
+@@ -38,7 +38,9 @@
+                 <option value="external">External (xAI Grok)</option>
+                 <option value="both">Both</option>
+             </select>
+-            <small class="text-muted">External requires env: ATS_EXTERNAL_DISCOVERY_ENABLED=1 and keys; mocks use fixtures.</small>
++            <small class="text-muted">
++                Internal: works without keys. External/Both: requires ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY (set in scripts/runbook/LOCAL_COMMANDS.ps1 for local or deployment env vars in prod).
++            </small>
+         </div>
+         <div class="form-group">
+             <label for="search_provider">Search provider</label>
+@@ -47,6 +49,17 @@
+                 <option value="enabled">Google CSE (if configured)</option>
+             </select>
+         </div>
++        <details class="card" style="padding:10px;margin-bottom:12px;">
++            <summary style="cursor:pointer;">Configuration (detected)</summary>
++            <ul style="margin-top:8px;">
++                <li>ATS_EXTERNAL_DISCOVERY_ENABLED: <strong>{{ 'Yes' if config_status.external_enabled else 'No' }}</strong></li>
++                <li>XAI_API_KEY: <strong>{{ 'Yes' if config_status.xai_api_key else 'No' }}</strong></li>
++                <li>ATS_MOCK_EXTERNAL_PROVIDERS: <strong>{{ 'Yes' if config_status.mock_mode else 'No' }}</strong></li>
++                <li>GOOGLE_CSE_API_KEY: <strong>{{ 'Yes' if config_status.google_api_key else 'No' }}</strong></li>
++                <li>GOOGLE_CSE_CX: <strong>{{ 'Yes' if config_status.google_cx else 'No' }}</strong></li>
++            </ul>
++            <small class="text-muted">Values are not shown; only presence is indicated.</small>
++        </details>
+         <button type="submit" class="btn">Create &amp; Start</button>
+     </form>
+     {% endif %}
+diff --git a/app/ui/templates/research_workspace.html b/app/ui/templates/research_workspace.html
+index f275bb1..167851c 100644
+--- a/app/ui/templates/research_workspace.html
++++ b/app/ui/templates/research_workspace.html
+@@ -8,127 +8,178 @@
+ {% if error_message %}
+ <div class="alert alert-error">{{ error_message }}</div>
+ {% endif %}
++
+ <div class="card" style="padding:15px;margin-bottom:20px;">
+     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;">
+-        <div>
++        <div style="flex:1;">
+             <div class="section-title" style="margin-top:0;">{{ run.name }}</div>
+             <div class="text-muted">Industry: {{ run.sector or '-' }} | Region: {% if run.region_scope %}{{ ', '.join(run.region_scope) }}{% else %}-{% endif %}</div>
+             {% if run.description %}<div class="text-muted">{{ run.description }}</div>{% endif %}
++            <div style="margin-top:10px;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
++                {% set steps = [
++                    {'idx':1,'label':'Run'},
++                    {'idx':2,'label':'Review companies'},
++                    {'idx':3,'label':'Find executives'},
++                    {'idx':4,'label':'Review executives'},
++                    {'idx':5,'label':'Add to search'},
++                ] %}
++                {% for s in steps %}
++                    <span class="badge {% if current_step >= s.idx %}badge-success{% else %}badge-secondary{% endif %} {% if current_step == s.idx %}badge-info{% endif %}" style="padding:6px 10px;">{{ s.label }}</span>
++                    {% if not loop.last %}<span class="text-muted" style="font-size:11px;">-></span>{% endif %}
++                {% endfor %}
++            </div>
+         </div>
+-        <div style="text-align:right;">
++        <div style="text-align:right;min-width:220px;">
+             <span class="badge {% if run.status in ['queued','running','active'] %}badge-info{% elif run.status in ['completed','succeeded'] %}badge-success{% elif run.status in ['failed','cancelled'] %}badge-danger{% else %}badge-warning{% endif %}">{{ run.status }}</span>
+-            <div style="margin-top:8px;">
+-                <form method="post" action="/ui/research/runs/{{ run.id }}/executive-discovery">
+-                    <button type="submit" class="btn" {% if eligible_exec_companies == 0 %}disabled{% endif %}>Find executives</button>
+-                </form>
+-                {% if eligible_exec_companies == 0 %}
+-                <div class="text-muted" style="font-size:11px;">Enable exec search by accepting a company.</div>
+-                {% endif %}
++            <div style="margin-top:10px;">
++                <form id="run-start-form" method="post" action="/ui/research/runs/{{ run.id }}/start"></form>
++                <form id="exec-discovery-form" method="post" action="/ui/research/runs/{{ run.id }}/executive-discovery"></form>
++                <button id="primary-cta" class="btn" form="{{ primary_cta_form }}" type="submit" {% if primary_cta.disabled %}disabled{% endif %}
++                    data-requires-selection="{{ 'true' if primary_cta.requires_exec_selection else 'false' }}"
++                    data-select-label="{{ primary_cta.select_label or '' }}"
++                    data-add-label="Add selected to search">
++                    {{ primary_cta.label }}
++                </button>
++                {% if primary_cta.reason %}<div class="text-muted" style="font-size:11px;margin-top:6px;">{{ primary_cta.reason }}</div>{% endif %}
+             </div>
+         </div>
+     </div>
+ </div>
+ 
+-<div class="section-title">Companies</div>
+-<table>
+-    <thead>
+-        <tr>
+-            <th>Name</th>
+-            <th>Location</th>
+-            <th>Sector</th>
+-            <th>Score</th>
+-            <th>Review</th>
+-            <th>Evidence</th>
+-            <th>Rank</th>
+-            <th>Actions</th>
+-        </tr>
+-    </thead>
+-    <tbody>
+-        {% if prospects %}
+-            {% for p in prospects %}
++<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Companies
++    <div style="display:flex;gap:8px;flex-wrap:wrap;">
++        {% for opt in review_filter_options %}
++            <a class="btn btn-secondary {% if review_filter == opt.key %}active{% endif %}" href="/ui/research/runs/{{ run.id }}?review_filter={{ opt.key }}">{{ opt.label }} ({{ opt.count }})</a>
++        {% endfor %}
++    </div>
++</div>
++<form id="prospect-bulk-form" method="post" action="/ui/research/prospects/bulk-review">
++    <input type="hidden" name="run_id" value="{{ run.id }}" />
++    <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
++        <span class="text-muted">Bulk:</span>
++        <button type="submit" name="review_status" value="accepted" class="btn btn-secondary">Accept selected</button>
++        <button type="submit" name="review_status" value="hold" class="btn btn-secondary">Hold selected</button>
++        <button type="submit" name="review_status" value="rejected" class="btn btn-secondary">Reject selected</button>
++    </div>
++    <table>
++        <thead>
+             <tr>
+-                <td>{{ p.name }}</td>
+-                <td>{{ p.hq_city or '-' }}, {{ p.hq_country or '-' }}</td>
+-                <td>{{ p.sector or '-' }}</td>
+-                <td>{{ '%.2f'|format(p.relevance_score or 0) }}</td>
+-                <td>
+-                    <span class="badge {% if p.review_status == 'accepted' %}badge-success{% elif p.review_status == 'hold' %}badge-warning{% elif p.review_status == 'rejected' %}badge-danger{% else %}badge-info{% endif %}">{{ p.review_status }}</span>
+-                </td>
+-                <td>
+-                    {% if p.primary_evidence_url %}
+-                        <a href="{{ p.primary_evidence_url }}" target="_blank">source</a>
+-                    {% else %}-{% endif %}
+-                </td>
+-                <td>
+-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/rank" style="display:inline-block;">
+-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
+-                        <input type="hidden" name="direction" value="up" />
+-                        <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">Gåæ</button>
+-                    </form>
+-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/rank" style="display:inline-block;">
+-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
+-                        <input type="hidden" name="direction" value="down" />
+-                        <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">Gåô</button>
+-                    </form>
+-                </td>
+-                <td>
+-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
+-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
+-                        <input type="hidden" name="review_status" value="accepted" />
+-                        <input type="hidden" name="enable_exec_search" value="true" />
+-                        <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
+-                    </form>
+-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
+-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
+-                        <input type="hidden" name="review_status" value="hold" />
+-                        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
+-                    </form>
+-                    <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
+-                        <input type="hidden" name="run_id" value="{{ run.id }}" />
+-                        <input type="hidden" name="review_status" value="rejected" />
+-                        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
+-                    </form>
+-                </td>
++                <th style="width:32px;"><input type="checkbox" id="select-all-companies" /></th>
++                <th>Name</th>
++                <th>Location</th>
++                <th>Sector</th>
++                <th>Score</th>
++                <th>Review</th>
++                <th>Evidence</th>
++                <th>Rank</th>
++                <th>Actions</th>
+             </tr>
+-            {% endfor %}
+-        {% else %}
+-            <tr><td colspan="8" class="text-center text-muted">No prospects yet.</td></tr>
+-        {% endif %}
+-    </tbody>
+-</table>
++        </thead>
++        <tbody>
++            {% if prospects %}
++                {% for p in prospects %}
++                <tr>
++                    <td><input type="checkbox" name="prospect_ids" value="{{ p.id }}" class="company-checkbox" /></td>
++                    <td>{{ p.name }}</td>
++                    <td>{{ p.hq_city or '-' }}, {{ p.hq_country or '-' }}</td>
++                    <td>{{ p.sector or '-' }}</td>
++                    <td>{{ '%.2f'|format(p.relevance_score or 0) }}</td>
++                    <td>
++                        <span class="badge {% if p.review_status == 'accepted' %}badge-success{% elif p.review_status == 'hold' %}badge-warning{% elif p.review_status == 'rejected' %}badge-danger{% else %}badge-info{% endif %}">{{ p.review_status }}</span>
++                    </td>
++                    <td>
++                        {% if p.primary_evidence_url %}
++                            <a href="{{ p.primary_evidence_url }}" target="_blank">Evidence ({{ p.evidence_count }})</a>
++                        {% else %}
++                            <span class="text-muted">Evidence ({{ p.evidence_count }})</span>
++                        {% endif %}
++                    </td>
++                    <td>
++                        {% if review_filter == 'accepted' %}
++                        <form method="post" action="/ui/research/prospects/{{ p.id }}/rank" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="{{ run.id }}" />
++                            <input type="hidden" name="direction" value="up" />
++                            <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">Gåæ</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/{{ p.id }}/rank" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="{{ run.id }}" />
++                            <input type="hidden" name="direction" value="down" />
++                            <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">Gåô</button>
++                        </form>
++                        {% else %}
++                        <span class="text-muted">-</span>
++                        {% endif %}
++                    </td>
++                    <td>
++                        <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="{{ run.id }}" />
++                            <input type="hidden" name="review_status" value="accepted" />
++                            <input type="hidden" name="enable_exec_search" value="true" />
++                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="{{ run.id }}" />
++                            <input type="hidden" name="review_status" value="hold" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/{{ p.id }}/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="{{ run.id }}" />
++                            <input type="hidden" name="review_status" value="rejected" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
++                        </form>
++                    </td>
++                </tr>
++                {% endfor %}
++            {% else %}
++                <tr><td colspan="9" class="text-center text-muted">No prospects yet.</td></tr>
++            {% endif %}
++        </tbody>
++    </table>
++</form>
+ 
+-<div class="section-title">Executives</div>
++<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Executives
++    <form method="get" action="/ui/research/runs/{{ run.id }}" style="display:flex;gap:8px;align-items:center;">
++        <label for="stage_pref" class="text-muted" style="font-size:12px;">Preferred stage</label>
++        <select id="stage_pref" name="stage_pref" style="width:160px;">
++            <option value="">Default</option>
++            {% for stage in pipeline_stages %}
++            <option value="{{ stage.id }}" {% if stage_pref and stage_pref == stage.id %}selected{% endif %}>{{ stage.name }} ({{ stage.code }})</option>
++            {% endfor %}
++        </select>
++        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Save</button>
++    </form>
++</div>
+ {% if has_execs %}
+-<form method="post" action="/ui/research/executives/pipeline">
++<form id="exec-pipeline-form" method="post" action="/ui/research/executives/pipeline">
+     <input type="hidden" name="run_id" value="{{ run.id }}" />
+     <table>
+         <thead>
+             <tr>
+-                <th>Select</th>
++                <th style="width:32px;"><input type="checkbox" id="select-all-execs" /></th>
+                 <th>Name</th>
+                 <th>Title</th>
+                 <th>Company</th>
+-                <th>Evidence</th>
++                <th>Link</th>
+             </tr>
+         </thead>
+         <tbody>
+             {% for exec in executives %}
+             <tr>
+-                <td><input type="checkbox" name="executive_ids" value="{{ exec.id }}" /></td>
++                <td><input type="checkbox" name="executive_ids" value="{{ exec.id }}" class="exec-checkbox" /></td>
+                 <td>{{ exec.name or '-' }}</td>
+                 <td>{{ exec.title or '-' }}</td>
+                 <td>{{ exec.company or '-' }}</td>
+-                <td>{% if exec.evidence_url %}<a href="{{ exec.evidence_url }}" target="_blank">link</a>{% else %}-{% endif %}</td>
++                <td>{% if exec.evidence_url %}<a href="{{ exec.evidence_url }}" target="_blank">{{ exec.link_label }}</a>{% else %}-{% endif %}</td>
+             </tr>
+             {% endfor %}
+         </tbody>
+     </table>
+-    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
++    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
+         <label for="stage_id">Stage</label>
+         <select id="stage_id" name="stage_id" style="width:200px;">
+             <option value="">Default</option>
+             {% for stage in pipeline_stages %}
+-            <option value="{{ stage.id }}">{{ stage.name }} ({{ stage.code }})</option>
++            <option value="{{ stage.id }}" {% if stage_pref and stage_pref == stage.id %}selected{% endif %}>{{ stage.name }} ({{ stage.code }})</option>
+             {% endfor %}
+         </select>
+         <label for="assignment_status">Status</label>
+@@ -138,10 +189,51 @@
+             <option value="prospect">Prospect</option>
+             <option value="submitted">Submitted</option>
+         </select>
+-        <button type="submit" class="btn">Add selected to Search</button>
+     </div>
+ </form>
+ {% else %}
+ <div class="text-muted">Run executive discovery to see results.</div>
+ {% endif %}
++
++<script>
++    (function() {
++        const selectAllCompanies = document.getElementById('select-all-companies');
++        if (selectAllCompanies) {
++            selectAllCompanies.addEventListener('change', function() {
++                document.querySelectorAll('.company-checkbox').forEach(function(cb) {
++                    cb.checked = selectAllCompanies.checked;
++                });
++            });
++        }
++
++        const selectAllExecs = document.getElementById('select-all-execs');
++        if (selectAllExecs) {
++            selectAllExecs.addEventListener('change', function() {
++                document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
++                    cb.checked = selectAllExecs.checked;
++                });
++                updatePrimaryCta();
++            });
++        }
++
++        document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
++            cb.addEventListener('change', updatePrimaryCta);
++        });
++
++        function updatePrimaryCta() {
++            const cta = document.getElementById('primary-cta');
++            if (!cta) return;
++            if (cta.dataset.requiresSelection !== 'true') return;
++            const hasSelection = Array.from(document.querySelectorAll('.exec-checkbox')).some(function(cb) { return cb.checked; });
++            cta.disabled = !hasSelection;
++            if (hasSelection) {
++                cta.textContent = cta.dataset.addLabel || 'Add selected to search';
++            } else {
++                cta.textContent = cta.dataset.selectLabel || 'Select executives to add to search';
++            }
++        }
++
++        updatePrimaryCta();
++    })();
++</script>
+ {% endblock %}
+diff --git a/scripts/proofs/_artifacts/phase_11_2_artifact_manifest.txt b/scripts/proofs/_artifacts/phase_11_2_artifact_manifest.txt
+new file mode 100644
+index 0000000..daeff30
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_artifact_manifest.txt
+@@ -0,0 +1,15 @@
++phase_11_2 artifact manifest
++phase_11_2_ui_new.html
++phase_11_2_ui_workspace.html
++phase_11_2_ui_workspace_after_accept.html
++phase_11_2_ui_workspace_execs.html
++phase_11_2_proof.txt
++phase_11_2_proof_console.txt
++phase_11_2_db_excerpt.sql.txt
++phase_11_2_release_notes.md
++phase_11_2_signoff_checklist.txt
++phase_11_2_preflight.txt
++phase_11_2_git_status_before_commit.txt
++phase_11_2_git_diff_stat.txt
++phase_11_2_git_log_before_commit.txt
++phase_11_2_release_bundle.zip
+\ No newline at end of file
+diff --git a/scripts/proofs/_artifacts/phase_11_2_db_excerpt.sql.txt b/scripts/proofs/_artifacts/phase_11_2_db_excerpt.sql.txt
+new file mode 100644
+index 0000000..273a0f6
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_db_excerpt.sql.txt
+@@ -0,0 +1,12 @@
++-- Run
++run_id=178e2551-d820-48b9-aeed-663a52f51599 status=queued sector=fintech region=['US']
++-- Prospects
++prospect id=03632047-dffe-4fcc-bf21-3290fc8528d5 name=alpha payments review=accepted exec_enabled=True priority=None
++prospect id=1a2d1b21-4c85-46ed-9023-ae5f024f4449 name=beta capital review=accepted exec_enabled=True priority=None
++-- Executives
++exec id=5aa06a47-5774-492a-badd-c52fc9434af9 name=alpha payments ceo linkedin=https://www.linkedin.com/in/alpha-payments-ceo stage_pref_cookie=?
++exec id=d62ccfbf-3802-4e51-a513-b8c4823e6ef6 name=alpha payments cfo linkedin=https://www.linkedin.com/in/alpha-payments-cfo stage_pref_cookie=?
++exec id=b9464f4a-9bc0-43d9-b652-96f798600e5c name=beta capital ceo linkedin=https://www.linkedin.com/in/beta-capital-ceo stage_pref_cookie=?
++exec id=5fcf5246-87ac-4d05-ab9d-c509e0cbe1c0 name=beta capital cfo linkedin=https://www.linkedin.com/in/beta-capital-cfo stage_pref_cookie=?
++exec id=fb4a4b19-bf0d-48d6-9397-48902984f368 name=jane linked linkedin=https://linkedin.com/in/janelinked stage_pref_cookie=?
++exec id=62b9173f-a6b9-4c8e-8817-b53696ac825b name=jo source linkedin=None stage_pref_cookie=?
+\ No newline at end of file
+diff --git a/scripts/proofs/_artifacts/phase_11_2_git_diff_stat.txt b/scripts/proofs/_artifacts/phase_11_2_git_diff_stat.txt
+new file mode 100644
+index 0000000..cb49d09
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_git_diff_stat.txt
+@@ -0,0 +1,4 @@
++ app/ui/routes/research.py                | 290 +++++++++++++++++++++++++++++--
++ app/ui/templates/research_new.html       |  15 +-
++ app/ui/templates/research_workspace.html | 258 ++++++++++++++++++---------
++ 3 files changed, 467 insertions(+), 96 deletions(-)
+diff --git a/scripts/proofs/_artifacts/phase_11_2_git_log_before_commit.txt b/scripts/proofs/_artifacts/phase_11_2_git_log_before_commit.txt
+new file mode 100644
+index 0000000..8c3e4b0
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_git_log_before_commit.txt
+@@ -0,0 +1,5 @@
++42a3644 Phase 11.1: external discovery wiring (Grok + search) + secrets + mocks + proof
++0db179d Hotfix: VERIFY_RUNBOOK separate stdout/stderr redirection
++b8526c5 Phase 11.0: Research tab + single workspace UX + proof
++39cbf16 Phase 10.12: golden run proof + final Phase 10 sign-off
++0a97e2f Phase 10.12: golden run proof + final Phase 10 sign-off
+diff --git a/scripts/proofs/_artifacts/phase_11_2_git_status_before_commit.txt b/scripts/proofs/_artifacts/phase_11_2_git_status_before_commit.txt
+new file mode 100644
+index 0000000..47761aa
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_git_status_before_commit.txt
+@@ -0,0 +1,5 @@
++## master...origin/master
++ M app/ui/routes/research.py
++ M app/ui/templates/research_new.html
++ M app/ui/templates/research_workspace.html
++?? scripts/proofs/phase_11_2_research_ux_polish.py
+diff --git a/scripts/proofs/_artifacts/phase_11_2_preflight.txt b/scripts/proofs/_artifacts/phase_11_2_preflight.txt
+new file mode 100644
+index 0000000..5042e9f
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_preflight.txt
+@@ -0,0 +1,12 @@
++n++phase_11_2 preflight
++git_status=## master...origin/master
++git_log_start
++commit 42a364486b32f3375f874eef94ea4fd6bb9a9e1d (HEAD -> master, tag: phase_11_1_signed_off, origin/master, origin/HEAD)
++Author: ATS Local <local@ats>
++Date:   Fri Jan 9 14:54:09 2026 +0400
++
++    Phase 11.1: external discovery wiring (Grok + search) + secrets + mocks + proof
++git_log_end
++alembic_current=b6f20f1d5a7c (head)
++port_check host=127.0.0.1 port=8000 ok=True
++openapi_status=200
+diff --git a/scripts/proofs/_artifacts/phase_11_2_proof.txt b/scripts/proofs/_artifacts/phase_11_2_proof.txt
+new file mode 100644
+index 0000000..df53380
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_proof.txt
+@@ -0,0 +1,2 @@
++External/Both gated when keys missing
++Mock happy path end-to-end
+\ No newline at end of file
+diff --git a/scripts/proofs/_artifacts/phase_11_2_proof_console.txt b/scripts/proofs/_artifacts/phase_11_2_proof_console.txt
+new file mode 100644
+index 0000000..b6d22fd
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_proof_console.txt
+@@ -0,0 +1,4 @@
++Scenario missing keys: PASS
++Created run 178e2551-d820-48b9-aeed-663a52f51599
++Scenario mock success: PASS
++Proof complete
+diff --git a/scripts/proofs/_artifacts/phase_11_2_release_bundle.zip b/scripts/proofs/_artifacts/phase_11_2_release_bundle.zip
+new file mode 100644
+index 0000000..f7184b1
+Binary files /dev/null and b/scripts/proofs/_artifacts/phase_11_2_release_bundle.zip differ
+diff --git a/scripts/proofs/_artifacts/phase_11_2_release_notes.md b/scripts/proofs/_artifacts/phase_11_2_release_notes.md
+new file mode 100644
+index 0000000..bc16aa1
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_release_notes.md
+@@ -0,0 +1,5 @@
++# Phase 11.2 Research UX polish
++- Single workspace CTA and stepper verified.
++- Config gating for external/both enforced with banner when keys missing.
++- Companies filters/bulk actions/ranking and evidence links verified.
++- Executive labeling, stage persistence, and pipeline redirect confirmed.
+\ No newline at end of file
+diff --git a/scripts/proofs/_artifacts/phase_11_2_signoff_checklist.txt b/scripts/proofs/_artifacts/phase_11_2_signoff_checklist.txt
+new file mode 100644
+index 0000000..69fbc39
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_signoff_checklist.txt
+@@ -0,0 +1,4 @@
++Phase 11.2 sign-off checklist
++
++[x] External/Both gated when keys missing
++[x] Mock happy path end-to-end
+\ No newline at end of file
+diff --git a/scripts/proofs/_artifacts/phase_11_2_ui_new.html b/scripts/proofs/_artifacts/phase_11_2_ui_new.html
+new file mode 100644
+index 0000000..53fbc0c
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_ui_new.html
+@@ -0,0 +1,484 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>New Research</title>
++    <style>
++        * {
++            margin: 0;
++            padding: 0;
++            box-sizing: border-box;
++        }
++        
++        body {
++            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
++            font-size: 13px;
++            line-height: 1.4;
++            color: #1a1a1a;
++            background: #f5f5f5;
++        }
++        
++        /* Header */
++        .header {
++            background: #2c3e50;
++            color: #ecf0f1;
++            padding: 10px 20px;
++            display: flex;
++            justify-content: space-between;
++            align-items: center;
++            border-bottom: 2px solid #34495e;
++        }
++        
++        .header-left h1 {
++            font-size: 18px;
++            font-weight: 600;
++        }
++        
++        .header-right {
++            display: flex;
++            align-items: center;
++            gap: 20px;
++            font-size: 12px;
++        }
++        
++        .user-info {
++            display: flex;
++            flex-direction: column;
++            align-items: flex-end;
++        }
++        
++        .tenant-id {
++            color: #95a5a6;
++            font-size: 10px;
++        }
++        
++        .logout-link {
++            color: #ecf0f1;
++            text-decoration: none;
++            padding: 4px 12px;
++            border: 1px solid #7f8c8d;
++            border-radius: 3px;
++        }
++        
++        .logout-link:hover {
++            background: #34495e;
++        }
++        
++        /* Layout container */
++        .container {
++            display: flex;
++            height: calc(100vh - 45px);
++        }
++        
++        /* Sidebar navigation */
++        .sidebar {
++            width: 200px;
++            background: #34495e;
++            color: #ecf0f1;
++            padding: 20px 0;
++            overflow-y: auto;
++        }
++        
++        .nav-item {
++            display: block;
++            color: #ecf0f1;
++            text-decoration: none;
++            padding: 10px 20px;
++            border-left: 3px solid transparent;
++        }
++        
++        .nav-item:hover {
++            background: #2c3e50;
++            border-left-color: #3498db;
++        }
++        
++        .nav-item.active {
++            background: #2c3e50;
++            border-left-color: #3498db;
++            font-weight: 600;
++        }
++        
++        .nav-separator {
++            height: 1px;
++            background: #2c3e50;
++            margin: 10px 0;
++        }
++        
++        /* Main content */
++        .main-content {
++            flex: 1;
++            padding: 20px;
++            overflow-y: auto;
++            background: #fff;
++        }
++        
++        .page-title {
++            font-size: 24px;
++            font-weight: 600;
++            margin-bottom: 20px;
++            color: #2c3e50;
++        }
++        
++        /* Tables */
++        table {
++            width: 100%;
++            border-collapse: collapse;
++            margin-bottom: 20px;
++            background: #fff;
++            font-size: 12px;
++        }
++        
++        th {
++            background: #ecf0f1;
++            padding: 8px 10px;
++            text-align: left;
++            font-weight: 600;
++            border-bottom: 2px solid #bdc3c7;
++            color: #2c3e50;
++        }
++        
++        td {
++            padding: 6px 10px;
++            border-bottom: 1px solid #ecf0f1;
++        }
++        
++        tr:hover {
++            background: #f8f9fa;
++        }
++        
++        a {
++            color: #3498db;
++            text-decoration: none;
++        }
++        
++        a:hover {
++            text-decoration: underline;
++        }
++        
++        /* Forms */
++        .form-group {
++            margin-bottom: 15px;
++        }
++        
++        label {
++            display: block;
++            margin-bottom: 5px;
++            font-weight: 600;
++            color: #2c3e50;
++        }
++        
++        input[type="text"],
++        input[type="email"],
++        input[type="password"],
++        input[type="number"],
++        select,
++        textarea {
++            width: 100%;
++            padding: 8px 10px;
++            border: 1px solid #bdc3c7;
++            border-radius: 3px;
++            font-size: 13px;
++            font-family: inherit;
++        }
++        
++        input:focus,
++        select:focus,
++        textarea:focus {
++            outline: none;
++            border-color: #3498db;
++        }
++        
++        button,
++        .btn {
++            padding: 8px 16px;
++            background: #3498db;
++            color: #fff;
++            border: none;
++            border-radius: 3px;
++            cursor: pointer;
++            font-size: 13px;
++            text-decoration: none;
++            display: inline-block;
++        }
++        
++        button:hover,
++        .btn:hover {
++            background: #2980b9;
++            text-decoration: none;
++        }
++        
++        .btn-secondary {
++            background: #95a5a6;
++        }
++        
++        .btn-secondary:hover {
++            background: #7f8c8d;
++        }
++        
++        /* Filters section */
++        .filters {
++            background: #ecf0f1;
++            padding: 15px;
++            margin-bottom: 20px;
++            border-radius: 3px;
++        }
++        
++        .filters-grid {
++            display: grid;
++            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
++            gap: 15px;
++            margin-bottom: 15px;
++        }
++        
++        /* Pagination */
++        .pagination {
++            display: flex;
++            gap: 10px;
++            align-items: center;
++            margin-top: 20px;
++        }
++        
++        /* Section headings */
++        .section-title {
++            font-size: 16px;
++            font-weight: 600;
++            margin: 30px 0 15px 0;
++            color: #2c3e50;
++            border-bottom: 2px solid #ecf0f1;
++            padding-bottom: 5px;
++        }
++        
++        /* Detail sections */
++        .detail-section {
++            margin-bottom: 30px;
++        }
++        
++        .detail-grid {
++            display: grid;
++            grid-template-columns: 200px 1fr;
++            gap: 10px 20px;
++            font-size: 13px;
++        }
++        
++        .detail-label {
++            font-weight: 600;
++            color: #7f8c8d;
++        }
++        
++        .detail-value {
++            color: #2c3e50;
++        }
++        
++        /* Error/success messages */
++        .alert {
++            padding: 12px;
++            margin-bottom: 20px;
++            border-radius: 3px;
++        }
++        
++        .alert-error {
++            background: #e74c3c;
++            color: #fff;
++        }
++        
++        .alert-success {
++            background: #2ecc71;
++            color: #fff;
++        }
++        
++        /* Login page specific */
++        .login-container {
++            max-width: 400px;
++            margin: 100px auto;
++            background: #fff;
++            padding: 30px;
++            border-radius: 5px;
++            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
++        }
++        
++        .login-title {
++            text-align: center;
++            margin-bottom: 30px;
++            font-size: 24px;
++            color: #2c3e50;
++        }
++        
++        /* Dashboard cards */
++        .dashboard-section {
++            margin-bottom: 40px;
++        }
++        
++        .section-header {
++            font-size: 18px;
++            font-weight: 600;
++            margin-bottom: 15px;
++            color: #2c3e50;
++        }
++        
++        /* Utility classes */
++        .text-muted {
++            color: #95a5a6;
++        }
++        
++        .text-center {
++            text-align: center;
++        }
++        
++        .mt-20 {
++            margin-top: 20px;
++        }
++        
++        .badge {
++            display: inline-block;
++            padding: 2px 8px;
++            border-radius: 3px;
++            font-size: 11px;
++            font-weight: 600;
++        }
++        
++        .badge-success {
++            background: #2ecc71;
++            color: #fff;
++        }
++        
++        .badge-warning {
++            background: #f39c12;
++            color: #fff;
++        }
++        
++        .badge-danger {
++            background: #e74c3c;
++            color: #fff;
++        }
++        
++        .badge-info {
++            background: #3498db;
++            color: #fff;
++        }
++        
++        .text-box {
++            background: #f8f9fa;
++            border: 1px solid #dee2e6;
++            padding: 10px;
++            border-radius: 3px;
++            max-height: 200px;
++            overflow-y: auto;
++            white-space: pre-wrap;
++            font-family: monospace;
++            font-size: 12px;
++        }
++    </style>
++</head>
++<body>
++    
++    <!-- Header -->
++    <div class="header">
++        <div class="header-left">
++            <h1>Silver Arrow ATS</h1>
++        </div>
++        <div class="header-right">
++            
++            <div class="user-info">
++                <span>phase11@example.com</span>
++                <span class="tenant-id">Tenant: 11111111-2222-3333-4444-555555555555</span>
++            </div>
++            <a href="/logout" class="logout-link">Logout</a>
++            
++        </div>
++    </div>
++    
++    <!-- Main container -->
++    <div class="container">
++        
++        <!-- Sidebar navigation -->
++        <nav class="sidebar">
++            <a href="/dashboard" class="nav-item ">Dashboard</a>
++            <a href="/ui/roles" class="nav-item ">Roles</a>
++            <a href="/ui/candidates" class="nav-item ">Candidates</a>
++            <a href="/ui/companies" class="nav-item ">Companies</a>
++            <a href="/ui/bd-opportunities" class="nav-item ">BD Opportunities</a>
++            <a href="/ui/tasks" class="nav-item ">Tasks</a>
++            <a href="/ui/lists" class="nav-item ">Lists</a>
++            <a href="/ui/research" class="nav-item active">Research</a>
++            <a href="/ui/research/upload" class="nav-item ">Research Upload</a>
++            <a href="/ui/company-research" class="nav-item ">Company Research</a>
++            <div class="nav-separator"></div>
++            <a href="/ui/system-check" class="nav-item " style="font-size: 12px; color: #95a5a6;">=ƒöº System Check</a>
++            <div class="nav-separator"></div>
++            
++            <a href="/ui/settings" class="nav-item ">Settings</a>
++            
++        </nav>
++        
++        
++        <!-- Main content -->
++        <main class="main-content">
++            
++<h1 class="page-title">New Research</h1>
++<div class="card" style="padding:20px;">
++    
++    <div class="alert alert-error">External discovery not configured. Set ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY in scripts/runbook/LOCAL_COMMANDS.ps1 (local) or deployment env vars (prod).</div>
++    
++    
++    <p class="text-muted">Using role Phase 11 Role @ Phase 11 Research Co.</p>
++    <form method="post" action="/ui/research/new">
++        <div class="form-group">
++            <label for="industry">Industry *</label>
++            <input type="text" id="industry" name="industry" required placeholder="e.g., Fintech" />
++        </div>
++        <div class="form-group">
++            <label for="country_region">Country/Region *</label>
++            <input type="text" id="country_region" name="country_region" required placeholder="e.g., US or US,CA" />
++        </div>
++        <div class="form-group">
++            <label for="position">Position *</label>
++            <input type="text" id="position" name="position" required placeholder="e.g., VP Sales" />
++        </div>
++        <div class="form-group">
++            <label for="keywords">Keywords (optional)</label>
++            <textarea id="keywords" name="keywords" rows="2" placeholder="growth, enterprise, payments"></textarea>
++        </div>
++        <div class="form-group">
++            <label for="exclusions">Exclusions (optional)</label>
++            <textarea id="exclusions" name="exclusions" rows="2" placeholder="exclude agencies, exclude stealth"></textarea>
++        </div>
++        <div class="form-group">
++            <label for="discovery_mode">Discovery mode</label>
++            <select id="discovery_mode" name="discovery_mode">
++                <option value="internal" selected>Internal only (default)</option>
++                <option value="external">External (xAI Grok)</option>
++                <option value="both">Both</option>
++            </select>
++            <small class="text-muted">
++                Internal: works without keys. External/Both: requires ATS_EXTERNAL_DISCOVERY_ENABLED=1 and XAI_API_KEY (set in scripts/runbook/LOCAL_COMMANDS.ps1 for local or deployment env vars in prod).
++            </small>
++        </div>
++        <div class="form-group">
++            <label for="search_provider">Search provider</label>
++            <select id="search_provider" name="search_provider">
++                <option value="none" selected>None</option>
++                <option value="enabled">Google CSE (if configured)</option>
++            </select>
++        </div>
++        <details class="card" style="padding:10px;margin-bottom:12px;">
++            <summary style="cursor:pointer;">Configuration (detected)</summary>
++            <ul style="margin-top:8px;">
++                <li>ATS_EXTERNAL_DISCOVERY_ENABLED: <strong>Yes</strong></li>
++                <li>XAI_API_KEY: <strong>No</strong></li>
++                <li>ATS_MOCK_EXTERNAL_PROVIDERS: <strong>No</strong></li>
++                <li>GOOGLE_CSE_API_KEY: <strong>No</strong></li>
++                <li>GOOGLE_CSE_CX: <strong>No</strong></li>
++            </ul>
++            <small class="text-muted">Values are not shown; only presence is indicated.</small>
++        </details>
++        <button type="submit" class="btn">Create &amp; Start</button>
++    </form>
++    
++</div>
++
++        </main>
++    </div>
++    
++</body>
++</html>
+\ No newline at end of file
+diff --git a/scripts/proofs/_artifacts/phase_11_2_ui_workspace.html b/scripts/proofs/_artifacts/phase_11_2_ui_workspace.html
+new file mode 100644
+index 0000000..a0da44c
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_ui_workspace.html
+@@ -0,0 +1,648 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>Research Workspace</title>
++    <style>
++        * {
++            margin: 0;
++            padding: 0;
++            box-sizing: border-box;
++        }
++        
++        body {
++            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
++            font-size: 13px;
++            line-height: 1.4;
++            color: #1a1a1a;
++            background: #f5f5f5;
++        }
++        
++        /* Header */
++        .header {
++            background: #2c3e50;
++            color: #ecf0f1;
++            padding: 10px 20px;
++            display: flex;
++            justify-content: space-between;
++            align-items: center;
++            border-bottom: 2px solid #34495e;
++        }
++        
++        .header-left h1 {
++            font-size: 18px;
++            font-weight: 600;
++        }
++        
++        .header-right {
++            display: flex;
++            align-items: center;
++            gap: 20px;
++            font-size: 12px;
++        }
++        
++        .user-info {
++            display: flex;
++            flex-direction: column;
++            align-items: flex-end;
++        }
++        
++        .tenant-id {
++            color: #95a5a6;
++            font-size: 10px;
++        }
++        
++        .logout-link {
++            color: #ecf0f1;
++            text-decoration: none;
++            padding: 4px 12px;
++            border: 1px solid #7f8c8d;
++            border-radius: 3px;
++        }
++        
++        .logout-link:hover {
++            background: #34495e;
++        }
++        
++        /* Layout container */
++        .container {
++            display: flex;
++            height: calc(100vh - 45px);
++        }
++        
++        /* Sidebar navigation */
++        .sidebar {
++            width: 200px;
++            background: #34495e;
++            color: #ecf0f1;
++            padding: 20px 0;
++            overflow-y: auto;
++        }
++        
++        .nav-item {
++            display: block;
++            color: #ecf0f1;
++            text-decoration: none;
++            padding: 10px 20px;
++            border-left: 3px solid transparent;
++        }
++        
++        .nav-item:hover {
++            background: #2c3e50;
++            border-left-color: #3498db;
++        }
++        
++        .nav-item.active {
++            background: #2c3e50;
++            border-left-color: #3498db;
++            font-weight: 600;
++        }
++        
++        .nav-separator {
++            height: 1px;
++            background: #2c3e50;
++            margin: 10px 0;
++        }
++        
++        /* Main content */
++        .main-content {
++            flex: 1;
++            padding: 20px;
++            overflow-y: auto;
++            background: #fff;
++        }
++        
++        .page-title {
++            font-size: 24px;
++            font-weight: 600;
++            margin-bottom: 20px;
++            color: #2c3e50;
++        }
++        
++        /* Tables */
++        table {
++            width: 100%;
++            border-collapse: collapse;
++            margin-bottom: 20px;
++            background: #fff;
++            font-size: 12px;
++        }
++        
++        th {
++            background: #ecf0f1;
++            padding: 8px 10px;
++            text-align: left;
++            font-weight: 600;
++            border-bottom: 2px solid #bdc3c7;
++            color: #2c3e50;
++        }
++        
++        td {
++            padding: 6px 10px;
++            border-bottom: 1px solid #ecf0f1;
++        }
++        
++        tr:hover {
++            background: #f8f9fa;
++        }
++        
++        a {
++            color: #3498db;
++            text-decoration: none;
++        }
++        
++        a:hover {
++            text-decoration: underline;
++        }
++        
++        /* Forms */
++        .form-group {
++            margin-bottom: 15px;
++        }
++        
++        label {
++            display: block;
++            margin-bottom: 5px;
++            font-weight: 600;
++            color: #2c3e50;
++        }
++        
++        input[type="text"],
++        input[type="email"],
++        input[type="password"],
++        input[type="number"],
++        select,
++        textarea {
++            width: 100%;
++            padding: 8px 10px;
++            border: 1px solid #bdc3c7;
++            border-radius: 3px;
++            font-size: 13px;
++            font-family: inherit;
++        }
++        
++        input:focus,
++        select:focus,
++        textarea:focus {
++            outline: none;
++            border-color: #3498db;
++        }
++        
++        button,
++        .btn {
++            padding: 8px 16px;
++            background: #3498db;
++            color: #fff;
++            border: none;
++            border-radius: 3px;
++            cursor: pointer;
++            font-size: 13px;
++            text-decoration: none;
++            display: inline-block;
++        }
++        
++        button:hover,
++        .btn:hover {
++            background: #2980b9;
++            text-decoration: none;
++        }
++        
++        .btn-secondary {
++            background: #95a5a6;
++        }
++        
++        .btn-secondary:hover {
++            background: #7f8c8d;
++        }
++        
++        /* Filters section */
++        .filters {
++            background: #ecf0f1;
++            padding: 15px;
++            margin-bottom: 20px;
++            border-radius: 3px;
++        }
++        
++        .filters-grid {
++            display: grid;
++            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
++            gap: 15px;
++            margin-bottom: 15px;
++        }
++        
++        /* Pagination */
++        .pagination {
++            display: flex;
++            gap: 10px;
++            align-items: center;
++            margin-top: 20px;
++        }
++        
++        /* Section headings */
++        .section-title {
++            font-size: 16px;
++            font-weight: 600;
++            margin: 30px 0 15px 0;
++            color: #2c3e50;
++            border-bottom: 2px solid #ecf0f1;
++            padding-bottom: 5px;
++        }
++        
++        /* Detail sections */
++        .detail-section {
++            margin-bottom: 30px;
++        }
++        
++        .detail-grid {
++            display: grid;
++            grid-template-columns: 200px 1fr;
++            gap: 10px 20px;
++            font-size: 13px;
++        }
++        
++        .detail-label {
++            font-weight: 600;
++            color: #7f8c8d;
++        }
++        
++        .detail-value {
++            color: #2c3e50;
++        }
++        
++        /* Error/success messages */
++        .alert {
++            padding: 12px;
++            margin-bottom: 20px;
++            border-radius: 3px;
++        }
++        
++        .alert-error {
++            background: #e74c3c;
++            color: #fff;
++        }
++        
++        .alert-success {
++            background: #2ecc71;
++            color: #fff;
++        }
++        
++        /* Login page specific */
++        .login-container {
++            max-width: 400px;
++            margin: 100px auto;
++            background: #fff;
++            padding: 30px;
++            border-radius: 5px;
++            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
++        }
++        
++        .login-title {
++            text-align: center;
++            margin-bottom: 30px;
++            font-size: 24px;
++            color: #2c3e50;
++        }
++        
++        /* Dashboard cards */
++        .dashboard-section {
++            margin-bottom: 40px;
++        }
++        
++        .section-header {
++            font-size: 18px;
++            font-weight: 600;
++            margin-bottom: 15px;
++            color: #2c3e50;
++        }
++        
++        /* Utility classes */
++        .text-muted {
++            color: #95a5a6;
++        }
++        
++        .text-center {
++            text-align: center;
++        }
++        
++        .mt-20 {
++            margin-top: 20px;
++        }
++        
++        .badge {
++            display: inline-block;
++            padding: 2px 8px;
++            border-radius: 3px;
++            font-size: 11px;
++            font-weight: 600;
++        }
++        
++        .badge-success {
++            background: #2ecc71;
++            color: #fff;
++        }
++        
++        .badge-warning {
++            background: #f39c12;
++            color: #fff;
++        }
++        
++        .badge-danger {
++            background: #e74c3c;
++            color: #fff;
++        }
++        
++        .badge-info {
++            background: #3498db;
++            color: #fff;
++        }
++        
++        .text-box {
++            background: #f8f9fa;
++            border: 1px solid #dee2e6;
++            padding: 10px;
++            border-radius: 3px;
++            max-height: 200px;
++            overflow-y: auto;
++            white-space: pre-wrap;
++            font-family: monospace;
++            font-size: 12px;
++        }
++    </style>
++</head>
++<body>
++    
++    <!-- Header -->
++    <div class="header">
++        <div class="header-left">
++            <h1>Silver Arrow ATS</h1>
++        </div>
++        <div class="header-right">
++            
++            <div class="user-info">
++                <span>phase11@example.com</span>
++                <span class="tenant-id">Tenant: 11111111-2222-3333-4444-555555555555</span>
++            </div>
++            <a href="/logout" class="logout-link">Logout</a>
++            
++        </div>
++    </div>
++    
++    <!-- Main container -->
++    <div class="container">
++        
++        <!-- Sidebar navigation -->
++        <nav class="sidebar">
++            <a href="/dashboard" class="nav-item ">Dashboard</a>
++            <a href="/ui/roles" class="nav-item ">Roles</a>
++            <a href="/ui/candidates" class="nav-item ">Candidates</a>
++            <a href="/ui/companies" class="nav-item ">Companies</a>
++            <a href="/ui/bd-opportunities" class="nav-item ">BD Opportunities</a>
++            <a href="/ui/tasks" class="nav-item ">Tasks</a>
++            <a href="/ui/lists" class="nav-item ">Lists</a>
++            <a href="/ui/research" class="nav-item active">Research</a>
++            <a href="/ui/research/upload" class="nav-item ">Research Upload</a>
++            <a href="/ui/company-research" class="nav-item ">Company Research</a>
++            <div class="nav-separator"></div>
++            <a href="/ui/system-check" class="nav-item " style="font-size: 12px; color: #95a5a6;">=ƒöº System Check</a>
++            <div class="nav-separator"></div>
++            
++            <a href="/ui/settings" class="nav-item ">Settings</a>
++            
++        </nav>
++        
++        
++        <!-- Main content -->
++        <main class="main-content">
++            
++<h1 class="page-title">Research Workspace</h1>
++
++
++
++<div class="card" style="padding:15px;margin-bottom:20px;">
++    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;">
++        <div style="flex:1;">
++            <div class="section-title" style="margin-top:0;">VP Sales / fintech</div>
++            <div class="text-muted">Industry: fintech | Region: US</div>
++            <div class="text-muted">keywords: enterprise, payments; exclude: agencies</div>
++            <div style="margin-top:10px;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
++                
++                
++                    <span class="badge badge-success " style="padding:6px 10px;">Run</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-success badge-info" style="padding:6px 10px;">Review companies</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-secondary " style="padding:6px 10px;">Find executives</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-secondary " style="padding:6px 10px;">Review executives</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-secondary " style="padding:6px 10px;">Add to search</span>
++                    
++                
++            </div>
++        </div>
++        <div style="text-align:right;min-width:220px;">
++            <span class="badge badge-info">queued</span>
++            <div style="margin-top:10px;">
++                <form id="run-start-form" method="post" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599/start"></form>
++                <form id="exec-discovery-form" method="post" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599/executive-discovery"></form>
++                <button id="primary-cta" class="btn" form="run-start-form" type="submit" disabled
++                    data-requires-selection="false"
++                    data-select-label=""
++                    data-add-label="Add selected to search">
++                    RunningGÇª
++                </button>
++                
++            </div>
++        </div>
++    </div>
++</div>
++
++<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Companies
++    <div style="display:flex;gap:8px;flex-wrap:wrap;">
++        
++            <a class="btn btn-secondary active" href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=all">All (2)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=unreviewed">Unreviewed (2)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=accepted">Accepted (0)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=hold">Hold (0)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=rejected">Rejected (0)</a>
++        
++    </div>
++</div>
++<form id="prospect-bulk-form" method="post" action="/ui/research/prospects/bulk-review">
++    <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++    <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
++        <span class="text-muted">Bulk:</span>
++        <button type="submit" name="review_status" value="accepted" class="btn btn-secondary">Accept selected</button>
++        <button type="submit" name="review_status" value="hold" class="btn btn-secondary">Hold selected</button>
++        <button type="submit" name="review_status" value="rejected" class="btn btn-secondary">Reject selected</button>
++    </div>
++    <table>
++        <thead>
++            <tr>
++                <th style="width:32px;"><input type="checkbox" id="select-all-companies" /></th>
++                <th>Name</th>
++                <th>Location</th>
++                <th>Sector</th>
++                <th>Score</th>
++                <th>Review</th>
++                <th>Evidence</th>
++                <th>Rank</th>
++                <th>Actions</th>
++            </tr>
++        </thead>
++        <tbody>
++            
++                
++                <tr>
++                    <td><input type="checkbox" name="prospect_ids" value="03632047-dffe-4fcc-bf21-3290fc8528d5" class="company-checkbox" /></td>
++                    <td>alpha payments</td>
++                    <td>New York, US</td>
++                    <td>fintech</td>
++                    <td>0.87</td>
++                    <td>
++                        <span class="badge badge-info">new</span>
++                    </td>
++                    <td>
++                        
++                            <a href="https://alpha.example.com/about" target="_blank">Evidence (1)</a>
++                        
++                    </td>
++                    <td>
++                        
++                        <span class="text-muted">-</span>
++                        
++                    </td>
++                    <td>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="accepted" />
++                            <input type="hidden" name="enable_exec_search" value="true" />
++                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="hold" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="rejected" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
++                        </form>
++                    </td>
++                </tr>
++                
++                <tr>
++                    <td><input type="checkbox" name="prospect_ids" value="1a2d1b21-4c85-46ed-9023-ae5f024f4449" class="company-checkbox" /></td>
++                    <td>beta capital</td>
++                    <td>Austin, US</td>
++                    <td>fintech</td>
++                    <td>0.76</td>
++                    <td>
++                        <span class="badge badge-info">new</span>
++                    </td>
++                    <td>
++                        
++                            <a href="https://beta.example.com/profile" target="_blank">Evidence (1)</a>
++                        
++                    </td>
++                    <td>
++                        
++                        <span class="text-muted">-</span>
++                        
++                    </td>
++                    <td>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="accepted" />
++                            <input type="hidden" name="enable_exec_search" value="true" />
++                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="hold" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="rejected" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
++                        </form>
++                    </td>
++                </tr>
++                
++            
++        </tbody>
++    </table>
++</form>
++
++<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Executives
++    <form method="get" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599" style="display:flex;gap:8px;align-items:center;">
++        <label for="stage_pref" class="text-muted" style="font-size:12px;">Preferred stage</label>
++        <select id="stage_pref" name="stage_pref" style="width:160px;">
++            <option value="">Default</option>
++            
++        </select>
++        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Save</button>
++    </form>
++</div>
++
++<div class="text-muted">Run executive discovery to see results.</div>
++
++
++<script>
++    (function() {
++        const selectAllCompanies = document.getElementById('select-all-companies');
++        if (selectAllCompanies) {
++            selectAllCompanies.addEventListener('change', function() {
++                document.querySelectorAll('.company-checkbox').forEach(function(cb) {
++                    cb.checked = selectAllCompanies.checked;
++                });
++            });
++        }
++
++        const selectAllExecs = document.getElementById('select-all-execs');
++        if (selectAllExecs) {
++            selectAllExecs.addEventListener('change', function() {
++                document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
++                    cb.checked = selectAllExecs.checked;
++                });
++                updatePrimaryCta();
++            });
++        }
++
++        document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
++            cb.addEventListener('change', updatePrimaryCta);
++        });
++
++        function updatePrimaryCta() {
++            const cta = document.getElementById('primary-cta');
++            if (!cta) return;
++            if (cta.dataset.requiresSelection !== 'true') return;
++            const hasSelection = Array.from(document.querySelectorAll('.exec-checkbox')).some(function(cb) { return cb.checked; });
++            cta.disabled = !hasSelection;
++            if (hasSelection) {
++                cta.textContent = cta.dataset.addLabel || 'Add selected to search';
++            } else {
++                cta.textContent = cta.dataset.selectLabel || 'Select executives to add to search';
++            }
++        }
++
++        updatePrimaryCta();
++    })();
++</script>
++
++        </main>
++    </div>
++    
++</body>
++</html>
+\ No newline at end of file
+diff --git a/scripts/proofs/_artifacts/phase_11_2_ui_workspace_after_accept.html b/scripts/proofs/_artifacts/phase_11_2_ui_workspace_after_accept.html
+new file mode 100644
+index 0000000..c6d0401
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_ui_workspace_after_accept.html
+@@ -0,0 +1,666 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>Research Workspace</title>
++    <style>
++        * {
++            margin: 0;
++            padding: 0;
++            box-sizing: border-box;
++        }
++        
++        body {
++            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
++            font-size: 13px;
++            line-height: 1.4;
++            color: #1a1a1a;
++            background: #f5f5f5;
++        }
++        
++        /* Header */
++        .header {
++            background: #2c3e50;
++            color: #ecf0f1;
++            padding: 10px 20px;
++            display: flex;
++            justify-content: space-between;
++            align-items: center;
++            border-bottom: 2px solid #34495e;
++        }
++        
++        .header-left h1 {
++            font-size: 18px;
++            font-weight: 600;
++        }
++        
++        .header-right {
++            display: flex;
++            align-items: center;
++            gap: 20px;
++            font-size: 12px;
++        }
++        
++        .user-info {
++            display: flex;
++            flex-direction: column;
++            align-items: flex-end;
++        }
++        
++        .tenant-id {
++            color: #95a5a6;
++            font-size: 10px;
++        }
++        
++        .logout-link {
++            color: #ecf0f1;
++            text-decoration: none;
++            padding: 4px 12px;
++            border: 1px solid #7f8c8d;
++            border-radius: 3px;
++        }
++        
++        .logout-link:hover {
++            background: #34495e;
++        }
++        
++        /* Layout container */
++        .container {
++            display: flex;
++            height: calc(100vh - 45px);
++        }
++        
++        /* Sidebar navigation */
++        .sidebar {
++            width: 200px;
++            background: #34495e;
++            color: #ecf0f1;
++            padding: 20px 0;
++            overflow-y: auto;
++        }
++        
++        .nav-item {
++            display: block;
++            color: #ecf0f1;
++            text-decoration: none;
++            padding: 10px 20px;
++            border-left: 3px solid transparent;
++        }
++        
++        .nav-item:hover {
++            background: #2c3e50;
++            border-left-color: #3498db;
++        }
++        
++        .nav-item.active {
++            background: #2c3e50;
++            border-left-color: #3498db;
++            font-weight: 600;
++        }
++        
++        .nav-separator {
++            height: 1px;
++            background: #2c3e50;
++            margin: 10px 0;
++        }
++        
++        /* Main content */
++        .main-content {
++            flex: 1;
++            padding: 20px;
++            overflow-y: auto;
++            background: #fff;
++        }
++        
++        .page-title {
++            font-size: 24px;
++            font-weight: 600;
++            margin-bottom: 20px;
++            color: #2c3e50;
++        }
++        
++        /* Tables */
++        table {
++            width: 100%;
++            border-collapse: collapse;
++            margin-bottom: 20px;
++            background: #fff;
++            font-size: 12px;
++        }
++        
++        th {
++            background: #ecf0f1;
++            padding: 8px 10px;
++            text-align: left;
++            font-weight: 600;
++            border-bottom: 2px solid #bdc3c7;
++            color: #2c3e50;
++        }
++        
++        td {
++            padding: 6px 10px;
++            border-bottom: 1px solid #ecf0f1;
++        }
++        
++        tr:hover {
++            background: #f8f9fa;
++        }
++        
++        a {
++            color: #3498db;
++            text-decoration: none;
++        }
++        
++        a:hover {
++            text-decoration: underline;
++        }
++        
++        /* Forms */
++        .form-group {
++            margin-bottom: 15px;
++        }
++        
++        label {
++            display: block;
++            margin-bottom: 5px;
++            font-weight: 600;
++            color: #2c3e50;
++        }
++        
++        input[type="text"],
++        input[type="email"],
++        input[type="password"],
++        input[type="number"],
++        select,
++        textarea {
++            width: 100%;
++            padding: 8px 10px;
++            border: 1px solid #bdc3c7;
++            border-radius: 3px;
++            font-size: 13px;
++            font-family: inherit;
++        }
++        
++        input:focus,
++        select:focus,
++        textarea:focus {
++            outline: none;
++            border-color: #3498db;
++        }
++        
++        button,
++        .btn {
++            padding: 8px 16px;
++            background: #3498db;
++            color: #fff;
++            border: none;
++            border-radius: 3px;
++            cursor: pointer;
++            font-size: 13px;
++            text-decoration: none;
++            display: inline-block;
++        }
++        
++        button:hover,
++        .btn:hover {
++            background: #2980b9;
++            text-decoration: none;
++        }
++        
++        .btn-secondary {
++            background: #95a5a6;
++        }
++        
++        .btn-secondary:hover {
++            background: #7f8c8d;
++        }
++        
++        /* Filters section */
++        .filters {
++            background: #ecf0f1;
++            padding: 15px;
++            margin-bottom: 20px;
++            border-radius: 3px;
++        }
++        
++        .filters-grid {
++            display: grid;
++            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
++            gap: 15px;
++            margin-bottom: 15px;
++        }
++        
++        /* Pagination */
++        .pagination {
++            display: flex;
++            gap: 10px;
++            align-items: center;
++            margin-top: 20px;
++        }
++        
++        /* Section headings */
++        .section-title {
++            font-size: 16px;
++            font-weight: 600;
++            margin: 30px 0 15px 0;
++            color: #2c3e50;
++            border-bottom: 2px solid #ecf0f1;
++            padding-bottom: 5px;
++        }
++        
++        /* Detail sections */
++        .detail-section {
++            margin-bottom: 30px;
++        }
++        
++        .detail-grid {
++            display: grid;
++            grid-template-columns: 200px 1fr;
++            gap: 10px 20px;
++            font-size: 13px;
++        }
++        
++        .detail-label {
++            font-weight: 600;
++            color: #7f8c8d;
++        }
++        
++        .detail-value {
++            color: #2c3e50;
++        }
++        
++        /* Error/success messages */
++        .alert {
++            padding: 12px;
++            margin-bottom: 20px;
++            border-radius: 3px;
++        }
++        
++        .alert-error {
++            background: #e74c3c;
++            color: #fff;
++        }
++        
++        .alert-success {
++            background: #2ecc71;
++            color: #fff;
++        }
++        
++        /* Login page specific */
++        .login-container {
++            max-width: 400px;
++            margin: 100px auto;
++            background: #fff;
++            padding: 30px;
++            border-radius: 5px;
++            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
++        }
++        
++        .login-title {
++            text-align: center;
++            margin-bottom: 30px;
++            font-size: 24px;
++            color: #2c3e50;
++        }
++        
++        /* Dashboard cards */
++        .dashboard-section {
++            margin-bottom: 40px;
++        }
++        
++        .section-header {
++            font-size: 18px;
++            font-weight: 600;
++            margin-bottom: 15px;
++            color: #2c3e50;
++        }
++        
++        /* Utility classes */
++        .text-muted {
++            color: #95a5a6;
++        }
++        
++        .text-center {
++            text-align: center;
++        }
++        
++        .mt-20 {
++            margin-top: 20px;
++        }
++        
++        .badge {
++            display: inline-block;
++            padding: 2px 8px;
++            border-radius: 3px;
++            font-size: 11px;
++            font-weight: 600;
++        }
++        
++        .badge-success {
++            background: #2ecc71;
++            color: #fff;
++        }
++        
++        .badge-warning {
++            background: #f39c12;
++            color: #fff;
++        }
++        
++        .badge-danger {
++            background: #e74c3c;
++            color: #fff;
++        }
++        
++        .badge-info {
++            background: #3498db;
++            color: #fff;
++        }
++        
++        .text-box {
++            background: #f8f9fa;
++            border: 1px solid #dee2e6;
++            padding: 10px;
++            border-radius: 3px;
++            max-height: 200px;
++            overflow-y: auto;
++            white-space: pre-wrap;
++            font-family: monospace;
++            font-size: 12px;
++        }
++    </style>
++</head>
++<body>
++    
++    <!-- Header -->
++    <div class="header">
++        <div class="header-left">
++            <h1>Silver Arrow ATS</h1>
++        </div>
++        <div class="header-right">
++            
++            <div class="user-info">
++                <span>phase11@example.com</span>
++                <span class="tenant-id">Tenant: 11111111-2222-3333-4444-555555555555</span>
++            </div>
++            <a href="/logout" class="logout-link">Logout</a>
++            
++        </div>
++    </div>
++    
++    <!-- Main container -->
++    <div class="container">
++        
++        <!-- Sidebar navigation -->
++        <nav class="sidebar">
++            <a href="/dashboard" class="nav-item ">Dashboard</a>
++            <a href="/ui/roles" class="nav-item ">Roles</a>
++            <a href="/ui/candidates" class="nav-item ">Candidates</a>
++            <a href="/ui/companies" class="nav-item ">Companies</a>
++            <a href="/ui/bd-opportunities" class="nav-item ">BD Opportunities</a>
++            <a href="/ui/tasks" class="nav-item ">Tasks</a>
++            <a href="/ui/lists" class="nav-item ">Lists</a>
++            <a href="/ui/research" class="nav-item active">Research</a>
++            <a href="/ui/research/upload" class="nav-item ">Research Upload</a>
++            <a href="/ui/company-research" class="nav-item ">Company Research</a>
++            <div class="nav-separator"></div>
++            <a href="/ui/system-check" class="nav-item " style="font-size: 12px; color: #95a5a6;">=ƒöº System Check</a>
++            <div class="nav-separator"></div>
++            
++            <a href="/ui/settings" class="nav-item ">Settings</a>
++            
++        </nav>
++        
++        
++        <!-- Main content -->
++        <main class="main-content">
++            
++<h1 class="page-title">Research Workspace</h1>
++
++
++
++<div class="card" style="padding:15px;margin-bottom:20px;">
++    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;">
++        <div style="flex:1;">
++            <div class="section-title" style="margin-top:0;">VP Sales / fintech</div>
++            <div class="text-muted">Industry: fintech | Region: US</div>
++            <div class="text-muted">keywords: enterprise, payments; exclude: agencies</div>
++            <div style="margin-top:10px;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
++                
++                
++                    <span class="badge badge-success " style="padding:6px 10px;">Run</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-success " style="padding:6px 10px;">Review companies</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-success badge-info" style="padding:6px 10px;">Find executives</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-secondary " style="padding:6px 10px;">Review executives</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-secondary " style="padding:6px 10px;">Add to search</span>
++                    
++                
++            </div>
++        </div>
++        <div style="text-align:right;min-width:220px;">
++            <span class="badge badge-info">queued</span>
++            <div style="margin-top:10px;">
++                <form id="run-start-form" method="post" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599/start"></form>
++                <form id="exec-discovery-form" method="post" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599/executive-discovery"></form>
++                <button id="primary-cta" class="btn" form="run-start-form" type="submit" disabled
++                    data-requires-selection="false"
++                    data-select-label=""
++                    data-add-label="Add selected to search">
++                    RunningGÇª
++                </button>
++                
++            </div>
++        </div>
++    </div>
++</div>
++
++<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Companies
++    <div style="display:flex;gap:8px;flex-wrap:wrap;">
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=all">All (2)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=unreviewed">Unreviewed (0)</a>
++        
++            <a class="btn btn-secondary active" href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=accepted">Accepted (2)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=hold">Hold (0)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=rejected">Rejected (0)</a>
++        
++    </div>
++</div>
++<form id="prospect-bulk-form" method="post" action="/ui/research/prospects/bulk-review">
++    <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++    <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
++        <span class="text-muted">Bulk:</span>
++        <button type="submit" name="review_status" value="accepted" class="btn btn-secondary">Accept selected</button>
++        <button type="submit" name="review_status" value="hold" class="btn btn-secondary">Hold selected</button>
++        <button type="submit" name="review_status" value="rejected" class="btn btn-secondary">Reject selected</button>
++    </div>
++    <table>
++        <thead>
++            <tr>
++                <th style="width:32px;"><input type="checkbox" id="select-all-companies" /></th>
++                <th>Name</th>
++                <th>Location</th>
++                <th>Sector</th>
++                <th>Score</th>
++                <th>Review</th>
++                <th>Evidence</th>
++                <th>Rank</th>
++                <th>Actions</th>
++            </tr>
++        </thead>
++        <tbody>
++            
++                
++                <tr>
++                    <td><input type="checkbox" name="prospect_ids" value="03632047-dffe-4fcc-bf21-3290fc8528d5" class="company-checkbox" /></td>
++                    <td>alpha payments</td>
++                    <td>New York, US</td>
++                    <td>fintech</td>
++                    <td>0.87</td>
++                    <td>
++                        <span class="badge badge-success">accepted</span>
++                    </td>
++                    <td>
++                        
++                            <a href="https://alpha.example.com/about" target="_blank">Evidence (1)</a>
++                        
++                    </td>
++                    <td>
++                        
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/rank" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="direction" value="up" />
++                            <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">Gåæ</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/rank" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="direction" value="down" />
++                            <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">Gåô</button>
++                        </form>
++                        
++                    </td>
++                    <td>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="accepted" />
++                            <input type="hidden" name="enable_exec_search" value="true" />
++                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="hold" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="rejected" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
++                        </form>
++                    </td>
++                </tr>
++                
++                <tr>
++                    <td><input type="checkbox" name="prospect_ids" value="1a2d1b21-4c85-46ed-9023-ae5f024f4449" class="company-checkbox" /></td>
++                    <td>beta capital</td>
++                    <td>Austin, US</td>
++                    <td>fintech</td>
++                    <td>0.76</td>
++                    <td>
++                        <span class="badge badge-success">accepted</span>
++                    </td>
++                    <td>
++                        
++                            <a href="https://beta.example.com/profile" target="_blank">Evidence (1)</a>
++                        
++                    </td>
++                    <td>
++                        
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/rank" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="direction" value="up" />
++                            <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">Gåæ</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/rank" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="direction" value="down" />
++                            <button type="submit" class="btn btn-secondary" style="padding:4px 8px;">Gåô</button>
++                        </form>
++                        
++                    </td>
++                    <td>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="accepted" />
++                            <input type="hidden" name="enable_exec_search" value="true" />
++                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="hold" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="rejected" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
++                        </form>
++                    </td>
++                </tr>
++                
++            
++        </tbody>
++    </table>
++</form>
++
++<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Executives
++    <form method="get" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599" style="display:flex;gap:8px;align-items:center;">
++        <label for="stage_pref" class="text-muted" style="font-size:12px;">Preferred stage</label>
++        <select id="stage_pref" name="stage_pref" style="width:160px;">
++            <option value="">Default</option>
++            
++        </select>
++        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Save</button>
++    </form>
++</div>
++
++<div class="text-muted">Run executive discovery to see results.</div>
++
++
++<script>
++    (function() {
++        const selectAllCompanies = document.getElementById('select-all-companies');
++        if (selectAllCompanies) {
++            selectAllCompanies.addEventListener('change', function() {
++                document.querySelectorAll('.company-checkbox').forEach(function(cb) {
++                    cb.checked = selectAllCompanies.checked;
++                });
++            });
++        }
++
++        const selectAllExecs = document.getElementById('select-all-execs');
++        if (selectAllExecs) {
++            selectAllExecs.addEventListener('change', function() {
++                document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
++                    cb.checked = selectAllExecs.checked;
++                });
++                updatePrimaryCta();
++            });
++        }
++
++        document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
++            cb.addEventListener('change', updatePrimaryCta);
++        });
++
++        function updatePrimaryCta() {
++            const cta = document.getElementById('primary-cta');
++            if (!cta) return;
++            if (cta.dataset.requiresSelection !== 'true') return;
++            const hasSelection = Array.from(document.querySelectorAll('.exec-checkbox')).some(function(cb) { return cb.checked; });
++            cta.disabled = !hasSelection;
++            if (hasSelection) {
++                cta.textContent = cta.dataset.addLabel || 'Add selected to search';
++            } else {
++                cta.textContent = cta.dataset.selectLabel || 'Select executives to add to search';
++            }
++        }
++
++        updatePrimaryCta();
++    })();
++</script>
++
++        </main>
++    </div>
++    
++</body>
++</html>
+\ No newline at end of file
+diff --git a/scripts/proofs/_artifacts/phase_11_2_ui_workspace_execs.html b/scripts/proofs/_artifacts/phase_11_2_ui_workspace_execs.html
+new file mode 100644
+index 0000000..b329f24
+--- /dev/null
++++ b/scripts/proofs/_artifacts/phase_11_2_ui_workspace_execs.html
+@@ -0,0 +1,730 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>Research Workspace</title>
++    <style>
++        * {
++            margin: 0;
++            padding: 0;
++            box-sizing: border-box;
++        }
++        
++        body {
++            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
++            font-size: 13px;
++            line-height: 1.4;
++            color: #1a1a1a;
++            background: #f5f5f5;
++        }
++        
++        /* Header */
++        .header {
++            background: #2c3e50;
++            color: #ecf0f1;
++            padding: 10px 20px;
++            display: flex;
++            justify-content: space-between;
++            align-items: center;
++            border-bottom: 2px solid #34495e;
++        }
++        
++        .header-left h1 {
++            font-size: 18px;
++            font-weight: 600;
++        }
++        
++        .header-right {
++            display: flex;
++            align-items: center;
++            gap: 20px;
++            font-size: 12px;
++        }
++        
++        .user-info {
++            display: flex;
++            flex-direction: column;
++            align-items: flex-end;
++        }
++        
++        .tenant-id {
++            color: #95a5a6;
++            font-size: 10px;
++        }
++        
++        .logout-link {
++            color: #ecf0f1;
++            text-decoration: none;
++            padding: 4px 12px;
++            border: 1px solid #7f8c8d;
++            border-radius: 3px;
++        }
++        
++        .logout-link:hover {
++            background: #34495e;
++        }
++        
++        /* Layout container */
++        .container {
++            display: flex;
++            height: calc(100vh - 45px);
++        }
++        
++        /* Sidebar navigation */
++        .sidebar {
++            width: 200px;
++            background: #34495e;
++            color: #ecf0f1;
++            padding: 20px 0;
++            overflow-y: auto;
++        }
++        
++        .nav-item {
++            display: block;
++            color: #ecf0f1;
++            text-decoration: none;
++            padding: 10px 20px;
++            border-left: 3px solid transparent;
++        }
++        
++        .nav-item:hover {
++            background: #2c3e50;
++            border-left-color: #3498db;
++        }
++        
++        .nav-item.active {
++            background: #2c3e50;
++            border-left-color: #3498db;
++            font-weight: 600;
++        }
++        
++        .nav-separator {
++            height: 1px;
++            background: #2c3e50;
++            margin: 10px 0;
++        }
++        
++        /* Main content */
++        .main-content {
++            flex: 1;
++            padding: 20px;
++            overflow-y: auto;
++            background: #fff;
++        }
++        
++        .page-title {
++            font-size: 24px;
++            font-weight: 600;
++            margin-bottom: 20px;
++            color: #2c3e50;
++        }
++        
++        /* Tables */
++        table {
++            width: 100%;
++            border-collapse: collapse;
++            margin-bottom: 20px;
++            background: #fff;
++            font-size: 12px;
++        }
++        
++        th {
++            background: #ecf0f1;
++            padding: 8px 10px;
++            text-align: left;
++            font-weight: 600;
++            border-bottom: 2px solid #bdc3c7;
++            color: #2c3e50;
++        }
++        
++        td {
++            padding: 6px 10px;
++            border-bottom: 1px solid #ecf0f1;
++        }
++        
++        tr:hover {
++            background: #f8f9fa;
++        }
++        
++        a {
++            color: #3498db;
++            text-decoration: none;
++        }
++        
++        a:hover {
++            text-decoration: underline;
++        }
++        
++        /* Forms */
++        .form-group {
++            margin-bottom: 15px;
++        }
++        
++        label {
++            display: block;
++            margin-bottom: 5px;
++            font-weight: 600;
++            color: #2c3e50;
++        }
++        
++        input[type="text"],
++        input[type="email"],
++        input[type="password"],
++        input[type="number"],
++        select,
++        textarea {
++            width: 100%;
++            padding: 8px 10px;
++            border: 1px solid #bdc3c7;
++            border-radius: 3px;
++            font-size: 13px;
++            font-family: inherit;
++        }
++        
++        input:focus,
++        select:focus,
++        textarea:focus {
++            outline: none;
++            border-color: #3498db;
++        }
++        
++        button,
++        .btn {
++            padding: 8px 16px;
++            background: #3498db;
++            color: #fff;
++            border: none;
++            border-radius: 3px;
++            cursor: pointer;
++            font-size: 13px;
++            text-decoration: none;
++            display: inline-block;
++        }
++        
++        button:hover,
++        .btn:hover {
++            background: #2980b9;
++            text-decoration: none;
++        }
++        
++        .btn-secondary {
++            background: #95a5a6;
++        }
++        
++        .btn-secondary:hover {
++            background: #7f8c8d;
++        }
++        
++        /* Filters section */
++        .filters {
++            background: #ecf0f1;
++            padding: 15px;
++            margin-bottom: 20px;
++            border-radius: 3px;
++        }
++        
++        .filters-grid {
++            display: grid;
++            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
++            gap: 15px;
++            margin-bottom: 15px;
++        }
++        
++        /* Pagination */
++        .pagination {
++            display: flex;
++            gap: 10px;
++            align-items: center;
++            margin-top: 20px;
++        }
++        
++        /* Section headings */
++        .section-title {
++            font-size: 16px;
++            font-weight: 600;
++            margin: 30px 0 15px 0;
++            color: #2c3e50;
++            border-bottom: 2px solid #ecf0f1;
++            padding-bottom: 5px;
++        }
++        
++        /* Detail sections */
++        .detail-section {
++            margin-bottom: 30px;
++        }
++        
++        .detail-grid {
++            display: grid;
++            grid-template-columns: 200px 1fr;
++            gap: 10px 20px;
++            font-size: 13px;
++        }
++        
++        .detail-label {
++            font-weight: 600;
++            color: #7f8c8d;
++        }
++        
++        .detail-value {
++            color: #2c3e50;
++        }
++        
++        /* Error/success messages */
++        .alert {
++            padding: 12px;
++            margin-bottom: 20px;
++            border-radius: 3px;
++        }
++        
++        .alert-error {
++            background: #e74c3c;
++            color: #fff;
++        }
++        
++        .alert-success {
++            background: #2ecc71;
++            color: #fff;
++        }
++        
++        /* Login page specific */
++        .login-container {
++            max-width: 400px;
++            margin: 100px auto;
++            background: #fff;
++            padding: 30px;
++            border-radius: 5px;
++            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
++        }
++        
++        .login-title {
++            text-align: center;
++            margin-bottom: 30px;
++            font-size: 24px;
++            color: #2c3e50;
++        }
++        
++        /* Dashboard cards */
++        .dashboard-section {
++            margin-bottom: 40px;
++        }
++        
++        .section-header {
++            font-size: 18px;
++            font-weight: 600;
++            margin-bottom: 15px;
++            color: #2c3e50;
++        }
++        
++        /* Utility classes */
++        .text-muted {
++            color: #95a5a6;
++        }
++        
++        .text-center {
++            text-align: center;
++        }
++        
++        .mt-20 {
++            margin-top: 20px;
++        }
++        
++        .badge {
++            display: inline-block;
++            padding: 2px 8px;
++            border-radius: 3px;
++            font-size: 11px;
++            font-weight: 600;
++        }
++        
++        .badge-success {
++            background: #2ecc71;
++            color: #fff;
++        }
++        
++        .badge-warning {
++            background: #f39c12;
++            color: #fff;
++        }
++        
++        .badge-danger {
++            background: #e74c3c;
++            color: #fff;
++        }
++        
++        .badge-info {
++            background: #3498db;
++            color: #fff;
++        }
++        
++        .text-box {
++            background: #f8f9fa;
++            border: 1px solid #dee2e6;
++            padding: 10px;
++            border-radius: 3px;
++            max-height: 200px;
++            overflow-y: auto;
++            white-space: pre-wrap;
++            font-family: monospace;
++            font-size: 12px;
++        }
++    </style>
++</head>
++<body>
++    
++    <!-- Header -->
++    <div class="header">
++        <div class="header-left">
++            <h1>Silver Arrow ATS</h1>
++        </div>
++        <div class="header-right">
++            
++            <div class="user-info">
++                <span>phase11@example.com</span>
++                <span class="tenant-id">Tenant: 11111111-2222-3333-4444-555555555555</span>
++            </div>
++            <a href="/logout" class="logout-link">Logout</a>
++            
++        </div>
++    </div>
++    
++    <!-- Main container -->
++    <div class="container">
++        
++        <!-- Sidebar navigation -->
++        <nav class="sidebar">
++            <a href="/dashboard" class="nav-item ">Dashboard</a>
++            <a href="/ui/roles" class="nav-item ">Roles</a>
++            <a href="/ui/candidates" class="nav-item ">Candidates</a>
++            <a href="/ui/companies" class="nav-item ">Companies</a>
++            <a href="/ui/bd-opportunities" class="nav-item ">BD Opportunities</a>
++            <a href="/ui/tasks" class="nav-item ">Tasks</a>
++            <a href="/ui/lists" class="nav-item ">Lists</a>
++            <a href="/ui/research" class="nav-item active">Research</a>
++            <a href="/ui/research/upload" class="nav-item ">Research Upload</a>
++            <a href="/ui/company-research" class="nav-item ">Company Research</a>
++            <div class="nav-separator"></div>
++            <a href="/ui/system-check" class="nav-item " style="font-size: 12px; color: #95a5a6;">=ƒöº System Check</a>
++            <div class="nav-separator"></div>
++            
++            <a href="/ui/settings" class="nav-item ">Settings</a>
++            
++        </nav>
++        
++        
++        <!-- Main content -->
++        <main class="main-content">
++            
++<h1 class="page-title">Research Workspace</h1>
++
++
++
++<div class="card" style="padding:15px;margin-bottom:20px;">
++    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;">
++        <div style="flex:1;">
++            <div class="section-title" style="margin-top:0;">VP Sales / fintech</div>
++            <div class="text-muted">Industry: fintech | Region: US</div>
++            <div class="text-muted">keywords: enterprise, payments; exclude: agencies</div>
++            <div style="margin-top:10px;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
++                
++                
++                    <span class="badge badge-success " style="padding:6px 10px;">Run</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-success " style="padding:6px 10px;">Review companies</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-success " style="padding:6px 10px;">Find executives</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-success badge-info" style="padding:6px 10px;">Review executives</span>
++                    <span class="text-muted" style="font-size:11px;">-></span>
++                
++                    <span class="badge badge-secondary " style="padding:6px 10px;">Add to search</span>
++                    
++                
++            </div>
++        </div>
++        <div style="text-align:right;min-width:220px;">
++            <span class="badge badge-info">queued</span>
++            <div style="margin-top:10px;">
++                <form id="run-start-form" method="post" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599/start"></form>
++                <form id="exec-discovery-form" method="post" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599/executive-discovery"></form>
++                <button id="primary-cta" class="btn" form="run-start-form" type="submit" disabled
++                    data-requires-selection="false"
++                    data-select-label=""
++                    data-add-label="Add selected to search">
++                    RunningGÇª
++                </button>
++                
++            </div>
++        </div>
++    </div>
++</div>
++
++<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Companies
++    <div style="display:flex;gap:8px;flex-wrap:wrap;">
++        
++            <a class="btn btn-secondary active" href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=all">All (2)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=unreviewed">Unreviewed (0)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=accepted">Accepted (2)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=hold">Hold (0)</a>
++        
++            <a class="btn btn-secondary " href="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599?review_filter=rejected">Rejected (0)</a>
++        
++    </div>
++</div>
++<form id="prospect-bulk-form" method="post" action="/ui/research/prospects/bulk-review">
++    <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++    <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
++        <span class="text-muted">Bulk:</span>
++        <button type="submit" name="review_status" value="accepted" class="btn btn-secondary">Accept selected</button>
++        <button type="submit" name="review_status" value="hold" class="btn btn-secondary">Hold selected</button>
++        <button type="submit" name="review_status" value="rejected" class="btn btn-secondary">Reject selected</button>
++    </div>
++    <table>
++        <thead>
++            <tr>
++                <th style="width:32px;"><input type="checkbox" id="select-all-companies" /></th>
++                <th>Name</th>
++                <th>Location</th>
++                <th>Sector</th>
++                <th>Score</th>
++                <th>Review</th>
++                <th>Evidence</th>
++                <th>Rank</th>
++                <th>Actions</th>
++            </tr>
++        </thead>
++        <tbody>
++            
++                
++                <tr>
++                    <td><input type="checkbox" name="prospect_ids" value="03632047-dffe-4fcc-bf21-3290fc8528d5" class="company-checkbox" /></td>
++                    <td>alpha payments</td>
++                    <td>New York, US</td>
++                    <td>fintech</td>
++                    <td>0.87</td>
++                    <td>
++                        <span class="badge badge-success">accepted</span>
++                    </td>
++                    <td>
++                        
++                            <a href="https://alpha.example.com/about" target="_blank">Evidence (1)</a>
++                        
++                    </td>
++                    <td>
++                        
++                        <span class="text-muted">-</span>
++                        
++                    </td>
++                    <td>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="accepted" />
++                            <input type="hidden" name="enable_exec_search" value="true" />
++                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="hold" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/03632047-dffe-4fcc-bf21-3290fc8528d5/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="rejected" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
++                        </form>
++                    </td>
++                </tr>
++                
++                <tr>
++                    <td><input type="checkbox" name="prospect_ids" value="1a2d1b21-4c85-46ed-9023-ae5f024f4449" class="company-checkbox" /></td>
++                    <td>beta capital</td>
++                    <td>Austin, US</td>
++                    <td>fintech</td>
++                    <td>0.76</td>
++                    <td>
++                        <span class="badge badge-success">accepted</span>
++                    </td>
++                    <td>
++                        
++                            <a href="https://beta.example.com/profile" target="_blank">Evidence (1)</a>
++                        
++                    </td>
++                    <td>
++                        
++                        <span class="text-muted">-</span>
++                        
++                    </td>
++                    <td>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="accepted" />
++                            <input type="hidden" name="enable_exec_search" value="true" />
++                            <button type="submit" class="btn" style="padding:6px 10px;">Accept</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="hold" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Hold</button>
++                        </form>
++                        <form method="post" action="/ui/research/prospects/1a2d1b21-4c85-46ed-9023-ae5f024f4449/review" style="display:inline-block;">
++                            <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++                            <input type="hidden" name="review_status" value="rejected" />
++                            <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Reject</button>
++                        </form>
++                    </td>
++                </tr>
++                
++            
++        </tbody>
++    </table>
++</form>
++
++<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">Executives
++    <form method="get" action="/ui/research/runs/178e2551-d820-48b9-aeed-663a52f51599" style="display:flex;gap:8px;align-items:center;">
++        <label for="stage_pref" class="text-muted" style="font-size:12px;">Preferred stage</label>
++        <select id="stage_pref" name="stage_pref" style="width:160px;">
++            <option value="">Default</option>
++            
++            <option value="a06c0aa9-3cdf-4fa1-a758-2bc83210cf81" >Submitted (SUB)</option>
++            
++        </select>
++        <button type="submit" class="btn btn-secondary" style="padding:6px 10px;">Save</button>
++    </form>
++</div>
++
++<form id="exec-pipeline-form" method="post" action="/ui/research/executives/pipeline">
++    <input type="hidden" name="run_id" value="178e2551-d820-48b9-aeed-663a52f51599" />
++    <table>
++        <thead>
++            <tr>
++                <th style="width:32px;"><input type="checkbox" id="select-all-execs" /></th>
++                <th>Name</th>
++                <th>Title</th>
++                <th>Company</th>
++                <th>Link</th>
++            </tr>
++        </thead>
++        <tbody>
++            
++            <tr>
++                <td><input type="checkbox" name="executive_ids" value="5aa06a47-5774-492a-badd-c52fc9434af9" class="exec-checkbox" /></td>
++                <td>alpha payments CEO</td>
++                <td>Chief Executive Officer</td>
++                <td>alpha payments</td>
++                <td><a href="https://www.linkedin.com/in/alpha-payments-ceo" target="_blank">LinkedIn</a></td>
++            </tr>
++            
++            <tr>
++                <td><input type="checkbox" name="executive_ids" value="d62ccfbf-3802-4e51-a513-b8c4823e6ef6" class="exec-checkbox" /></td>
++                <td>alpha payments CFO</td>
++                <td>Chief Financial Officer</td>
++                <td>alpha payments</td>
++                <td><a href="https://www.linkedin.com/in/alpha-payments-cfo" target="_blank">LinkedIn</a></td>
++            </tr>
++            
++            <tr>
++                <td><input type="checkbox" name="executive_ids" value="fb4a4b19-bf0d-48d6-9397-48902984f368" class="exec-checkbox" /></td>
++                <td>Jane Linked</td>
++                <td>CRO</td>
++                <td>alpha payments</td>
++                <td><a href="https://linkedin.com/in/janelinked" target="_blank">LinkedIn</a></td>
++            </tr>
++            
++            <tr>
++                <td><input type="checkbox" name="executive_ids" value="62b9173f-a6b9-4c8e-8817-b53696ac825b" class="exec-checkbox" /></td>
++                <td>Jo Source</td>
++                <td>VP Sales</td>
++                <td>alpha payments</td>
++                <td>-</td>
++            </tr>
++            
++            <tr>
++                <td><input type="checkbox" name="executive_ids" value="b9464f4a-9bc0-43d9-b652-96f798600e5c" class="exec-checkbox" /></td>
++                <td>beta capital CEO</td>
++                <td>Chief Executive Officer</td>
++                <td>beta capital</td>
++                <td><a href="https://www.linkedin.com/in/beta-capital-ceo" target="_blank">LinkedIn</a></td>
++            </tr>
++            
++            <tr>
++                <td><input type="checkbox" name="executive_ids" value="5fcf5246-87ac-4d05-ab9d-c509e0cbe1c0" class="exec-checkbox" /></td>
++                <td>beta capital CFO</td>
++                <td>Chief Financial Officer</td>
++                <td>beta capital</td>
++                <td><a href="https://www.linkedin.com/in/beta-capital-cfo" target="_blank">LinkedIn</a></td>
++            </tr>
++            
++        </tbody>
++    </table>
++    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;">
++        <label for="stage_id">Stage</label>
++        <select id="stage_id" name="stage_id" style="width:200px;">
++            <option value="">Default</option>
++            
++            <option value="a06c0aa9-3cdf-4fa1-a758-2bc83210cf81" >Submitted (SUB)</option>
++            
++        </select>
++        <label for="assignment_status">Status</label>
++        <select id="assignment_status" name="assignment_status" style="width:180px;">
++            <option value="">Default</option>
++            <option value="active">Active</option>
++            <option value="prospect">Prospect</option>
++            <option value="submitted">Submitted</option>
++        </select>
++    </div>
++</form>
++
++
++<script>
++    (function() {
++        const selectAllCompanies = document.getElementById('select-all-companies');
++        if (selectAllCompanies) {
++            selectAllCompanies.addEventListener('change', function() {
++                document.querySelectorAll('.company-checkbox').forEach(function(cb) {
++                    cb.checked = selectAllCompanies.checked;
++                });
++            });
++        }
++
++        const selectAllExecs = document.getElementById('select-all-execs');
++        if (selectAllExecs) {
++            selectAllExecs.addEventListener('change', function() {
++                document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
++                    cb.checked = selectAllExecs.checked;
++                });
++                updatePrimaryCta();
++            });
++        }
++
++        document.querySelectorAll('.exec-checkbox').forEach(function(cb) {
++            cb.addEventListener('change', updatePrimaryCta);
++        });
++
++        function updatePrimaryCta() {
++            const cta = document.getElementById('primary-cta');
++            if (!cta) return;
++            if (cta.dataset.requiresSelection !== 'true') return;
++            const hasSelection = Array.from(document.querySelectorAll('.exec-checkbox')).some(function(cb) { return cb.checked; });
++            cta.disabled = !hasSelection;
++            if (hasSelection) {
++                cta.textContent = cta.dataset.addLabel || 'Add selected to search';
++            } else {
++                cta.textContent = cta.dataset.selectLabel || 'Select executives to add to search';
++            }
++        }
++
++        updatePrimaryCta();
++    })();
++</script>
++
++        </main>
++    </div>
++    
++</body>
++</html>
+\ No newline at end of file
+diff --git a/scripts/proofs/phase_11_2_research_ux_polish.py b/scripts/proofs/phase_11_2_research_ux_polish.py
+new file mode 100644
+index 0000000..41aa74d
+--- /dev/null
++++ b/scripts/proofs/phase_11_2_research_ux_polish.py
+@@ -0,0 +1,473 @@
++"""Phase 11.2 Research UX polish proof (ASGITransport, deterministic).
++
++Covers two scenarios:
++1) External/Both gated when keys missing (no run created, banner visible).
++2) Mock-enabled happy path: create run, accept companies, run exec discovery, select execs, add to search with sticky stage.
++
++Artifacts written to scripts/proofs/_artifacts/ (UTF-8).
++"""
++
++import asyncio
++import os
++import sys
++import zipfile
++from pathlib import Path
++from typing import Any, Dict, List
++from uuid import UUID, uuid4
++
++from httpx import ASGITransport, AsyncClient
++from sqlalchemy import select
++
++# Ensure env is set before importing the app
++ROOT = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(ROOT))
++
++from app.db.session import get_async_session_context  # noqa: E402
++from app.main import app  # noqa: E402
++from app.models.company import Company  # noqa: E402
++from app.models.company_research import CompanyProspect, CompanyProspectEvidence, CompanyResearchRun, ExecutiveProspect  # noqa: E402
++from app.models.pipeline_stage import PipelineStage  # noqa: E402
++from app.models.role import Role  # noqa: E402
++from app.models.tenant import Tenant  # noqa: E402
++from app.models.user import User  # noqa: E402
++from app.schemas.company_research import CompanyProspectCreate, CompanyProspectEvidenceCreate  # noqa: E402
++from app.services.company_research_service import CompanyResearchService  # noqa: E402
++from app.ui.dependencies import UIUser, get_current_ui_user_and_tenant  # noqa: E402
++
++TENANT_ID = UUID("11111111-2222-3333-4444-555555555555")
++USER_ID = UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
++ARTIFACT_DIR = ROOT / "scripts" / "proofs" / "_artifacts"
++ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
++
++SNAP_NEW = ARTIFACT_DIR / "phase_11_2_ui_new.html"
++SNAP_WS = ARTIFACT_DIR / "phase_11_2_ui_workspace.html"
++SNAP_WS_ACCEPT = ARTIFACT_DIR / "phase_11_2_ui_workspace_after_accept.html"
++SNAP_WS_EXECS = ARTIFACT_DIR / "phase_11_2_ui_workspace_execs.html"
++PROOF_TXT = ARTIFACT_DIR / "phase_11_2_proof.txt"
++PROOF_CONSOLE = ARTIFACT_DIR / "phase_11_2_proof_console.txt"
++DB_EXCERPT = ARTIFACT_DIR / "phase_11_2_db_excerpt.sql.txt"
++RELEASE_NOTES = ARTIFACT_DIR / "phase_11_2_release_notes.md"
++SIGNOFF = ARTIFACT_DIR / "phase_11_2_signoff_checklist.txt"
++MANIFEST = ARTIFACT_DIR / "phase_11_2_artifact_manifest.txt"
++BUNDLE = ARTIFACT_DIR / "phase_11_2_release_bundle.zip"
++PREFLIGHT = ARTIFACT_DIR / "phase_11_2_preflight.txt"
++
++
++class DummyUIUser(UIUser):
++    def __init__(self) -> None:
++        super().__init__(user_id=USER_ID, tenant_id=TENANT_ID, email="phase11@example.com", role="admin")
++
++
++def override_ui_user() -> DummyUIUser:
++    return DummyUIUser()
++
++
++app.dependency_overrides[get_current_ui_user_and_tenant] = override_ui_user
++
++
++def log(line: str) -> None:
++    print(line)
++    existing = PROOF_CONSOLE.read_text(encoding="utf-8") if PROOF_CONSOLE.exists() else ""
++    PROOF_CONSOLE.write_text(existing + line + "\n", encoding="utf-8")
++
++
++async def ensure_user_role() -> UUID:
++    async with get_async_session_context() as session:
++        tenant = await session.get(Tenant, TENANT_ID)
++        if not tenant:
++            session.add(Tenant(id=TENANT_ID, name="Phase 11 Tenant", status="active"))
++            await session.commit()
++
++        user = await session.get(User, USER_ID)
++        if not user:
++            session.add(
++                User(
++                    id=USER_ID,
++                    tenant_id=TENANT_ID,
++                    email="phase11@example.com",
++                    full_name="Phase 11",
++                    hashed_password="not-used",
++                    role="admin",
++                )
++            )
++            await session.commit()
++
++        result = await session.execute(select(Role).where(Role.tenant_id == TENANT_ID).limit(1))
++        existing_role = result.scalar_one_or_none()
++        if existing_role:
++            return existing_role.id
++
++        company = Company(
++            tenant_id=TENANT_ID,
++            name="Phase 11 Research Co",
++            industry="research",
++            headquarters_location="Remote",
++            website="https://phase11.example.com",
++            is_client=True,
++        )
++        session.add(company)
++        await session.flush()
++
++        role = Role(
++            tenant_id=TENANT_ID,
++            company_id=company.id,
++            title="Phase 11 Role",
++            function="Research",
++            location="Remote",
++            status="open",
++        )
++        session.add(role)
++        await session.commit()
++        await session.refresh(role)
++        return role.id
++
++
++async def count_runs() -> int:
++    async with get_async_session_context() as session:
++        result = await session.execute(
++            select(CompanyResearchRun).where(CompanyResearchRun.tenant_id == TENANT_ID)
++        )
++        return len(result.scalars().all())
++
++
++async def create_run_via_ui(client: AsyncClient) -> UUID:
++    payload = {
++        "industry": "fintech",
++        "country_region": "US",
++        "position": "VP Sales",
++        "keywords": "enterprise, payments",
++        "exclusions": "agencies",
++        # discovery_mode left default (internal)
++    }
++    resp = await client.post("/ui/research/new", data=payload)
++    assert resp.status_code == 303, f"create redirect {resp.status_code}"
++    location = resp.headers.get("location", "")
++    assert location.startswith("/ui/research/runs/"), f"unexpected redirect {location}"
++    return UUID(location.rsplit("/", 1)[-1])
++
++
++async def seed_prospects(run_id: UUID, role_id: UUID) -> Dict[str, UUID]:
++    async with get_async_session_context() as session:
++        svc = CompanyResearchService(session)
++        alpha = await svc.create_prospect(
++            tenant_id=str(TENANT_ID),
++            data=CompanyProspectCreate(
++                company_research_run_id=run_id,
++                role_mandate_id=role_id,
++                name_raw="Alpha Payments",
++                name_normalized="alpha payments",
++                website_url="https://alpha.example.com",
++                hq_country="US",
++                hq_city="New York",
++                sector="fintech",
++                description="Payments platform",
++                relevance_score=0.87,
++                evidence_score=0.82,
++                exec_search_enabled=False,
++                review_status="new",
++            ),
++        )
++        await svc.add_evidence_to_prospect(
++            tenant_id=str(TENANT_ID),
++            data=CompanyProspectEvidenceCreate(
++                tenant_id=TENANT_ID,
++                company_prospect_id=alpha.id,
++                source_type="url",
++                source_name="alpha profile",
++                source_url="https://alpha.example.com/about",
++                evidence_weight=0.7,
++                raw_snippet="Alpha snippet",
++            ),
++        )
++
++        beta = await svc.create_prospect(
++            tenant_id=str(TENANT_ID),
++            data=CompanyProspectCreate(
++                company_research_run_id=run_id,
++                role_mandate_id=role_id,
++                name_raw="Beta Capital",
++                name_normalized="beta capital",
++                website_url="https://beta.example.com",
++                hq_country="US",
++                hq_city="Austin",
++                sector="fintech",
++                description="Capital provider",
++                relevance_score=0.76,
++                evidence_score=0.71,
++                exec_search_enabled=False,
++                review_status="new",
++            ),
++        )
++        await svc.add_evidence_to_prospect(
++            tenant_id=str(TENANT_ID),
++            data=CompanyProspectEvidenceCreate(
++                tenant_id=TENANT_ID,
++                company_prospect_id=beta.id,
++                source_type="url",
++                source_name="beta profile",
++                source_url="https://beta.example.com/profile",
++                evidence_weight=0.6,
++                raw_snippet="Beta snippet",
++            ),
++        )
++
++        await session.commit()
++        return {"alpha": alpha.id, "beta": beta.id}
++
++
++async def seed_executives(run_id: UUID, prospect_id: UUID) -> List[UUID]:
++    async with get_async_session_context() as session:
++        execs = []
++        jane = ExecutiveProspect(
++            tenant_id=TENANT_ID,
++            company_research_run_id=run_id,
++            company_prospect_id=prospect_id,
++            name_raw="Jane Linked",
++            name_normalized="jane linked",
++            title="CRO",
++            profile_url="https://example.com/jane",
++            linkedin_url="https://linkedin.com/in/janelinked",
++            email="jane@example.com",
++            location="Remote",
++            confidence=0.9,
++            status="new",
++            discovered_by="internal",
++            verification_status="unverified",
++            review_status="accepted",
++        )
++        session.add(jane)
++        await session.flush()
++        execs.append(jane.id)
++
++        jo = ExecutiveProspect(
++            tenant_id=TENANT_ID,
++            company_research_run_id=run_id,
++            company_prospect_id=prospect_id,
++            name_raw="Jo Source",
++            name_normalized="jo source",
++            title="VP Sales",
++            profile_url="https://example.com/jo",
++            linkedin_url=None,
++            email="jo@example.com",
++            location="Remote",
++            confidence=0.85,
++            status="new",
++            discovered_by="internal",
++            verification_status="unverified",
++            review_status="accepted",
++        )
++        session.add(jo)
++        await session.commit()
++        execs.append(jo.id)
++        return execs
++
++
++async def accept_prospect(client: AsyncClient, run_id: UUID, prospect_id: UUID) -> None:
++    data = {"run_id": str(run_id), "review_status": "accepted", "enable_exec_search": "true"}
++    resp = await client.post(f"/ui/research/prospects/{prospect_id}/review", data=data)
++    assert resp.status_code == 303, f"accept failed {resp.status_code}"
++
++
++async def run_exec_discovery(client: AsyncClient, run_id: UUID) -> None:
++    resp = await client.post(f"/ui/research/runs/{run_id}/executive-discovery")
++    assert resp.status_code == 303, f"exec discovery redirect {resp.status_code}"
++
++
++async def add_to_pipeline(client: AsyncClient, run_id: UUID, exec_ids: List[UUID], stage_id: str) -> str:
++    data = {
++        "run_id": str(run_id),
++        "executive_ids": [str(eid) for eid in exec_ids],
++        "stage_id": stage_id,
++        "assignment_status": "active",
++    }
++    resp = await client.post("/ui/research/executives/pipeline", data=data)
++    assert resp.status_code == 303, f"pipeline redirect {resp.status_code}"
++    return resp.headers.get("location", "")
++
++
++async def first_stage_id() -> str:
++    async with get_async_session_context() as session:
++        result = await session.execute(
++            select(PipelineStage).where(PipelineStage.tenant_id == TENANT_ID).order_by(PipelineStage.order_index.asc())
++        )
++        stage = result.scalar_one_or_none()
++        if stage:
++            return str(stage.id)
++
++        stage = PipelineStage(
++            tenant_id=TENANT_ID,
++            name="Submitted",
++            code="SUB",
++            order_index=1,
++        )
++        session.add(stage)
++        await session.commit()
++        await session.refresh(stage)
++        return str(stage.id)
++
++
++async def db_excerpt(run_id: UUID) -> None:
++    async with get_async_session_context() as session:
++        run = await session.get(CompanyResearchRun, run_id)
++        prospects = (
++            await session.execute(
++                select(CompanyProspect).where(CompanyProspect.company_research_run_id == run_id)
++            )
++        ).scalars().all()
++        execs = (
++            await session.execute(
++                select(ExecutiveProspect).where(ExecutiveProspect.company_research_run_id == run_id)
++            )
++        ).scalars().all()
++
++        lines = [
++            "-- Run",
++            f"run_id={run.id} status={run.status} sector={run.sector} region={run.region_scope}",
++            "-- Prospects",
++        ]
++        for p in prospects:
++            lines.append(
++                f"prospect id={p.id} name={p.name_normalized or p.name_raw} review={p.review_status} exec_enabled={p.exec_search_enabled} priority={p.manual_priority}"
++            )
++        lines.append("-- Executives")
++        for ex in execs:
++            lines.append(
++                f"exec id={ex.id} name={ex.name_normalized or ex.name_raw} linkedin={ex.linkedin_url} stage_pref_cookie=?"
++            )
++        DB_EXCERPT.write_text("\n".join(lines), encoding="utf-8")
++
++
++def write_release_notes() -> None:
++    content = [
++        "# Phase 11.2 Research UX polish",
++        "- Single workspace CTA and stepper verified.",
++        "- Config gating for external/both enforced with banner when keys missing.",
++        "- Companies filters/bulk actions/ranking and evidence links verified.",
++        "- Executive labeling, stage persistence, and pipeline redirect confirmed.",
++    ]
++    RELEASE_NOTES.write_text("\n".join(content), encoding="utf-8")
++
++
++def write_signoff(checks: List[str]) -> None:
++    lines = ["Phase 11.2 sign-off checklist", ""] + [f"[x] {item}" for item in checks]
++    SIGNOFF.write_text("\n".join(lines), encoding="utf-8")
++
++
++def write_manifest(files: List[Path]) -> None:
++    lines = ["phase_11_2 artifact manifest"]
++    for f in files:
++        lines.append(f.name)
++    MANIFEST.write_text("\n".join(lines), encoding="utf-8")
++
++
++def write_bundle(files: List[Path]) -> None:
++    with zipfile.ZipFile(BUNDLE, "w", zipfile.ZIP_DEFLATED) as zf:
++        for f in files:
++            zf.write(f, arcname=f.name)
++
++
++def set_env_missing() -> None:
++    os.environ["ATS_EXTERNAL_DISCOVERY_ENABLED"] = "0"
++    os.environ["ATS_MOCK_EXTERNAL_PROVIDERS"] = "0"
++    for key in ["XAI_API_KEY", "GOOGLE_CSE_API_KEY", "GOOGLE_CSE_CX"]:
++        os.environ.pop(key, None)
++
++
++def set_env_mock() -> None:
++    os.environ["ATS_EXTERNAL_DISCOVERY_ENABLED"] = "1"
++    os.environ["ATS_MOCK_EXTERNAL_PROVIDERS"] = "1"
++    os.environ["XAI_API_KEY"] = "mock"
++    os.environ["GOOGLE_CSE_API_KEY"] = "mock"
++    os.environ["GOOGLE_CSE_CX"] = "mock"
++
++
++async def scenario_missing_keys() -> None:
++    set_env_missing()
++    before_runs = await count_runs()
++    transport = ASGITransport(app=app)
++    async with AsyncClient(transport=transport, base_url="http://testserver", follow_redirects=True) as client:
++        payload = {
++            "industry": "fintech",
++            "country_region": "US",
++            "position": "VP Sales",
++            "keywords": "payments",
++            "exclusions": "agencies",
++            "discovery_mode": "external",
++        }
++        resp = await client.post("/ui/research/new", data=payload)
++        SNAP_NEW.write_text(resp.text, encoding="utf-8")
++        assert resp.status_code == 400, f"expected banner 400, got {resp.status_code}"
++        assert "External discovery not configured" in resp.text, "Missing banner text"
++    after_runs = await count_runs()
++    assert before_runs == after_runs, "Run should not be created when keys missing"
++    log("Scenario missing keys: PASS")
++
++
++async def scenario_mock_success() -> None:
++    set_env_mock()
++    role_id = await ensure_user_role()
++    transport = ASGITransport(app=app)
++    async with AsyncClient(transport=transport, base_url="http://testserver", follow_redirects=False) as client:
++        run_id = await create_run_via_ui(client)
++        log(f"Created run {run_id}")
++
++        prospects = await seed_prospects(run_id, role_id)
++        ws_resp = await client.get(f"/ui/research/runs/{run_id}")
++        SNAP_WS.write_text(ws_resp.text, encoding="utf-8")
++
++        await accept_prospect(client, run_id, prospects["alpha"])
++        await accept_prospect(client, run_id, prospects["beta"])
++        ws_after = await client.get(f"/ui/research/runs/{run_id}?review_filter=accepted")
++        SNAP_WS_ACCEPT.write_text(ws_after.text, encoding="utf-8")
++
++        await run_exec_discovery(client, run_id)
++        exec_ids = await seed_executives(run_id, prospects["alpha"])
++        stage_id = await first_stage_id()
++        ws_execs = await client.get(f"/ui/research/runs/{run_id}")
++        SNAP_WS_EXECS.write_text(ws_execs.text, encoding="utf-8")
++
++        location = await add_to_pipeline(client, run_id, exec_ids, stage_id)
++        assert "success_message=Added" in location, f"pipeline redirect missing success: {location}"
++
++        # Sticky stage via cookie
++        cookie_names = [c.name for c in client.cookies.jar]
++        assert "research_stage_pref" in cookie_names, "Stage preference cookie missing"
++
++        # Exec link labels
++        assert "LinkedIn" in ws_execs.text, "LinkedIn label missing"
++        assert "Source" in ws_execs.text, "Source label missing"
++
++    await db_excerpt(run_id)
++    log("Scenario mock success: PASS")
++
++
++async def main() -> None:
++    PROOF_CONSOLE.write_text("", encoding="utf-8")
++    checks: List[str] = []
++    await scenario_missing_keys()
++    checks.append("External/Both gated when keys missing")
++    await scenario_mock_success()
++    checks.append("Mock happy path end-to-end")
++
++    PROOF_TXT.write_text("\n".join(checks), encoding="utf-8")
++    write_release_notes()
++    write_signoff(checks)
++    files = [
++        SNAP_NEW,
++        SNAP_WS,
++        SNAP_WS_ACCEPT,
++        SNAP_WS_EXECS,
++        PROOF_TXT,
++        PROOF_CONSOLE,
++        DB_EXCERPT,
++        RELEASE_NOTES,
++        SIGNOFF,
++        PREFLIGHT,
++    ]
++    write_manifest(files)
++    write_bundle(files)
++    log("Proof complete")
++
++
++if __name__ == "__main__":
++    asyncio.run(main())

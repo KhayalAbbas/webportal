@@ -12,4 +12,9 @@ phase_11_2_preflight.txt
 phase_11_2_git_status_before_commit.txt
 phase_11_2_git_diff_stat.txt
 phase_11_2_git_log_before_commit.txt
+phase_11_2_commit.txt
+phase_11_2_tag.txt
+phase_11_2_push.txt
+phase_11_2_git_after.txt
+phase_11_2_master_ahead_behind.txt
 phase_11_2_release_bundle.zip
