@@ -4,7 +4,10 @@ Main FastAPI application.
 This is the entry point for the API server.
 """
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
@@ -119,6 +122,10 @@ app.include_router(ui_ai_proposal.router)
 app.include_router(system_check.router)
 app.include_router(stubs.router)
 
+# Static files (e.g. logo)
+static_dir = Path(__file__).resolve().parent / "static"
+if static_dir.is_dir():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Root endpoint
 @app.get("/")

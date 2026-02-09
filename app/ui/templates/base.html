@@ -75,6 +75,19 @@
             box-shadow: var(--shadow-md);
         }
 
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-left .logo {
+            height: 40px;
+            width: auto;
+            display: block;
+            object-fit: contain;
+        }
+
         .header-left h1 {
             font-size: 1.4rem;
             font-weight: 700;
@@ -687,6 +700,7 @@
     {% block body %}
     <div class="header">
         <div class="header-left">
+            <img src="/static/img/tpg_logo.jpg" alt="The Phillips Group" class="logo" />
             <h1>The Phillips Group</h1>
         </div>
         <div class="header-right">
