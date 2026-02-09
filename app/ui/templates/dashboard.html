@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Silver Arrow ATS{% endblock %}
+{% block title %}Dashboard - The Phillips Group{% endblock %}
 
 {% block content %}
 <h1 class="page-title">Dashboard</h1>
 
 <!-- My Active Roles -->
-<div class="dashboard-section">
-    <h2 class="section-header">My Active Roles</h2>
+<div class="dashboard-section card">
+    <h2 class="card-title">My Active Roles</h2>
+    <div class="table-wrap">
     <table>
         <thead>
             <tr>
@@ -25,12 +26,12 @@
                     <td><a href="/ui/roles/{{ role.id }}">{{ role.title }}</a></td>
                     <td>{{ role.company_name or '-' }}</td>
                     <td>
-                        {% if role.status == 'OPEN' %}
+                        {% if role.status and role.status|upper == 'OPEN' %}
                             <span class="badge badge-success">{{ role.status }}</span>
-                        {% elif role.status == 'ON_HOLD' %}
+                        {% elif role.status and role.status|upper == 'ON_HOLD' %}
                             <span class="badge badge-warning">{{ role.status }}</span>
                         {% else %}
-                            <span class="badge badge-info">{{ role.status }}</span>
+                            <span class="badge badge-info">{{ role.status or '-' }}</span>
                         {% endif %}
                     </td>
                     <td>{{ role.candidate_count or 0 }}</td>
@@ -44,11 +45,13 @@
             {% endif %}
         </tbody>
     </table>
+    </div>
 </div>
 
 <!-- Candidates Requiring Action -->
-<div class="dashboard-section">
-    <h2 class="section-header">Candidates Requiring Action</h2>
+<div class="dashboard-section card">
+    <h2 class="card-title">Candidates Requiring Action</h2>
+    <div class="table-wrap">
     <table>
         <thead>
             <tr>
@@ -65,14 +68,14 @@
                     <td><a href="/ui/candidates/{{ item.candidate_id }}">{{ item.candidate_name }}</a></td>
                     <td><a href="/ui/roles/{{ item.role_id }}">{{ item.role_title }}</a></td>
                     <td>
-                        {% if item.status == 'OFFER' %}
+                        {% if item.status and item.status|upper == 'OFFER' %}
                             <span class="badge badge-success">{{ item.status }}</span>
-                        {% elif item.status == 'SHORT_LIST' %}
+                        {% elif item.status and item.status|upper == 'SHORT_LIST' %}
                             <span class="badge badge-warning">{{ item.status }}</span>
-                        {% elif item.status == 'LONG_LIST' %}
+                        {% elif item.status and item.status|upper == 'LONG_LIST' %}
                             <span class="badge badge-info">{{ item.status }}</span>
                         {% else %}
-                            <span class="badge">{{ item.status or 'UNKNOWN' }}</span>
+                            <span class="badge badge-info">{{ item.status or 'Active' }}</span>
                         {% endif %}
                         {% if item.is_hot %}🔥{% endif %}
                     </td>
@@ -86,11 +89,13 @@
             {% endif %}
         </tbody>
     </table>
+    </div>
 </div>
 
 <!-- My Tasks -->
-<div class="dashboard-section">
-    <h2 class="section-header">My Tasks</h2>
+<div class="dashboard-section card">
+    <h2 class="card-title">My Tasks</h2>
+    <div class="table-wrap">
     <table>
         <thead>
             <tr>
@@ -114,12 +119,12 @@
                     </td>
                     <td>{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '-' }}</td>
                     <td>
-                        {% if task.status == 'COMPLETED' %}
+                        {% if task.status and task.status|upper == 'COMPLETED' %}
                             <span class="badge badge-success">{{ task.status }}</span>
-                        {% elif task.status == 'IN_PROGRESS' %}
+                        {% elif task.status and task.status|upper == 'IN_PROGRESS' %}
                             <span class="badge badge-info">{{ task.status }}</span>
                         {% else %}
-                            <span class="badge">{{ task.status or 'PENDING' }}</span>
+                            <span class="badge badge-warning">{{ task.status or 'Pending' }}</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -131,11 +136,13 @@
             {% endif %}
         </tbody>
     </table>
+    </div>
 </div>
 
 <!-- BD Snapshot -->
-<div class="dashboard-section">
-    <h2 class="section-header">BD Snapshot</h2>
+<div class="dashboard-section card">
+    <h2 class="card-title">BD Snapshot</h2>
+    <div class="table-wrap">
     <table>
         <thead>
             <tr>
@@ -164,5 +171,6 @@
             {% endif %}
         </tbody>
     </table>
+    </div>
 </div>
 {% endblock %}
