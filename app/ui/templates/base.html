@@ -9,43 +9,43 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            /* The Phillips Group – gold & dark neutral palette (tpgleadership.com) */
-            --color-primary: #B8860B;
-            --color-primary-hover: #996F00;
-            --color-primary-light: #F5E6C8;
-            --color-primary-glow: rgba(184, 134, 11, 0.2);
-            --color-gold: #D4AF37;
-            --color-gold-light: #F0E6D0;
-            --color-accent: #C9A227;
-            --color-accent-soft: #FFF8E7;
+            --color-primary: #059669;
+            --color-primary-hover: #047857;
+            --color-primary-light: #d1fae5;
+            --color-primary-glow: rgba(5, 150, 105, 0.25);
+            --color-accent: #7c3aed;
+            --color-accent-soft: #ede9fe;
+            --color-cyan: #0891b2;
+            --color-cyan-soft: #cffafe;
             --color-surface: #ffffff;
-            --color-bg: #FFFAF0;
-            --color-bg-alt: #FFF8E7;
-            --color-bg-card: #FFFBF5;
-            --color-sidebar: #1a1612;
-            --color-sidebar-hover: #2C2416;
-            --color-sidebar-active: #3d3525;
+            --color-bg: #f0fdf4;
+            --color-bg-alt: #ecfdf5;
+            --color-bg-card: #fafafa;
+            --color-sidebar: #0c4a6e;
+            --color-sidebar-hover: #075985;
+            --color-sidebar-active: #0e7490;
             --color-sidebar-border: rgba(255,255,255,0.08);
-            --color-text: #2C2416;
-            --color-text-muted: #5c5244;
-            --color-text-inverse: #FFFAF0;
-            --color-border: #E8D5A3;
-            --color-border-muted: #F0E6D0;
-            --color-success: #2d5016;
-            --color-success-soft: #e8f0e0;
-            --color-warning: #b45309;
+            --color-text: #134e4a;
+            --color-text-muted: #52796f;
+            --color-text-inverse: #f0fdfa;
+            --color-border: #a7f3d0;
+            --color-border-muted: #d1fae5;
+            --color-success: #059669;
+            --color-success-soft: #d1fae5;
+            --color-warning: #d97706;
             --color-warning-soft: #fef3c7;
-            --color-danger: #b91c1c;
+            --color-danger: #dc2626;
             --color-danger-soft: #fee2e2;
-            --color-info: #075985;
+            --color-info: #0284c7;
             --color-info-soft: #e0f2fe;
+            --color-violet: #6d28d9;
             --radius-sm: 10px;
             --radius-md: 14px;
             --radius-lg: 18px;
             --radius-xl: 24px;
-            --shadow-sm: 0 1px 3px rgba(184, 134, 11, 0.08);
-            --shadow-md: 0 4px 12px rgba(44, 36, 22, 0.08), 0 2px 6px rgba(0,0,0,0.04);
-            --shadow-lg: 0 12px 28px rgba(44, 36, 22, 0.1), 0 4px 12px rgba(0,0,0,0.05);
+            --shadow-sm: 0 1px 3px rgba(5, 150, 105, 0.06);
+            --shadow-md: 0 4px 12px rgba(5, 150, 105, 0.08), 0 2px 6px rgba(0,0,0,0.04);
+            --shadow-lg: 0 12px 28px rgba(5, 150, 105, 0.1), 0 4px 12px rgba(0,0,0,0.05);
             --shadow-glow: 0 0 20px var(--color-primary-glow);
         }
 
@@ -66,7 +66,7 @@
 
         /* Header */
         .header {
-            background: linear-gradient(120deg, #1a1612 0%, #2C2416 40%, #B8860B 100%);
+            background: linear-gradient(120deg, #059669 0%, #047857 35%, #0c4a6e 100%);
             color: var(--color-text-inverse);
             padding: 16px 28px;
             display: flex;
@@ -100,7 +100,7 @@
         }
 
         .tenant-id {
-            color: rgba(255, 250, 240, 0.8);
+            color: rgba(240, 253, 250, 0.8);
             font-size: 11px;
             margin-top: 2px;
         }
@@ -130,7 +130,7 @@
         /* Sidebar */
         .sidebar {
             width: 240px;
-            background: linear-gradient(180deg, var(--color-sidebar) 0%, #2C2416 100%);
+            background: linear-gradient(180deg, var(--color-sidebar) 0%, #083344 100%);
             color: var(--color-text-inverse);
             padding: 20px 0;
             overflow-y: auto;
@@ -140,7 +140,7 @@
 
         .nav-item {
             display: block;
-            color: rgba(255, 250, 240, 0.92);
+            color: rgba(240, 253, 250, 0.92);
             text-decoration: none;
             padding: 11px 20px;
             margin: 3px 14px;
@@ -154,16 +154,16 @@
         .nav-item:hover {
             background: var(--color-sidebar-hover);
             color: #fff;
-            border-left-color: var(--color-gold);
+            border-left-color: var(--color-cyan);
             padding-left: 24px;
         }
 
         .nav-item.active {
             background: linear-gradient(90deg, var(--color-sidebar-active) 0%, transparent 100%);
             color: #fff;
-            border-left-color: var(--color-gold);
+            border-left-color: #22d3ee;
             font-weight: 600;
-            box-shadow: inset 0 0 20px rgba(212, 175, 55, 0.2);
+            box-shadow: inset 0 0 20px rgba(34, 211, 238, 0.15);
         }
 
         .nav-separator {
@@ -327,14 +327,14 @@
             text-decoration: none;
             display: inline-block;
             transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(184, 134, 11, 0.35);
+            box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
         }
 
         button:hover,
         .btn:hover {
-            background: linear-gradient(180deg, var(--color-primary-hover) 0%, #7a5700 100%);
+            background: linear-gradient(180deg, var(--color-primary-hover) 0%, #065f46 100%);
             text-decoration: none;
-            box-shadow: 0 4px 14px rgba(184, 134, 11, 0.35);
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.4);
             transform: translateY(-1px);
         }
 
@@ -349,7 +349,7 @@
         }
 
         .btn-primary:hover {
-            background: linear-gradient(180deg, var(--color-primary-hover) 0%, #7a5700 100%);
+            background: linear-gradient(180deg, var(--color-primary-hover) 0%, #065f46 100%);
         }
 
         .btn-secondary {
@@ -434,8 +434,8 @@
 
         .alert-success {
             background: var(--color-success-soft);
-            color: #166534;
-            border: 2px solid #bbf7d0;
+            color: #065f46;
+            border: 2px solid #a7f3d0;
         }
 
         /* Login page */
@@ -444,7 +444,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(145deg, #1a1612 0%, #2C2416 40%, #5c5244 70%, #B8860B 100%);
+            background: linear-gradient(145deg, #064e3b 0%, #0c4a6e 40%, #134e4a 70%, #065f46 100%);
             padding: 24px;
             position: relative;
             overflow: hidden;
@@ -457,8 +457,8 @@
             left: -50%;
             width: 200%;
             height: 200%;
-            background: radial-gradient(circle at 30% 20%, rgba(184, 134, 11, 0.15) 0%, transparent 50%),
-                        radial-gradient(circle at 70% 80%, rgba(44, 36, 22, 0.4) 0%, transparent 50%);
+            background: radial-gradient(circle at 30% 20%, rgba(5, 150, 105, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 80%, rgba(12, 74, 110, 0.2) 0%, transparent 50%);
             pointer-events: none;
         }
 
@@ -479,7 +479,7 @@
             margin-bottom: 8px;
             font-size: 1.85rem;
             font-weight: 800;
-            background: linear-gradient(135deg, #D4AF37 0%, #B8860B 50%, #996F00 100%);
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-info) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -511,8 +511,8 @@
 
         .badge-success {
             background: var(--color-success-soft);
-            color: #166534;
-            border: 1px solid #bbf7d0;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
         }
 
         .badge-warning {
@@ -599,7 +599,7 @@
             padding: 6px 12px;
             border: none;
             background: transparent;
-            color: rgba(255, 250, 240, 0.9);
+            color: rgba(240, 253, 250, 0.9);
             cursor: pointer;
             font-size: 12px;
             font-weight: 600;
@@ -631,7 +631,7 @@
             --color-success-soft: #064e3b;
             --color-warning-soft: #422006;
             --color-danger-soft: #450a0a;
-            --color-info-soft: #1e3a5f;
+            --color-info-soft: #0c4a6e;
             --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
             --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
             --shadow-lg: 0 12px 28px rgba(0,0,0,0.5);
@@ -662,7 +662,7 @@
         }
 
         body.dark-mode .card-title {
-            background: linear-gradient(90deg, #3d3525 0%, transparent 100%);
+            background: linear-gradient(90deg, #064e3b 0%, transparent 100%);
             border-bottom-color: var(--color-border);
         }
 
@@ -672,11 +672,11 @@
         }
 
         body.dark-mode .login-wrapper {
-            background: linear-gradient(145deg, #0a0a0a 0%, #1a1612 50%, #2C2416 100%);
+            background: linear-gradient(145deg, #020617 0%, #0f172a 50%, #134e4a 100%);
         }
 
         body.dark-mode .login-title {
-            background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%);
+            background: linear-gradient(135deg, #34d399 0%, #22d3ee 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
