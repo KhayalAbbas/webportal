@@ -7,9 +7,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db
+from app.models.tenant import Tenant
 from app.services.auth_service import AuthService
 from app.ui.session import session_manager
 from app.ui.dependencies import get_optional_ui_user
@@ -22,23 +24,34 @@ templates = Jinja2Templates(directory="app/ui/templates")
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(
     request: Request,
-    current_user = Depends(get_optional_ui_user)
+    current_user=Depends(get_optional_ui_user),
+    session: AsyncSession = Depends(get_db),
 ):
     """
     Display login form.
-    
+
     If user is already logged in, redirect to dashboard.
+    Pre-fills Tenant ID with the first tenant so users don't have to look it up.
     """
     if current_user:
         return RedirectResponse(url="/dashboard", status_code=303)
-    
+
+    # Pre-fill tenant ID with first tenant (e.g. after seed); order so it's deterministic
+    default_tenant_id = None
+    result = await session.execute(
+        select(Tenant).order_by(Tenant.created_at.asc()).limit(1)
+    )
+    first_tenant = result.scalar_one_or_none()
+    if first_tenant:
+        default_tenant_id = str(first_tenant.id)
+
     return templates.TemplateResponse(
         "login.html",
         {
             "request": request,
             "error": None,
             "email": None,
-            "tenant_id": None,
+            "tenant_id": default_tenant_id,
         }
     )
 
@@ -56,6 +69,11 @@ async def login_submit(
     
     Validates credentials and creates session cookie on success.
     """
+    # Strip whitespace (e.g. copy-paste) so login doesn't fail
+    email = (email or "").strip()
+    password = (password or "").strip()
+    tenant_id = (tenant_id or "").strip()
+
     try:
         tenant_uuid = UUID(tenant_id)
     except ValueError:
@@ -68,7 +86,7 @@ async def login_submit(
                 "tenant_id": tenant_id,
             }
         )
-    
+
     # Authenticate user
     auth_service = AuthService(session)
     user = await auth_service.authenticate_user(

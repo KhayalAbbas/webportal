@@ -5,7 +5,7 @@ User repository - database operations for User.
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -27,11 +27,14 @@ class UserRepository:
         return result.scalar_one_or_none()
     
     async def get_by_email(self, tenant_id: UUID, email: str) -> Optional[User]:
-        """Get a user by email within a tenant."""
+        """Get a user by email within a tenant (case-insensitive email)."""
+        if not email or not email.strip():
+            return None
+        email_clean = email.strip().lower()
         result = await self.db.execute(
             select(User).where(
                 User.tenant_id == tenant_id,
-                User.email == email
+                func.lower(User.email) == email_clean
             )
         )
         return result.scalar_one_or_none()

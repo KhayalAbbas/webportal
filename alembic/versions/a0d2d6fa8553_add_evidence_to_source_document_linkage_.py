@@ -70,13 +70,12 @@ def upgrade() -> None:
                     'company_prospect_evidence', ['source_content_hash'])
     
     # Step 5: Add uniqueness constraint to prevent duplicate evidence entries
-    # Since we found duplicates are valid (multiple snippets per source per prospect),
-    # we'll use a combination that includes raw_snippet to ensure uniqueness
+    # Use columns that exist: source_type, source_name (raw_snippet was dropped in 7a65eac76b2b)
     print("Adding uniqueness constraint for evidence deduplication...")
     op.create_unique_constraint(
         'uq_company_prospect_evidence_dedup',
         'company_prospect_evidence',
-        ['tenant_id', 'company_prospect_id', 'source_document_id', 'raw_snippet']
+        ['tenant_id', 'company_prospect_id', 'source_document_id', 'source_type', 'source_name']
     )
     
     print("Migration completed successfully!")

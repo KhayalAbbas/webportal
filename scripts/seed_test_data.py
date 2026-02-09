@@ -37,9 +37,9 @@ async def seed_test_data():
             db.add(tenant)
             await db.flush()
             await db.refresh(tenant)
-            print(f"✓ Created tenant: {tenant.name} (ID: {tenant.id})")
+            print(f"[OK] Created tenant: {tenant.name} (ID: {tenant.id})")
         else:
-            print(f"✓ Found existing tenant: {tenant.name} (ID: {tenant.id})")
+            print(f"[OK] Found existing tenant: {tenant.name} (ID: {tenant.id})")
         
         # Check if admin user exists
         user_repo = UserRepository(db)
@@ -55,9 +55,9 @@ async def seed_test_data():
                 role="admin"
             )
             admin = await user_repo.create(admin_data)
-            print(f"✓ Created admin user: {admin.email}")
+            print(f"[OK] Created admin user: {admin.email}")
         else:
-            print(f"✓ Found existing admin: {admin.email}")
+            print(f"[OK] Found existing admin: {admin.email}")
         
         # Create additional test users
         test_users = [
@@ -88,9 +88,9 @@ async def seed_test_data():
                     tenant_id=tenant.id,
                     **user_data
                 ))
-                print(f"✓ Created {user.role} user: {user.email}")
+                print(f"[OK] Created {user.role} user: {user.email}")
             else:
-                print(f"✓ Found existing {existing.role} user: {existing.email}")
+                print(f"[OK] Found existing {existing.role} user: {existing.email}")
         
         await db.commit()
         
@@ -109,4 +109,4 @@ async def seed_test_data():
 if __name__ == "__main__":
     print("Seeding test data...\n")
     asyncio.run(seed_test_data())
-    print("\n✓ Done!")
+    print("\n[OK] Done!")
