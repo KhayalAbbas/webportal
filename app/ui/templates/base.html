@@ -431,6 +431,47 @@
             color: var(--color-text);
         }
 
+        /* Candidate detail: horizontal layout, less scrolling */
+        .candidate-detail-page {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+        @media (max-width: 1100px) {
+            .candidate-detail-page { grid-template-columns: 1fr; }
+        }
+        .candidate-detail-page .detail-section {
+            margin-bottom: 20px;
+        }
+        .candidate-detail-page .detail-grid {
+            grid-template-columns: 120px 1fr 120px 1fr 120px 1fr;
+            gap: 6px 12px;
+            font-size: 13px;
+        }
+        .candidate-detail-section {
+            background: var(--color-bg-card);
+            border: 1px solid var(--color-border-muted);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .candidate-detail-section h3 {
+            font-size: 13px;
+            font-weight: 700;
+            margin: 0 0 10px 0;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--color-border-muted);
+            color: var(--color-text-muted);
+        }
+        .candidate-detail-page .table-wrap {
+            max-height: 220px;
+            overflow: auto;
+        }
+        .candidate-detail-page .text-box {
+            max-height: 160px;
+        }
+
         /* Alerts */
         .alert {
             padding: 16px 20px;

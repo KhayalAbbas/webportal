@@ -18,19 +18,21 @@
     </div>
 </div>
 
-<div style="margin-bottom: 20px; color: #7f8c8d;">
+<div style="margin-bottom: 16px; color: var(--color-text-muted); font-size: 14px;">
     <strong>{{ candidate.current_title or 'No Title' }}</strong>
-    {% if candidate.current_company %}at {{ candidate.current_company }}{% endif %}
-    <br>
+    {% if candidate.current_company %} at {{ candidate.current_company }}{% endif %}
+    {% if candidate.location or candidate.home_country %} · {% endif %}
     {% if candidate.location %}{{ candidate.location }}{% endif %}
-    {% if candidate.location and candidate.home_country %} • {% endif %}
+    {% if candidate.location and candidate.home_country %} · {% endif %}
     {% if candidate.home_country %}{{ candidate.home_country }}{% endif %}
 </div>
 
-<!-- Profile Section -->
+<div class="candidate-detail-page">
+<!-- Left column: Profile -->
+<div class="candidate-detail-left">
 <h2 class="section-title">Profile</h2>
-<div class="detail-section">
-    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 10px;">Contact</h3>
+<div class="detail-section candidate-detail-section">
+    <h3>Contact</h3>
     <form method="post" action="/ui/candidates/{{ candidate.id }}/enrich-contacts" style="margin-bottom: 10px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
         <div style="display: flex; gap: 8px; align-items: center;">
             <label style="margin: 0; display: flex; align-items: center; gap: 4px;"><input type="checkbox" name="providers" value="lusha" checked> Lusha</label>
@@ -58,7 +60,8 @@
         <div class="detail-value">{{ candidate.mobile_2 or '-' }}</div>
     </div>
 
-    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Contact Points (enriched)</h3>
+    <h3>Contact Points (enriched)</h3>
+    <div class="table-wrap">
     <table>
         <thead>
             <tr>
@@ -89,8 +92,9 @@
             {% endif %}
         </tbody>
     </table>
+    </div>
     
-    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Personal</h3>
+    <h3>Personal</h3>
     <div class="detail-grid">
         <div class="detail-label">Home Country</div>
         <div class="detail-value">{{ candidate.home_country or '-' }}</div>
@@ -111,7 +115,7 @@
         <div class="detail-value">{{ candidate.date_of_birth.strftime('%Y-%m-%d') if candidate.date_of_birth else '-' }}</div>
     </div>
     
-    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Career / Education</h3>
+    <h3>Career / Education</h3>
     <div class="detail-grid">
         <div class="detail-label">Current Title</div>
         <div class="detail-value">{{ candidate.current_title or '-' }}</div>
@@ -144,7 +148,7 @@
         <div class="detail-value">{{ candidate.salary_details or '-' }}</div>
     </div>
     
-    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Scores</h3>
+    <h3>Scores</h3>
     <div class="detail-grid">
         <div class="detail-label">Promotability Score</div>
         <div class="detail-value">{{ candidate.promotability_score if candidate.promotability_score is not none else '-' }}</div>
@@ -156,23 +160,27 @@
         <div class="detail-value">{{ candidate.gamification_score if candidate.gamification_score is not none else '-' }}</div>
     </div>
     
-    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Bio</h3>
+    <h3>Bio</h3>
     {% if candidate.bio %}
     <div class="text-box">{{ candidate.bio }}</div>
     {% else %}
     <p class="text-muted">No bio available</p>
     {% endif %}
     
-    <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">CV / Resume</h3>
+    <h3>CV / Resume</h3>
     {% if candidate.cv_text %}
-    <div class="text-box" style="max-height: 300px;">{{ candidate.cv_text }}</div>
+    <div class="text-box">{{ candidate.cv_text }}</div>
     {% else %}
     <p class="text-muted">No CV text available</p>
     {% endif %}
 </div>
+</div>
 
-<!-- Assignments Section -->
+<!-- Right column: Assignments + Research -->
+<div class="candidate-detail-right">
 <h2 class="section-title">Assignments</h2>
+<div class="candidate-detail-section">
+<div class="table-wrap">
 <table>
     <thead>
         <tr>
@@ -211,11 +219,13 @@
         {% endif %}
     </tbody>
 </table>
+</div>
+</div>
 
-<!-- Research Section -->
 <h2 class="section-title">Research</h2>
-
-<h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Research Events</h3>
+<div class="candidate-detail-section">
+<h3>Research Events</h3>
+<div class="table-wrap">
 <table>
     <thead>
         <tr>
@@ -248,8 +258,9 @@
         {% endif %}
     </tbody>
 </table>
-
-<h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Source Documents</h3>
+</div>
+<h3>Source Documents</h3>
+<div class="table-wrap">
 <table>
     <thead>
         <tr>
@@ -282,8 +293,9 @@
         {% endif %}
     </tbody>
 </table>
-
-<h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">AI Enrichments</h3>
+</div>
+<h3>AI Enrichments</h3>
+<div class="table-wrap">
 <table>
     <thead>
         <tr>
@@ -310,4 +322,8 @@
         {% endif %}
     </tbody>
 </table>
+</div>
+</div>
+</div>
+</div>
 {% endblock %}
