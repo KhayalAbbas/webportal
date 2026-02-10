@@ -62,6 +62,7 @@
             color: var(--color-text);
             background: var(--color-bg);
             min-height: 100vh;
+            position: relative;
         }
 
         /* Header */
@@ -82,10 +83,11 @@
         }
 
         .header-left .logo {
-            height: 40px;
+            height: 48px;
             width: auto;
             display: block;
             object-fit: contain;
+            object-position: center;
         }
 
         .header-left h1 {
@@ -528,6 +530,14 @@
             z-index: 1;
         }
 
+        .login-logo {
+            display: block;
+            margin: 0 auto 16px auto;
+            height: 88px;
+            width: auto;
+            object-fit: contain;
+        }
+
         .login-title {
             text-align: center;
             margin-bottom: 8px;
@@ -735,13 +745,14 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
+
     </style>
 </head>
 <body>
     {% block body %}
     <div class="header">
         <div class="header-left">
-            <img src="/static/img/tpg_logo.jpg" alt="The Phillips Group" class="logo" />
+            <img src="/static/img/tpg_lion.jpg" alt="The Phillips Group" class="logo" />
             <h1>The Phillips Group</h1>
         </div>
         <div class="header-right">
